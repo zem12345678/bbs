@@ -158,6 +158,7 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	userID, followerID, followeeID := base, base+1, base+2
 	userIDs := []int64{userID, followerID, followeeID}
 	defer func() {
+		_ = db.Exec("DELETE FROM user_follow_requests WHERE requester_id IN ? OR target_id IN ?", userIDs, userIDs).Error
 		_ = db.Exec("DELETE FROM user_account_actions WHERE target_user_id IN ?", userIDs).Error
 		_ = db.Exec("DELETE FROM user_account_jobs WHERE user_id IN ?", userIDs).Error
 		_ = db.Exec("DELETE FROM users WHERE id IN ?", userIDs).Error
@@ -177,6 +178,13 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	}
 	if err := db.Create(&[]followPO{{FollowerID: userID, FolloweeID: followeeID, CreatedAt: now}, {FollowerID: followerID, FolloweeID: userID, CreatedAt: now}}).Error; err != nil {
 		t.Fatalf("create follows: %v", err)
+	}
+	if err := db.Create(&[]followRequestPO{
+		{ID: base + 10, RequesterID: userID, TargetID: followerID, CreatedAt: now},
+		{ID: base + 11, RequesterID: followeeID, TargetID: userID, CreatedAt: now},
+		{ID: base + 12, RequesterID: followerID, TargetID: followeeID, CreatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create follow requests: %v", err)
 	}
 	if err := db.Create(&oauthAccountPO{Provider: "worker-test", ProviderUserID: fmt.Sprint(base), UserID: userID, Username: "private", Email: "private@example.com", Nickname: "Private", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
 		t.Fatalf("create oauth account: %v", err)
@@ -288,12 +296,14 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	if err := repo.MarkAccountDeletionOutboxPublished(ctx, outboxEvents[0].EventID, "integration-outbox-retry", now.Add(20*time.Second)); err != nil {
 		t.Fatalf("mark account deletion outbox published: %v", err)
 	}
-	for _, model := range []any{&oauthAccountPO{}, &passwordResetTokenPO{}, &emailVerificationTokenPO{}, &followPO{}, &userListMembershipPO{}, &userListFavoritePO{}} {
+	for _, model := range []any{&oauthAccountPO{}, &passwordResetTokenPO{}, &emailVerificationTokenPO{}, &followPO{}, &followRequestPO{}, &userListMembershipPO{}, &userListFavoritePO{}} {
 		var count int64
 		query := db.Model(model)
 		switch model.(type) {
 		case *followPO:
 			query = query.Where("follower_id = ? OR followee_id = ?", userID, userID)
+		case *followRequestPO:
+			query = query.Where("requester_id = ? OR target_id = ?", userID, userID)
 		case *userListMembershipPO, *userListFavoritePO:
 			query = query.Where("user_id = ?", userID)
 		default:
@@ -302,6 +312,12 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 		if err := query.Count(&count).Error; err != nil || count != 0 {
 			t.Fatalf("cleanup %T count=%d error=%v", model, count, err)
 		}
+	}
+	var unrelatedRequestCount int64
+	if err := db.Model(&followRequestPO{}).
+		Where("requester_id = ? AND target_id = ?", followerID, followeeID).
+		Count(&unrelatedRequestCount).Error; err != nil || unrelatedRequestCount != 1 {
+		t.Fatalf("unrelated follow request count=%d error=%v", unrelatedRequestCount, err)
 	}
 	var ownedListCount int64
 	if err := db.Model(&userListPO{}).Where("owner_id = ?", userID).Count(&ownedListCount).Error; err != nil || ownedListCount != 0 {

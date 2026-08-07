@@ -781,9 +781,13 @@ function InteractionsPanel({ auth }) {
   const navigate = useNavigate();
   const [mode, setMode] = React.useState("likes");
   const [state, setState] = React.useState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
+  const [requestState, setRequestState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const interactionSessionRef = React.useRef(0);
   const interactionTokenRef = React.useRef(auth.accessToken);
   interactionTokenRef.current = auth.accessToken;
+  const receivedRequests = mode === "follow-received";
+  const sentRequests = mode === "follow-sent";
+  const followRequestMode = receivedRequests || sentRequests;
 
   function isCurrentInteractionSessionRequest(requestToken, session) {
     return session === interactionSessionRef.current && requestToken === interactionTokenRef.current;
@@ -795,6 +799,11 @@ function InteractionsPanel({ auth }) {
     const interactionSession = interactionSessionRef.current;
     const isCurrentRequest = () => alive && isCurrentInteractionSessionRequest(requestToken, interactionSession);
     if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
+    if (followRequestMode) {
       return () => {
         alive = false;
       };
@@ -845,14 +854,76 @@ function InteractionsPanel({ auth }) {
     };
   }, [auth, mode]);
 
+  const loadFollowRequests = React.useCallback((offset = 0, appending = false) => {
+    let alive = true;
+    const requestToken = auth.accessToken;
+    const interactionSession = interactionSessionRef.current;
+    const isCurrentRequest = () => alive && isCurrentInteractionSessionRequest(requestToken, interactionSession);
+    if (!requestToken || !followRequestMode || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
+    setRequestState((current) => ({ ...current, loading: appending ? current.loading : true, loadingMore: appending, error: "" }));
+    const loader = receivedRequests ? bbsApi.receivedFollowRequests : bbsApi.sentFollowRequests;
+    const page = Math.floor(offset / DASHBOARD_HISTORY_PAGE_SIZE) + 1;
+    loader({ page, page_size: DASHBOARD_HISTORY_PAGE_SIZE }, requestToken)
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        const pageItems = listItems(data);
+        if (appending) {
+          setRequestState((current) => {
+            const items = appendUniqueFollowRequests(current.items, pageItems);
+            const total = Math.max(listTotal(data, pageItems), items.length);
+            return {
+              ...current,
+              items,
+              total,
+              offset: pageItems.length > 0 ? offset + pageItems.length : total,
+              loadingMore: false,
+              error: ""
+            };
+          });
+          return;
+        }
+        setRequestState({
+          items: pageItems,
+          total: Math.max(listTotal(data, pageItems), pageItems.length),
+          offset: pageItems.length,
+          loading: false,
+          loadingMore: false,
+          error: "",
+          action: ""
+        });
+      })
+      .catch((error) => {
+        if (!isCurrentRequest()) return;
+        if (appending) {
+          setRequestState((current) => ({ ...current, loadingMore: false, error: error.message || "更多关注申请加载失败" }));
+          return;
+        }
+        setRequestState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: error.message || "关注申请加载失败", action: "" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, followRequestMode, receivedRequests]);
+
   React.useLayoutEffect(() => {
     interactionSessionRef.current += 1;
     setState((current) => ({ ...current, action: "", error: "" }));
-  }, [auth.accessToken]);
+    setRequestState((current) => ({ ...current, action: "", error: "" }));
+  }, [auth.accessToken, mode]);
 
   React.useEffect(loadInteractions, [loadInteractions]);
+  React.useEffect(loadFollowRequests, [loadFollowRequests]);
 
   function loadMoreInteractions() {
+    if (followRequestMode) {
+      if (requestState.loading || requestState.loadingMore || requestState.offset >= requestState.total) return;
+      loadFollowRequests(requestState.offset, true);
+      return;
+    }
     if (state.loading || state.loadingMore || state.offset >= state.total) return;
     loadInteractions(state.offset, true);
   }
@@ -879,21 +950,70 @@ function InteractionsPanel({ auth }) {
     }
   }
 
+  async function runFollowRequestAction(item, action) {
+    const counterpartId = toId(receivedRequests ? item?.requester_id : item?.target_id);
+    if (!counterpartId) return;
+    const requestToken = auth.accessToken;
+    const interactionSession = interactionSessionRef.current;
+    const isCurrentRequest = () => isCurrentInteractionSessionRequest(requestToken, interactionSession);
+    if (!requestToken || !isCurrentRequest()) return;
+    setRequestState((current) => ({ ...current, action: `${action}-${counterpartId}`, error: "" }));
+    try {
+      if (action === "accept") {
+        await bbsApi.acceptFollowRequest(counterpartId, requestToken);
+      } else if (action === "reject") {
+        await bbsApi.rejectFollowRequest(counterpartId, requestToken);
+      } else {
+        await bbsApi.cancelFollowRequest(counterpartId, requestToken);
+      }
+      if (!isCurrentRequest()) return;
+      loadFollowRequests();
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setRequestState((current) => ({ ...current, action: "", error: error.message || "关注申请操作失败" }));
+    }
+  }
+
+  const activeState = followRequestMode ? requestState : state;
+
   return (
     <>
       <ModerationSection
-        actionError={state.error}
-        emptyText={`暂无${mode === "likes" ? "点赞" : "收藏"}记录`}
+        actionError={activeState.error}
+        emptyText={followRequestMode ? `暂无${receivedRequests ? "收到" : "发出"}的关注申请` : `暂无${mode === "likes" ? "点赞" : "收藏"}记录`}
         filters={[
           { value: "likes", label: "点赞" },
-          { value: "favorites", label: "收藏" }
+          { value: "favorites", label: "收藏" },
+          { value: "follow-received", label: "收到的关注申请" },
+          { value: "follow-sent", label: "发出的关注申请" }
         ]}
-        loading={state.loading}
+        loading={activeState.loading}
         status={mode}
-        total={state.total}
+        total={activeState.total}
         onStatusChange={setMode}
       >
-        {state.rows.map((post) => (
+        {followRequestMode ? requestState.items.map((item) => {
+          const counterpart = item?.counterpart || {};
+          const counterpartId = toId(receivedRequests ? item?.requester_id : item?.target_id);
+          const username = counterpart?.username || counterpartId;
+          return (
+            <WorkspaceRow
+              key={toId(item?.id) || `${mode}-${counterpartId}`}
+              title={userDisplayName(counterpart)}
+              description={counterpart?.bio || `@${username}`}
+              meta={`@${username} · ${timeAgoMillis(item?.created_at)}`}
+              status={receivedRequests ? "等待我处理" : "等待对方确认"}
+              actions={receivedRequests ? (
+                <>
+                  <button type="button" disabled={Boolean(requestState.action)} onClick={() => runFollowRequestAction(item, "accept")}>接受</button>
+                  <button type="button" disabled={Boolean(requestState.action)} onClick={() => runFollowRequestAction(item, "reject")}>拒绝</button>
+                </>
+              ) : (
+                <button type="button" disabled={Boolean(requestState.action)} onClick={() => runFollowRequestAction(item, "cancel")}>取消申请</button>
+              )}
+            />
+          );
+        }) : state.rows.map((post) => (
           <WorkspaceRow
             key={`${post.kind}-${post.id}`}
             title={post.title}
@@ -914,11 +1034,11 @@ function InteractionsPanel({ auth }) {
           />
         ))}
       </ModerationSection>
-      {!state.loading && state.offset < state.total && (
+      {!activeState.loading && activeState.offset < activeState.total && (
         <div className="dashboard-history-more">
-          <span>{state.loadingMore ? "正在加载更多互动记录..." : "继续查看更早的互动记录。"}</span>
-          <button type="button" disabled={state.loadingMore} onClick={loadMoreInteractions}>
-            {state.loadingMore ? "加载中" : "加载更多"}
+          <span>{activeState.loadingMore ? "正在加载更多互动记录..." : "继续查看更早的互动记录。"}</span>
+          <button type="button" disabled={activeState.loadingMore} onClick={loadMoreInteractions}>
+            {activeState.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>
       )}
@@ -2869,6 +2989,12 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
   const [themeAccess, setThemeAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [membershipAccess, setMembershipAccess] = React.useState({ loading: false, error: "", resolved: false, available: false });
   const [verification, setVerification] = React.useState({ loading: false, error: "", message: "", verifyUrl: "" });
+  const [followApproval, setFollowApproval] = React.useState({
+    required: Boolean(auth.user?.follow_approval_required ?? auth.user?.followApprovalRequired),
+    loading: false,
+    error: "",
+    message: ""
+  });
   const profileSessionRef = React.useRef(0);
   const profileTokenRef = React.useRef(auth.accessToken);
   profileTokenRef.current = auth.accessToken;
@@ -2907,6 +3033,12 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     setThemeAccess({ loading: false, error: "", resolved: false, available: false });
     setMembershipAccess({ loading: false, error: "", resolved: false, available: false });
     setVerification({ loading: false, error: "", message: "", verifyUrl: "" });
+    setFollowApproval({
+      required: Boolean(auth.user?.follow_approval_required ?? auth.user?.followApprovalRequired),
+      loading: false,
+      error: "",
+      message: ""
+    });
   }, [auth.accessToken]);
 
   React.useEffect(() => {
@@ -3105,6 +3237,32 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
     }
   }
 
+  async function toggleFollowApproval() {
+    const requestToken = auth.accessToken;
+    const profileSession = profileSessionRef.current;
+    const isCurrentRequest = () => isCurrentProfileSessionRequest(requestToken, profileSession);
+    if (!requestToken || !isCurrentRequest()) return;
+    const required = !followApproval.required;
+    setFollowApproval((current) => ({ ...current, loading: true, error: "", message: "" }));
+    try {
+      await bbsApi.setFollowApprovalRequired(required, requestToken);
+      if (!isCurrentRequest()) return;
+      setFollowApproval({
+        required,
+        loading: false,
+        error: "",
+        message: required ? "私密账号已开启，新的关注需要你确认。" : "私密账号已关闭，新的关注会直接生效。"
+      });
+      onAuthUserUpdate?.({
+        ...auth.user,
+        follow_approval_required: required
+      });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setFollowApproval((current) => ({ ...current, loading: false, error: error.message || "私密账号设置失败", message: "" }));
+    }
+  }
+
   return (
     <>
     <section className="account-security panel">
@@ -3176,6 +3334,16 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
         </label>
         <div className="email-verify-box">
           <div>
+            <UserRound size={18} aria-hidden="true" />
+            <span>私密账号</span>
+            <strong>{followApproval.required ? "已开启" : "未开启"}</strong>
+          </div>
+          <button type="button" disabled={followApproval.loading} onClick={toggleFollowApproval}>
+            {followApproval.loading ? "保存中..." : followApproval.required ? "关闭" : "开启"}
+          </button>
+        </div>
+        <div className="email-verify-box">
+          <div>
             <MailCheck size={18} aria-hidden="true" />
             <span>{auth.user?.email || "未绑定邮箱"}</span>
             <strong>{verified ? "已验证" : "未验证"}</strong>
@@ -3192,6 +3360,8 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
         {backgroundUpload.message && <p className="form-success">{backgroundUpload.message}</p>}
         {verification.error && <p className="form-error">{verification.error}</p>}
         {verification.message && <p className="form-success">{verification.message}</p>}
+        {followApproval.error && <p className="form-error">{followApproval.error}</p>}
+        {followApproval.message && <p className="form-success">{followApproval.message}</p>}
         {verification.verifyUrl && (
           <a className="route-link-button" href={verification.verifyUrl}>
             本地继续验证
@@ -3264,6 +3434,19 @@ function appendUniqueInteractionPosts(currentRows, pageRows) {
       const key = interactionPostKey(post);
       if (!key || knownPostKeys.has(key)) return false;
       knownPostKeys.add(key);
+      return true;
+    })
+  ];
+}
+
+function appendUniqueFollowRequests(currentItems, pageItems) {
+  const knownRequestIds = new Set(currentItems.map((item) => toId(item?.id)).filter(Boolean));
+  return [
+    ...currentItems,
+    ...pageItems.filter((item) => {
+      const id = toId(item?.id);
+      if (!id || knownRequestIds.has(id)) return false;
+      knownRequestIds.add(id);
       return true;
     })
   ];

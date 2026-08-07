@@ -57,6 +57,16 @@ test("userToPerson preserves supported profile themes", () => {
   assert.equal(profileThemeClass(person.profileTheme), "profile-theme-pro");
 });
 
+test("userToPerson preserves private account approval state", () => {
+  const person = userToPerson({
+    id: 42,
+    username: "alice",
+    follow_approval_required: true
+  });
+
+  assert.equal(person.followApprovalRequired, true);
+});
+
 test("authToPerson hides cached protected profile appearance until gateway verification", () => {
   const auth = {
     user: {

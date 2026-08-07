@@ -65,6 +65,38 @@ test("keeps int64 mall ids quoted in mutation payloads", async () => {
   assert.equal(JSON.parse(requests[1].options.body).order_id, "339000000000000012");
 });
 
+test("calls the follow approval workflow endpoints with authentication", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [], total: 0 }
+    });
+  };
+
+  await bbsApi.receivedFollowRequests({ page: 2, page_size: 10 }, "access-token");
+  await bbsApi.sentFollowRequests({}, "access-token");
+  await bbsApi.acceptFollowRequest("9223372036854775807", "access-token");
+  await bbsApi.rejectFollowRequest("9223372036854775806", "access-token");
+  await bbsApi.cancelFollowRequest("9223372036854775805", "access-token");
+  await bbsApi.setFollowApprovalRequired(true, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/follow-requests?page=2&page_size=10");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/users/me/follow-requests/sent?page=1&page_size=20");
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/users/me/follow-requests/9223372036854775807/accept");
+  assert.equal(requests[2].options.method, "POST");
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/users/me/follow-requests/9223372036854775806/reject");
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/users/9223372036854775805/follow/cancel");
+  assert.equal(requests[5].url, "http://127.0.0.1:18080/api/v1/users/me/settings/follow-approval");
+  assert.equal(requests[5].options.method, "PUT");
+  assert.deepEqual(JSON.parse(requests[5].options.body), { required: true });
+  requests.forEach(({ options }) => assert.equal(options.headers.Authorization, "Bearer access-token"));
+});
+
 test("submits topic poll ballots with authentication", async () => {
   let captured;
   globalThis.fetch = async (url, options) => {

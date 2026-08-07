@@ -39,11 +39,17 @@ type UserClient interface {
 	ResetPassword(context.Context, *userpb.ResetPasswordRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 	RequestEmailVerification(context.Context, *userpb.EmailVerificationRequest, ...grpc.CallOption) (*userpb.EmailVerificationResponse, error)
 	VerifyEmail(context.Context, *userpb.VerifyEmailRequest, ...grpc.CallOption) (*userpb.UserResponse, error)
-	Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.FollowResponse, error)
 	Unfollow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 	IsFollowing(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.IsFollowingResponse, error)
 	ListFollowers(context.Context, *userpb.ListFollowsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
 	ListFollowing(context.Context, *userpb.ListFollowsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error)
+	ListReceivedFollowRequests(context.Context, *userpb.ListFollowRequestsRequest, ...grpc.CallOption) (*userpb.FollowRequestListResponse, error)
+	ListSentFollowRequests(context.Context, *userpb.ListFollowRequestsRequest, ...grpc.CallOption) (*userpb.FollowRequestListResponse, error)
+	AcceptFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	RejectFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	CancelFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	SetFollowApprovalRequired(context.Context, *userpb.SetFollowApprovalRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 }
 
 type UserSafetyClient interface {

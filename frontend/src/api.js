@@ -353,11 +353,29 @@ export const bbsApi = {
   followUser(userId, token) {
     return request(`/users/${userId}/follow`, { method: "POST", token });
   },
+  cancelFollowRequest(userId, token) {
+    return request(`/users/${userId}/follow/cancel`, { method: "POST", token });
+  },
   unfollowUser(userId, token) {
     return request(`/users/${userId}/follow`, { method: "DELETE", token });
   },
   followingState(userId, token) {
     return request(`/users/${userId}/following-state`, { token });
+  },
+  receivedFollowRequests(params = {}, token) {
+    return request(`/users/me/follow-requests${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  sentFollowRequests(params = {}, token) {
+    return request(`/users/me/follow-requests/sent${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
+  },
+  acceptFollowRequest(requesterId, token) {
+    return request(`/users/me/follow-requests/${encodeURIComponent(requesterId)}/accept`, { method: "POST", token });
+  },
+  rejectFollowRequest(requesterId, token) {
+    return request(`/users/me/follow-requests/${encodeURIComponent(requesterId)}/reject`, { method: "POST", token });
+  },
+  setFollowApprovalRequired(required, token) {
+    return request("/users/me/settings/follow-approval", { method: "PUT", body: { required: Boolean(required) }, token });
   },
   userSafetyState(userId, token) {
     return request(`/users/${userId}/safety-state`, { token });

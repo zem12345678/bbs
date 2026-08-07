@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/user.proto
+// source: user.proto
 
 package userpb
 
@@ -53,6 +53,12 @@ const (
 	UserService_GetAccountLifecycle_FullMethodName              = "/bbs.user.v1.UserService/GetAccountLifecycle"
 	UserService_RequestAccountDeletion_FullMethodName           = "/bbs.user.v1.UserService/RequestAccountDeletion"
 	UserService_Follow_FullMethodName                           = "/bbs.user.v1.UserService/Follow"
+	UserService_ListReceivedFollowRequests_FullMethodName       = "/bbs.user.v1.UserService/ListReceivedFollowRequests"
+	UserService_ListSentFollowRequests_FullMethodName           = "/bbs.user.v1.UserService/ListSentFollowRequests"
+	UserService_AcceptFollowRequest_FullMethodName              = "/bbs.user.v1.UserService/AcceptFollowRequest"
+	UserService_RejectFollowRequest_FullMethodName              = "/bbs.user.v1.UserService/RejectFollowRequest"
+	UserService_CancelFollowRequest_FullMethodName              = "/bbs.user.v1.UserService/CancelFollowRequest"
+	UserService_SetFollowApprovalRequired_FullMethodName        = "/bbs.user.v1.UserService/SetFollowApprovalRequired"
 	UserService_Unfollow_FullMethodName                         = "/bbs.user.v1.UserService/Unfollow"
 	UserService_IsFollowing_FullMethodName                      = "/bbs.user.v1.UserService/IsFollowing"
 	UserService_ListFollowers_FullMethodName                    = "/bbs.user.v1.UserService/ListFollowers"
@@ -124,7 +130,13 @@ type UserServiceClient interface {
 	CompletePasswordlessPasskeyLogin(ctx context.Context, in *CompletePasskeyLoginRequest, opts ...grpc.CallOption) (*AuthResponse, error)
 	GetAccountLifecycle(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
 	RequestAccountDeletion(ctx context.Context, in *RequestAccountDeletionRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
-	Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*FollowResponse, error)
+	ListReceivedFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
+	ListSentFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
+	AcceptFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	RejectFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	CancelFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	SetFollowApprovalRequired(ctx context.Context, in *SetFollowApprovalRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	Unfollow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	IsFollowing(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*IsFollowingResponse, error)
 	ListFollowers(ctx context.Context, in *ListFollowsRequest, opts ...grpc.CallOption) (*UserListResponse, error)
@@ -495,10 +507,70 @@ func (c *userServiceClient) RequestAccountDeletion(ctx context.Context, in *Requ
 	return out, nil
 }
 
-func (c *userServiceClient) Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+func (c *userServiceClient) Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*FollowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowResponse)
+	err := c.cc.Invoke(ctx, UserService_Follow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListReceivedFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowRequestListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListReceivedFollowRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListSentFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowRequestListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListSentFollowRequests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) AcceptFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SimpleResponse)
-	err := c.cc.Invoke(ctx, UserService_Follow_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, UserService_AcceptFollowRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RejectFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_RejectFollowRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) CancelFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_CancelFollowRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SetFollowApprovalRequired(ctx context.Context, in *SetFollowApprovalRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_SetFollowApprovalRequired_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -844,7 +916,13 @@ type UserServiceServer interface {
 	CompletePasswordlessPasskeyLogin(context.Context, *CompletePasskeyLoginRequest) (*AuthResponse, error)
 	GetAccountLifecycle(context.Context, *UserIDRequest) (*AccountLifecycleResponse, error)
 	RequestAccountDeletion(context.Context, *RequestAccountDeletionRequest) (*AccountLifecycleResponse, error)
-	Follow(context.Context, *FollowRequest) (*SimpleResponse, error)
+	Follow(context.Context, *FollowRequest) (*FollowResponse, error)
+	ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
+	ListSentFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
+	AcceptFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error)
+	RejectFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error)
+	CancelFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error)
+	SetFollowApprovalRequired(context.Context, *SetFollowApprovalRequest) (*SimpleResponse, error)
 	Unfollow(context.Context, *FollowRequest) (*SimpleResponse, error)
 	IsFollowing(context.Context, *FollowRequest) (*IsFollowingResponse, error)
 	ListFollowers(context.Context, *ListFollowsRequest) (*UserListResponse, error)
@@ -984,8 +1062,26 @@ func (UnimplementedUserServiceServer) GetAccountLifecycle(context.Context, *User
 func (UnimplementedUserServiceServer) RequestAccountDeletion(context.Context, *RequestAccountDeletionRequest) (*AccountLifecycleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequestAccountDeletion not implemented")
 }
-func (UnimplementedUserServiceServer) Follow(context.Context, *FollowRequest) (*SimpleResponse, error) {
+func (UnimplementedUserServiceServer) Follow(context.Context, *FollowRequest) (*FollowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Follow not implemented")
+}
+func (UnimplementedUserServiceServer) ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReceivedFollowRequests not implemented")
+}
+func (UnimplementedUserServiceServer) ListSentFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSentFollowRequests not implemented")
+}
+func (UnimplementedUserServiceServer) AcceptFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptFollowRequest not implemented")
+}
+func (UnimplementedUserServiceServer) RejectFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectFollowRequest not implemented")
+}
+func (UnimplementedUserServiceServer) CancelFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelFollowRequest not implemented")
+}
+func (UnimplementedUserServiceServer) SetFollowApprovalRequired(context.Context, *SetFollowApprovalRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetFollowApprovalRequired not implemented")
 }
 func (UnimplementedUserServiceServer) Unfollow(context.Context, *FollowRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unfollow not implemented")
@@ -1710,6 +1806,114 @@ func _UserService_Follow_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_ListReceivedFollowRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListReceivedFollowRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListReceivedFollowRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListReceivedFollowRequests(ctx, req.(*ListFollowRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListSentFollowRequests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowRequestsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListSentFollowRequests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListSentFollowRequests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListSentFollowRequests(ctx, req.(*ListFollowRequestsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_AcceptFollowRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FollowRequestActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).AcceptFollowRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_AcceptFollowRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).AcceptFollowRequest(ctx, req.(*FollowRequestActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RejectFollowRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FollowRequestActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RejectFollowRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RejectFollowRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RejectFollowRequest(ctx, req.(*FollowRequestActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_CancelFollowRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FollowRequestActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CancelFollowRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CancelFollowRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CancelFollowRequest(ctx, req.(*FollowRequestActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SetFollowApprovalRequired_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetFollowApprovalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SetFollowApprovalRequired(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SetFollowApprovalRequired_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SetFollowApprovalRequired(ctx, req.(*SetFollowApprovalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_Unfollow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FollowRequest)
 	if err := dec(in); err != nil {
@@ -2394,6 +2598,30 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserService_Follow_Handler,
 		},
 		{
+			MethodName: "ListReceivedFollowRequests",
+			Handler:    _UserService_ListReceivedFollowRequests_Handler,
+		},
+		{
+			MethodName: "ListSentFollowRequests",
+			Handler:    _UserService_ListSentFollowRequests_Handler,
+		},
+		{
+			MethodName: "AcceptFollowRequest",
+			Handler:    _UserService_AcceptFollowRequest_Handler,
+		},
+		{
+			MethodName: "RejectFollowRequest",
+			Handler:    _UserService_RejectFollowRequest_Handler,
+		},
+		{
+			MethodName: "CancelFollowRequest",
+			Handler:    _UserService_CancelFollowRequest_Handler,
+		},
+		{
+			MethodName: "SetFollowApprovalRequired",
+			Handler:    _UserService_SetFollowApprovalRequired_Handler,
+		},
+		{
 			MethodName: "Unfollow",
 			Handler:    _UserService_Unfollow_Handler,
 		},
@@ -2515,5 +2743,5 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/user.proto",
+	Metadata: "user.proto",
 }

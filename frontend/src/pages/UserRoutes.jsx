@@ -172,6 +172,7 @@ export function UserRoutePage({ auth, view = "profile", onAuthInvalidated }) {
 
 function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
   const [following, setFollowing] = React.useState(false);
+  const [followPending, setFollowPending] = React.useState(false);
   const [safety, setSafety] = React.useState({ blocked: false, blockedBy: false, muted: false });
   const [relationLoading, setRelationLoading] = React.useState(false);
   const [followReady, setFollowReady] = React.useState(false);
@@ -202,6 +203,7 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
     relationActionRef.current = 0;
     setRelationAction("");
     setFollowing(false);
+    setFollowPending(false);
     setSafety({ blocked: false, blockedBy: false, muted: false });
     setFollowReady(false);
     setSafetyReady(false);
@@ -220,6 +222,7 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
         const errors = [];
         if (followResult.status === "fulfilled") {
           setFollowing(Boolean(followResult.value?.following));
+          setFollowPending(Boolean(followResult.value?.pending));
           setFollowReady(true);
         } else {
           errors.push(followResult.reason?.message || "关注状态加载失败");
@@ -276,14 +279,26 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
     setFollowError("");
     try {
       if (wasFollowing) {
-        await bbsApi.unfollowUser(profileUserId, auth.accessToken);
+        await bbsApi.unfollowUser(profileUserId, requestAccessToken);
+        if (relationSessionRef.current !== requestSession || !matchesRelationScope(relationScopeRef.current, targetUserId, requestAccessToken)) return;
+        setFollowing(false);
+        setFollowPending(false);
+        setFollowerCount((count) => Math.max(0, toNumber(count) - 1));
+      } else if (followPending) {
+        await bbsApi.cancelFollowRequest(profileUserId, requestAccessToken);
+        if (relationSessionRef.current !== requestSession || !matchesRelationScope(relationScopeRef.current, targetUserId, requestAccessToken)) return;
+        setFollowPending(false);
       } else {
-        await bbsApi.followUser(profileUserId, auth.accessToken);
+        const response = await bbsApi.followUser(profileUserId, requestAccessToken);
+        if (relationSessionRef.current !== requestSession || !matchesRelationScope(relationScopeRef.current, targetUserId, requestAccessToken)) return;
+        if (response?.pending) {
+          setFollowPending(true);
+          return;
+        }
+        setFollowing(true);
+        setFollowerCount((count) => Math.max(0, toNumber(count) + 1));
       }
       if (relationSessionRef.current !== requestSession || !matchesRelationScope(relationScopeRef.current, targetUserId, requestAccessToken)) return;
-      const nextFollowing = !wasFollowing;
-      setFollowing(nextFollowing);
-      setFollowerCount((count) => Math.max(0, toNumber(count) + (nextFollowing ? 1 : -1)));
     } catch (error) {
       if (relationSessionRef.current === requestSession && matchesRelationScope(relationScopeRef.current, targetUserId, requestAccessToken)) {
         setFollowError(error.message || "关注操作失败");
@@ -327,6 +342,9 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
         if (!active && wasFollowing) {
           setFollowing(false);
           setFollowerCount((count) => Math.max(0, toNumber(count) - 1));
+        }
+        if (!active) {
+          setFollowPending(false);
         }
       } else {
         await (active ? bbsApi.unmuteUser(profileUserId, auth.accessToken) : bbsApi.muteUser(profileUserId, auth.accessToken));
@@ -381,13 +399,13 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
             )}
             {publicSpace && !self && (
               <button
-                className={`follow-action user-profile-follow ${following ? "is-following" : ""}`}
+                className={`follow-action user-profile-follow ${following ? "is-following" : ""} ${followPending ? "is-pending" : ""}`}
                 type="button"
                 onClick={toggleFollow}
                 disabled={Boolean(relationAction) || Boolean(auth?.accessToken && (relationLoading || !followReady || !safetyReady)) || safety.blocked || safety.blockedBy}
                 title={safety.blocked ? "请先解除屏蔽后再关注" : safety.blockedBy ? "对方已屏蔽你，当前不能关注" : undefined}
               >
-                {relationAction === "follow" ? "处理中..." : following ? "取消关注" : auth ? "关注用户" : "登录后关注"}
+                {relationAction === "follow" ? "处理中..." : following ? "取消关注" : followPending ? "取消关注申请" : auth ? "关注用户" : "登录后关注"}
               </button>
             )}
             {publicSpace && !self && auth && (

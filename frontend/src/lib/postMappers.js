@@ -40,6 +40,7 @@ export function fallbackPerson(authorId, fallback = {}) {
     background: fallback.background || "",
     backgroundUrl: fallback.backgroundUrl || "",
     profileTheme: normalizeProfileTheme(fallback.profileTheme),
+    followApprovalRequired: Boolean(fallback.followApprovalRequired),
     followerCount: toNumber(fallback.followerCount),
     followingCount: toNumber(fallback.followingCount)
   };
@@ -67,6 +68,7 @@ export function userToPerson(user, fallback = {}) {
     background: user?.background_url || user?.backgroundUrl || fallbackProfile.background || "",
     backgroundUrl: user?.background_url || user?.backgroundUrl || fallbackProfile.backgroundUrl || "",
     profileTheme: normalizeProfileTheme(user?.profile_theme || user?.profileTheme || fallbackProfile.profileTheme),
+    followApprovalRequired: Boolean(user?.follow_approval_required ?? user?.followApprovalRequired ?? fallbackProfile.followApprovalRequired),
     followerCount: toNumber(user?.follower_count ?? user?.followerCount),
     followingCount: toNumber(user?.following_count ?? user?.followingCount)
   };

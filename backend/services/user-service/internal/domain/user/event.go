@@ -74,5 +74,15 @@ func NewUnfollowedEvent(followerID, followeeID int64) FollowEvent {
 	return FollowEvent{baseEvent: newBaseEvent(), FollowerID: followerID, FolloweeID: followeeID, event: "user.unfollowed"}
 }
 
+// NewFollowRequestedEvent marks a pending approval against a private account.
+// FolloweeID is the account that must approve, matching the followed event shape
+// so downstream consumers can reuse one payload decoder.
+func NewFollowRequestedEvent(requesterID, targetID int64) FollowEvent {
+	return FollowEvent{baseEvent: newBaseEvent(), FollowerID: requesterID, FolloweeID: targetID, event: "user.follow_requested"}
+}
+
+func NewFollowRequestAcceptedEvent(requesterID, targetID int64) FollowEvent {
+	return FollowEvent{baseEvent: newBaseEvent(), FollowerID: requesterID, FolloweeID: targetID, event: "user.follow_request_accepted"}
+}
 func (e FollowEvent) EventName() string  { return e.event }
 func (e FollowEvent) AggregateID() int64 { return e.FollowerID }

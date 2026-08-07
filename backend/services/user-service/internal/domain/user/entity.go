@@ -30,14 +30,17 @@ type User struct {
 	AccountState        AccountState
 	AccountStateVersion int64
 	ProtectedAccount    bool
-	DeletionRequestedAt *time.Time
-	DeletedAt           *time.Time
-	FollowerCount       int64
-	FollowingCount      int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	LastLoginAt         *time.Time
-	EmailVerifiedAt     *time.Time
+	// FollowApprovalRequired makes the account private: new followers land in
+	// user_follow_requests until the owner accepts them.
+	FollowApprovalRequired bool
+	DeletionRequestedAt    *time.Time
+	DeletedAt              *time.Time
+	FollowerCount          int64
+	FollowingCount         int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	LastLoginAt            *time.Time
+	EmailVerifiedAt        *time.Time
 
 	events []DomainEvent
 }

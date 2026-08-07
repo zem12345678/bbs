@@ -141,15 +141,16 @@ type creditLeaderboardView struct {
 // Keep account, authentication, and moderation fields in the authenticated
 // user-service response only.
 type publicUserView struct {
-	ID             int64  `json:"id,omitempty"`
-	Username       string `json:"username,omitempty"`
-	Nickname       string `json:"nickname,omitempty"`
-	AvatarURL      string `json:"avatar_url,omitempty"`
-	Bio            string `json:"bio,omitempty"`
-	FollowerCount  int64  `json:"follower_count,omitempty"`
-	FollowingCount int64  `json:"following_count,omitempty"`
-	BackgroundURL  string `json:"background_url,omitempty"`
-	ProfileTheme   string `json:"profile_theme,omitempty"`
+	ID                     int64  `json:"id,omitempty"`
+	Username               string `json:"username,omitempty"`
+	Nickname               string `json:"nickname,omitempty"`
+	AvatarURL              string `json:"avatar_url,omitempty"`
+	Bio                    string `json:"bio,omitempty"`
+	FollowerCount          int64  `json:"follower_count,omitempty"`
+	FollowingCount         int64  `json:"following_count,omitempty"`
+	BackgroundURL          string `json:"background_url,omitempty"`
+	ProfileTheme           string `json:"profile_theme,omitempty"`
+	FollowApprovalRequired bool   `json:"follow_approval_required,omitempty"`
 }
 
 type publicUserResponse struct {
@@ -176,15 +177,16 @@ func toPublicUserView(user *userpb.UserInfo) *publicUserView {
 		}
 	}
 	return &publicUserView{
-		ID:             user.GetId(),
-		Username:       user.GetUsername(),
-		Nickname:       user.GetNickname(),
-		AvatarURL:      user.GetAvatarUrl(),
-		Bio:            user.GetBio(),
-		FollowerCount:  user.GetFollowerCount(),
-		FollowingCount: user.GetFollowingCount(),
-		BackgroundURL:  user.GetBackgroundUrl(),
-		ProfileTheme:   user.GetProfileTheme(),
+		ID:                     user.GetId(),
+		Username:               user.GetUsername(),
+		Nickname:               user.GetNickname(),
+		AvatarURL:              user.GetAvatarUrl(),
+		Bio:                    user.GetBio(),
+		FollowerCount:          user.GetFollowerCount(),
+		FollowingCount:         user.GetFollowingCount(),
+		BackgroundURL:          user.GetBackgroundUrl(),
+		ProfileTheme:           user.GetProfileTheme(),
+		FollowApprovalRequired: user.GetFollowApprovalRequired(),
 	}
 }
 
@@ -455,6 +457,11 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/me/lists", h.requireAuth(), h.listCurrentUserLists)
 		api.POST("/users/me/lists", h.requireAuth(), h.createUserList)
 		api.GET("/users/me/favorite-lists", h.requireAuth(), h.listFavoriteUserLists)
+		api.GET("/users/me/follow-requests", h.requireAuth(), h.listReceivedFollowRequests)
+		api.GET("/users/me/follow-requests/sent", h.requireAuth(), h.listSentFollowRequests)
+		api.POST("/users/me/follow-requests/:requesterId/accept", h.requireAuth(), h.acceptFollowRequest)
+		api.POST("/users/me/follow-requests/:requesterId/reject", h.requireAuth(), h.rejectFollowRequest)
+		api.PUT("/users/me/settings/follow-approval", h.requireAuth(), h.setFollowApprovalRequired)
 		api.GET("/users/current/likes", h.requireAuth(), h.listCurrentUserLikes)
 		api.GET("/users/current/favorites", h.requireAuth(), h.listCurrentUserFavorites)
 		api.GET("/users/me/collections", h.requireAuth(), h.listCurrentUserCollections)
@@ -477,6 +484,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/:id/following", h.listFollowing)
 		api.POST("/users/:id/follow", h.requireAuth(), h.follow)
 		api.DELETE("/users/:id/follow", h.requireAuth(), h.unfollow)
+		api.POST("/users/:id/follow/cancel", h.requireAuth(), h.cancelFollowRequest)
 		api.GET("/users/:id/following-state", h.requireAuth(), h.isFollowing)
 		api.GET("/users/:id/safety-state", h.requireAuth(), h.getUserSafetyState)
 		api.POST("/users/:id/block", h.requireAuth(), h.blockUser)
@@ -1729,6 +1737,144 @@ func (h *Handler) listFollows(c *gin.Context, followers bool) {
 	}
 	h.sanitizeUserProfileThemes(ctx, resp.GetItems())
 	response.Success(c, toPublicUserListResponse(resp))
+}
+
+type followRequestView struct {
+	ID          int64           `json:"id"`
+	RequesterID int64           `json:"requester_id"`
+	TargetID    int64           `json:"target_id"`
+	CreatedAt   int64           `json:"created_at"`
+	Counterpart *publicUserView `json:"counterpart,omitempty"`
+}
+
+type followRequestListView struct {
+	Items []*followRequestView `json:"items"`
+	Total int64                `json:"total"`
+}
+
+func toFollowRequestListView(resp *userpb.FollowRequestListResponse) followRequestListView {
+	items := make([]*followRequestView, 0, len(resp.GetItems()))
+	for _, item := range resp.GetItems() {
+		items = append(items, &followRequestView{
+			ID:          item.GetId(),
+			RequesterID: item.GetRequesterId(),
+			TargetID:    item.GetTargetId(),
+			CreatedAt:   item.GetCreatedAt(),
+			Counterpart: toPublicUserView(item.GetCounterpart()),
+		})
+	}
+	return followRequestListView{Items: items, Total: resp.GetTotal()}
+}
+
+func (h *Handler) listReceivedFollowRequests(c *gin.Context) {
+	h.listPendingFollowRequests(c, true)
+}
+
+func (h *Handler) listSentFollowRequests(c *gin.Context) {
+	h.listPendingFollowRequests(c, false)
+}
+
+func (h *Handler) listPendingFollowRequests(c *gin.Context, received bool) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	req := &userpb.ListFollowRequestsRequest{
+		ActorId:  currentUserID(c),
+		Page:     queryInt32(c, "page", 1),
+		PageSize: queryInt32(c, "page_size", 20),
+	}
+	var (
+		resp *userpb.FollowRequestListResponse
+		err  error
+	)
+	if received {
+		resp, err = h.clients.User.ListReceivedFollowRequests(ctx, req)
+	} else {
+		resp, err = h.clients.User.ListSentFollowRequests(ctx, req)
+	}
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	users := make([]*userpb.UserInfo, 0, len(resp.GetItems()))
+	for _, item := range resp.GetItems() {
+		if item.GetCounterpart() != nil {
+			users = append(users, item.GetCounterpart())
+		}
+	}
+	h.sanitizeUserProfileThemes(ctx, users)
+	response.Success(c, toFollowRequestListView(resp))
+}
+
+func (h *Handler) acceptFollowRequest(c *gin.Context) {
+	h.resolveFollowRequest(c, true)
+}
+
+func (h *Handler) rejectFollowRequest(c *gin.Context) {
+	h.resolveFollowRequest(c, false)
+}
+
+func (h *Handler) resolveFollowRequest(c *gin.Context, accept bool) {
+	requesterID, ok := pathInt64(c, "requesterId")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	req := &userpb.FollowRequestActionRequest{ActorId: currentUserID(c), CounterpartId: requesterID}
+	var (
+		resp *userpb.SimpleResponse
+		err  error
+	)
+	if accept {
+		resp, err = h.clients.User.AcceptFollowRequest(ctx, req)
+	} else {
+		resp, err = h.clients.User.RejectFollowRequest(ctx, req)
+	}
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) cancelFollowRequest(c *gin.Context) {
+	targetID, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.CancelFollowRequest(ctx, &userpb.FollowRequestActionRequest{
+		ActorId:       currentUserID(c),
+		CounterpartId: targetID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+type setFollowApprovalRequest struct {
+	Required bool `json:"required"`
+}
+
+func (h *Handler) setFollowApprovalRequired(c *gin.Context) {
+	var body setFollowApprovalRequest
+	if !bindJSON(c, &body) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.SetFollowApprovalRequired(ctx, &userpb.SetFollowApprovalRequest{
+		UserId:   currentUserID(c),
+		Required: body.Required,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
 }
 
 func (h *Handler) createTopic(c *gin.Context) {

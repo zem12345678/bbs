@@ -30,9 +30,9 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrPasskeyNotFound):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrPasskeyNotFound), errors.Is(err, domain.ErrFollowRequestNotFound):
 		code = codes.NotFound
-	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists), errors.Is(err, domain.ErrPasskeyCredentialExists):
+	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists), errors.Is(err, domain.ErrPasskeyCredentialExists), errors.Is(err, domain.ErrFollowRequestAlreadyExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrInviteCodeExists):
 		code = codes.AlreadyExists
@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -117,6 +117,8 @@ func toPb(u *domain.User) *pb.UserInfo {
 		EmailVerified:   u.EmailVerifiedAt != nil,
 		EmailVerifiedAt: emailVerifiedAt,
 		AccountState:    string(domain.NormalizeAccountState(u.AccountState)),
+
+		FollowApprovalRequired: u.FollowApprovalRequired,
 	}
 }
 
@@ -614,11 +616,16 @@ func (h *Handler) UpdateStatus(ctx context.Context, req *pb.UpdateStatusRequest)
 	return &pb.UserResponse{Success: true, Message: "ok", User: toPb(u)}, nil
 }
 
-func (h *Handler) Follow(ctx context.Context, req *pb.FollowRequest) (*pb.SimpleResponse, error) {
-	if err := h.cmd.Follow(ctx, req.GetFollowerId(), req.GetFolloweeId()); err != nil {
+func (h *Handler) Follow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
+	pending, err := h.cmd.Follow(ctx, req.GetFollowerId(), req.GetFolloweeId())
+	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+	message := "ok"
+	if pending {
+		message = "follow request pending approval"
+	}
+	return &pb.FollowResponse{Success: true, Message: message, Pending: pending}, nil
 }
 
 func (h *Handler) Unfollow(ctx context.Context, req *pb.FollowRequest) (*pb.SimpleResponse, error) {
@@ -633,7 +640,14 @@ func (h *Handler) IsFollowing(ctx context.Context, req *pb.FollowRequest) (*pb.I
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &pb.IsFollowingResponse{Following: ok}, nil
+	pending := false
+	if !ok {
+		pending, err = h.qry.IsFollowRequestPending(ctx, req.GetFollowerId(), req.GetFolloweeId())
+		if err != nil {
+			return nil, toStatus(err)
+		}
+	}
+	return &pb.IsFollowingResponse{Following: ok, Pending: pending}, nil
 }
 
 func (h *Handler) ListFollowers(ctx context.Context, req *pb.ListFollowsRequest) (*pb.UserListResponse, error) {
@@ -801,4 +815,73 @@ func (h *Handler) UnfavoriteUserList(ctx context.Context, req *pb.UserListFavori
 		return nil, toStatus(err)
 	}
 	return &pb.UserListInfoResponse{Success: true, Message: "ok", UserList: toPbUserList(list)}, nil
+}
+
+func toPbFollowRequest(req *domain.FollowRequest) *pb.FollowRequestInfo {
+	if req == nil {
+		return nil
+	}
+	counterpart := req.Requester
+	if counterpart == nil {
+		counterpart = req.Target
+	}
+	return &pb.FollowRequestInfo{
+		Id:          req.ID,
+		RequesterId: req.RequesterID,
+		TargetId:    req.TargetID,
+		CreatedAt:   req.CreatedAt.UnixMilli(),
+		Counterpart: toPb(counterpart),
+	}
+}
+
+func toPbFollowRequests(rows []*domain.FollowRequest) []*pb.FollowRequestInfo {
+	out := make([]*pb.FollowRequestInfo, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toPbFollowRequest(row))
+	}
+	return out
+}
+
+func (h *Handler) ListReceivedFollowRequests(ctx context.Context, req *pb.ListFollowRequestsRequest) (*pb.FollowRequestListResponse, error) {
+	result, err := h.qry.ListReceivedFollowRequests(ctx, domain.FollowRequestQuery{ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowRequestListResponse{Items: toPbFollowRequests(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) ListSentFollowRequests(ctx context.Context, req *pb.ListFollowRequestsRequest) (*pb.FollowRequestListResponse, error) {
+	result, err := h.qry.ListSentFollowRequests(ctx, domain.FollowRequestQuery{ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowRequestListResponse{Items: toPbFollowRequests(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) AcceptFollowRequest(ctx context.Context, req *pb.FollowRequestActionRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.AcceptFollowRequest(ctx, req.GetActorId(), req.GetCounterpartId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) RejectFollowRequest(ctx context.Context, req *pb.FollowRequestActionRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.RejectFollowRequest(ctx, req.GetActorId(), req.GetCounterpartId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) CancelFollowRequest(ctx context.Context, req *pb.FollowRequestActionRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.CancelFollowRequest(ctx, req.GetActorId(), req.GetCounterpartId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) SetFollowApprovalRequired(ctx context.Context, req *pb.SetFollowApprovalRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.SetFollowApprovalRequired(ctx, req.GetUserId(), req.GetRequired()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }

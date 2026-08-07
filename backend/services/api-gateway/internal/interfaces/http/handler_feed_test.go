@@ -305,7 +305,7 @@ func (f *fakeUserClient) VerifyEmail(context.Context, *userpb.VerifyEmailRequest
 	return nil, nil
 }
 
-func (f *fakeUserClient) Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
+func (f *fakeUserClient) Follow(context.Context, *userpb.FollowRequest, ...grpc.CallOption) (*userpb.FollowResponse, error) {
 	return nil, nil
 }
 
@@ -318,5 +318,29 @@ func (f *fakeUserClient) IsFollowing(context.Context, *userpb.FollowRequest, ...
 }
 
 func (f *fakeUserClient) ListFollowers(context.Context, *userpb.ListFollowsRequest, ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) ListReceivedFollowRequests(context.Context, *userpb.ListFollowRequestsRequest, ...grpc.CallOption) (*userpb.FollowRequestListResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) ListSentFollowRequests(context.Context, *userpb.ListFollowRequestsRequest, ...grpc.CallOption) (*userpb.FollowRequestListResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) AcceptFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) RejectFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) CancelFollowRequest(context.Context, *userpb.FollowRequestActionRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
+	return nil, nil
+}
+
+func (f *fakeUserClient) SetFollowApprovalRequired(context.Context, *userpb.SetFollowApprovalRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error) {
 	return nil, nil
 }

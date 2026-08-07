@@ -641,6 +641,20 @@ test("dashboard interactions ignore stale auth sessions", () => {
   assert.doesNotMatch(action, /auth\.accessToken\)/);
 });
 
+test("dashboard connects private-account follow request management", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const interactionsPanel = source.slice(source.indexOf("function InteractionsPanel"), source.indexOf("function MessagesPanel"));
+  const profilePanel = source.slice(source.indexOf("function ProfilePanel"), source.indexOf("function ModerationSection"));
+
+  assert.match(interactionsPanel, /bbsApi\.receivedFollowRequests/);
+  assert.match(interactionsPanel, /bbsApi\.sentFollowRequests/);
+  assert.match(interactionsPanel, /bbsApi\.acceptFollowRequest/);
+  assert.match(interactionsPanel, /bbsApi\.rejectFollowRequest/);
+  assert.match(interactionsPanel, /bbsApi\.cancelFollowRequest/);
+  assert.match(profilePanel, /bbsApi\.setFollowApprovalRequired\(required, requestToken\)/);
+  assert.match(profilePanel, /follow_approval_required: required/);
+});
+
 test("dashboard messages ignore stale auth sessions", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const messagesPanel = source.slice(source.indexOf("function MessagesPanel"), source.indexOf("function OrdersPanel"));
@@ -818,6 +832,16 @@ test("profile actions ignore stale auth sessions", () => {
     assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
     assert.doesNotMatch(action, /auth\.accessToken\)/);
   }
+});
+
+test("public profiles keep pending follow requests out of follower counts", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const profilePanel = source.slice(source.indexOf("function UserProfilePanel"), source.indexOf("function matchesRelationScope"));
+
+  assert.match(profilePanel, /setFollowPending\(Boolean\(followResult\.value\?\.pending\)\)/);
+  assert.match(profilePanel, /await bbsApi\.cancelFollowRequest\(profileUserId, requestAccessToken\)/);
+  assert.match(profilePanel, /if \(response\?\.pending\) \{\s*setFollowPending\(true\);\s*return;/);
+  assert.match(profilePanel, /followPending \? "取消关注申请"/);
 });
 
 test("shop serializes review submission and image upload before button state rerenders", () => {

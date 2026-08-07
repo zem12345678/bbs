@@ -612,46 +612,83 @@ func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Stat
 	return s.profileForAuthResponse(ctx, u), nil
 }
 
-func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) error {
+// Follow either creates the relation immediately or, when the target account
+// requires approval, records a pending request. The boolean reports whether the
+// caller ended up with a pending request instead of a live follow.
+func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) (bool, error) {
 	if followerID <= 0 || followeeID <= 0 {
-		return domain.ErrInvalidID
+		return false, domain.ErrInvalidID
 	}
 	if followerID == followeeID {
-		return domain.ErrCannotFollowSelf
+		return false, domain.ErrCannotFollowSelf
 	}
-	if _, err := s.repo.FindByID(ctx, followerID); err != nil {
-		return err
+	follower, err := s.repo.FindByID(ctx, followerID)
+	if err != nil {
+		return false, err
 	}
-	if _, err := s.repo.FindByID(ctx, followeeID); err != nil {
-		return err
+	if err := follower.EnsureActive(); err != nil {
+		return false, err
+	}
+	followee, err := s.repo.FindByID(ctx, followeeID)
+	if err != nil {
+		return false, err
+	}
+	if err := followee.EnsureActive(); err != nil {
+		return false, err
 	}
 	safetyRepo, ok := s.repo.(domain.SafetyRepository)
 	if !ok {
-		return domain.ErrSafetyRepositoryUnavailable
+		return false, domain.ErrSafetyRepositoryUnavailable
 	}
+	if requests, ok := s.repo.(domain.FollowRequestRepository); ok {
+		pending, created, err := requests.FollowOrRequest(ctx, s.idgen.Generate(), followerID, followeeID)
+		if err != nil {
+			return false, err
+		}
+		if pending {
+			if created {
+				s.publishEvents(ctx, domain.NewFollowRequestedEvent(followerID, followeeID))
+			}
+			return true, nil
+		}
+		s.publishEvents(ctx, domain.NewFollowedEvent(followerID, followeeID))
+		return false, nil
+	}
+	// Repositories predating private-account support retain the original public
+	// follow behavior; production repos implement FollowOrRequest above.
 	relation, err := safetyRepo.GetSafetyRelation(ctx, followerID, followeeID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if relation.Blocked || relation.BlockedBy {
-		return domain.ErrFollowBlocked
+		return false, domain.ErrFollowBlocked
+	}
+	if followee.FollowApprovalRequired {
+		return false, domain.ErrFollowRequestRepositoryUnavailable
 	}
 	if err := s.repo.Follow(ctx, followerID, followeeID); err != nil {
-		return err
+		return false, err
 	}
 	s.publishEvents(ctx, domain.NewFollowedEvent(followerID, followeeID))
-	return nil
+	return false, nil
 }
-
 func (s *Service) Block(ctx context.Context, actorID, targetID int64) error {
 	repo, err := s.safetyRepository(actorID, targetID, true)
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.FindByID(ctx, actorID); err != nil {
+	actor, err := s.repo.FindByID(ctx, actorID)
+	if err != nil {
 		return err
 	}
-	if _, err := s.repo.FindByID(ctx, targetID); err != nil {
+	if err := actor.EnsureActive(); err != nil {
+		return err
+	}
+	target, err := s.repo.FindByID(ctx, targetID)
+	if err != nil {
+		return err
+	}
+	if err := target.EnsureActive(); err != nil {
 		return err
 	}
 	return repo.Block(ctx, actorID, targetID)

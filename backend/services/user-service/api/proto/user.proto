@@ -40,7 +40,13 @@ service UserService {
   rpc CompletePasswordlessPasskeyLogin(CompletePasskeyLoginRequest) returns (AuthResponse);
   rpc GetAccountLifecycle(UserIDRequest) returns (AccountLifecycleResponse);
   rpc RequestAccountDeletion(RequestAccountDeletionRequest) returns (AccountLifecycleResponse);
-  rpc Follow(FollowRequest) returns (SimpleResponse);
+  rpc Follow(FollowRequest) returns (FollowResponse);
+  rpc ListReceivedFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
+  rpc ListSentFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
+  rpc AcceptFollowRequest(FollowRequestActionRequest) returns (SimpleResponse);
+  rpc RejectFollowRequest(FollowRequestActionRequest) returns (SimpleResponse);
+  rpc CancelFollowRequest(FollowRequestActionRequest) returns (SimpleResponse);
+  rpc SetFollowApprovalRequired(SetFollowApprovalRequest) returns (SimpleResponse);
   rpc Unfollow(FollowRequest) returns (SimpleResponse);
   rpc IsFollowing(FollowRequest) returns (IsFollowingResponse);
   rpc ListFollowers(ListFollowsRequest) returns (UserListResponse);
@@ -91,6 +97,7 @@ message UserInfo {
   string background_url = 15;
   string profile_theme = 16;
   string account_state = 17;
+  bool follow_approval_required = 18;
 }
 
 message RegisterRequest {
@@ -335,6 +342,47 @@ message ListFollowsRequest {
   int32 page_size = 3;
 }
 
+// FollowResponse reports whether the follow was applied immediately or parked as
+// a pending request because the target requires approval.
+message FollowResponse {
+  bool success = 1;
+  string message = 2;
+  bool pending = 3;
+}
+
+message FollowRequestActionRequest {
+  // ActorId is the account performing the action: the target for accept/reject,
+  // the requester for cancel.
+  int64 actor_id = 1;
+  int64 counterpart_id = 2;
+}
+
+message ListFollowRequestsRequest {
+  int64 actor_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message FollowRequestInfo {
+  int64 id = 1;
+  int64 requester_id = 2;
+  int64 target_id = 3;
+  int64 created_at = 4;
+  // Counterpart is the other side of the request: the requester when listing
+  // received requests, the target when listing sent ones.
+  UserInfo counterpart = 5;
+}
+
+message FollowRequestListResponse {
+  repeated FollowRequestInfo items = 1;
+  int64 total = 2;
+}
+
+message SetFollowApprovalRequest {
+  int64 user_id = 1;
+  bool required = 2;
+}
+
 message UserRelationRequest {
   int64 actor_id = 1;
   int64 target_id = 2;
@@ -487,6 +535,7 @@ message EmailVerificationResponse {
 
 message IsFollowingResponse {
   bool following = 1;
+  bool pending = 2;
 }
 
 message SafetyRelationResponse {

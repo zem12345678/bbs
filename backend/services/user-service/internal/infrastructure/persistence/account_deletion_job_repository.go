@@ -238,6 +238,7 @@ func (r *Repo) FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leas
 			{&userListMembershipPO{}, "user_id = ?", []any{user.ID}},
 			{&userListFavoritePO{}, "user_id = ?", []any{user.ID}},
 			{&followPO{}, "follower_id = ? OR followee_id = ?", []any{user.ID, user.ID}},
+			{&followRequestPO{}, "requester_id = ? OR target_id = ?", []any{user.ID, user.ID}},
 			{&blockPO{}, "actor_id = ? OR target_id = ?", []any{user.ID, user.ID}},
 			{&mutePO{}, "actor_id = ? OR target_id = ?", []any{user.ID, user.ID}},
 		} {
@@ -250,7 +251,7 @@ func (r *Repo) FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leas
 			Updates(map[string]any{
 				"username": anonymization.Username, "email": anonymization.Email,
 				"password_hash": anonymization.PasswordHash, "credential_version": anonymization.CredentialVersion,
-				"nickname": "已注销用户", "avatar_url": "", "background_url": "", "profile_theme": domain.ProfileThemeDefault, "bio": "",
+				"nickname": "已注销用户", "avatar_url": "", "background_url": "", "profile_theme": domain.ProfileThemeDefault, "bio": "", "follow_approval_required": false,
 				"status": int32(domain.StatusActive), "account_state": string(domain.AccountStateAnonymized),
 				"account_state_version": gorm.Expr("account_state_version + 1"), "deleted_at": anonymization.CompletedAt,
 				"follower_count": 0, "following_count": 0, "last_login_at": nil, "email_verified_at": nil,

@@ -27,6 +27,22 @@ type SafetyRepository interface {
 	ListMutedUsers(ctx context.Context, q FollowListQuery) ([]*User, int64, error)
 }
 
+// FollowRequestRepository stores approvals pending for private accounts.
+type FollowRequestRepository interface {
+	// FollowOrRequest makes the privacy decision while holding the same pair
+	// lock used by blocks and approvals. created is false only when an identical
+	// pending request already existed.
+	FollowOrRequest(ctx context.Context, requestID, requesterID, targetID int64) (pending bool, created bool, err error)
+	CreateFollowRequest(ctx context.Context, req *FollowRequest) error
+	DeleteFollowRequest(ctx context.Context, requesterID, targetID int64) error
+	// AcceptFollowRequest deletes the pending row and creates the follow in one
+	// transaction so an approval can never leave a half-applied relation.
+	AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) error
+	GetFollowRequest(ctx context.Context, requesterID, targetID int64) (*FollowRequest, error)
+	ListReceivedFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)
+	ListSentFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)
+	SetFollowApprovalRequired(ctx context.Context, userID int64, required bool) error
+}
 type InviteRepository interface {
 	CreateWithInvite(ctx context.Context, u *User, code string, requireInvite bool) error
 	CreateInviteCodes(ctx context.Context, codes []InviteCode) error

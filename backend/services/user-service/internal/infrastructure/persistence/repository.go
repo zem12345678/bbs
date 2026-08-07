@@ -14,28 +14,29 @@ import (
 )
 
 type userPO struct {
-	ID                  int64      `gorm:"primaryKey"`
-	Username            string     `gorm:"uniqueIndex;size:32;not null"`
-	Email               string     `gorm:"uniqueIndex;size:255;not null"`
-	PasswordHash        string     `gorm:"type:text;not null"`
-	CredentialVersion   string     `gorm:"type:text;not null;default:'0'"`
-	Nickname            string     `gorm:"size:64;not null"`
-	AvatarURL           string     `gorm:"type:text;not null;default:''"`
-	BackgroundURL       string     `gorm:"type:text;not null;default:''"`
-	ProfileTheme        string     `gorm:"type:text;not null;default:'default'"`
-	Bio                 string     `gorm:"type:text;not null;default:''"`
-	Status              int32      `gorm:"not null;default:1;index"`
-	AccountState        string     `gorm:"size:24;not null;default:'active';index"`
-	AccountStateVersion int64      `gorm:"not null;default:1"`
-	ProtectedAccount    bool       `gorm:"not null;default:false"`
-	DeletionRequestedAt *time.Time `gorm:"index"`
-	DeletedAt           *time.Time `gorm:"index"`
-	FollowerCount       int64      `gorm:"not null;default:0"`
-	FollowingCount      int64      `gorm:"not null;default:0"`
-	CreatedAt           time.Time  `gorm:"index"`
-	UpdatedAt           time.Time
-	LastLoginAt         *time.Time `gorm:"index"`
-	EmailVerifiedAt     *time.Time `gorm:"index"`
+	ID                     int64      `gorm:"primaryKey"`
+	Username               string     `gorm:"uniqueIndex;size:32;not null"`
+	Email                  string     `gorm:"uniqueIndex;size:255;not null"`
+	PasswordHash           string     `gorm:"type:text;not null"`
+	CredentialVersion      string     `gorm:"type:text;not null;default:'0'"`
+	Nickname               string     `gorm:"size:64;not null"`
+	AvatarURL              string     `gorm:"type:text;not null;default:''"`
+	BackgroundURL          string     `gorm:"type:text;not null;default:''"`
+	ProfileTheme           string     `gorm:"type:text;not null;default:'default'"`
+	Bio                    string     `gorm:"type:text;not null;default:''"`
+	Status                 int32      `gorm:"not null;default:1;index"`
+	AccountState           string     `gorm:"size:24;not null;default:'active';index"`
+	AccountStateVersion    int64      `gorm:"not null;default:1"`
+	ProtectedAccount       bool       `gorm:"not null;default:false"`
+	FollowApprovalRequired bool       `gorm:"not null;default:false"`
+	DeletionRequestedAt    *time.Time `gorm:"index"`
+	DeletedAt              *time.Time `gorm:"index"`
+	FollowerCount          int64      `gorm:"not null;default:0"`
+	FollowingCount         int64      `gorm:"not null;default:0"`
+	CreatedAt              time.Time  `gorm:"index"`
+	UpdatedAt              time.Time
+	LastLoginAt            *time.Time `gorm:"index"`
+	EmailVerifiedAt        *time.Time `gorm:"index"`
 }
 
 func (userPO) TableName() string {
@@ -129,55 +130,57 @@ func NewRepo(db *gorm.DB) *Repo {
 
 func toPO(u *domain.User) userPO {
 	return userPO{
-		ID:                  u.ID,
-		Username:            u.Username,
-		Email:               u.Email,
-		PasswordHash:        u.PasswordHash,
-		CredentialVersion:   domain.NormalizeCredentialVersion(u.CredentialVersion),
-		Nickname:            u.Nickname,
-		AvatarURL:           u.AvatarURL,
-		BackgroundURL:       u.BackgroundURL,
-		ProfileTheme:        domain.NormalizeProfileTheme(u.ProfileTheme),
-		Bio:                 u.Bio,
-		Status:              int32(u.Status),
-		AccountState:        string(domain.NormalizeAccountState(u.AccountState)),
-		AccountStateVersion: u.AccountStateVersion,
-		ProtectedAccount:    u.ProtectedAccount,
-		DeletionRequestedAt: u.DeletionRequestedAt,
-		DeletedAt:           u.DeletedAt,
-		FollowerCount:       u.FollowerCount,
-		FollowingCount:      u.FollowingCount,
-		CreatedAt:           u.CreatedAt,
-		UpdatedAt:           u.UpdatedAt,
-		LastLoginAt:         u.LastLoginAt,
-		EmailVerifiedAt:     u.EmailVerifiedAt,
+		ID:                     u.ID,
+		Username:               u.Username,
+		Email:                  u.Email,
+		PasswordHash:           u.PasswordHash,
+		CredentialVersion:      domain.NormalizeCredentialVersion(u.CredentialVersion),
+		Nickname:               u.Nickname,
+		AvatarURL:              u.AvatarURL,
+		BackgroundURL:          u.BackgroundURL,
+		ProfileTheme:           domain.NormalizeProfileTheme(u.ProfileTheme),
+		Bio:                    u.Bio,
+		Status:                 int32(u.Status),
+		AccountState:           string(domain.NormalizeAccountState(u.AccountState)),
+		AccountStateVersion:    u.AccountStateVersion,
+		ProtectedAccount:       u.ProtectedAccount,
+		FollowApprovalRequired: u.FollowApprovalRequired,
+		DeletionRequestedAt:    u.DeletionRequestedAt,
+		DeletedAt:              u.DeletedAt,
+		FollowerCount:          u.FollowerCount,
+		FollowingCount:         u.FollowingCount,
+		CreatedAt:              u.CreatedAt,
+		UpdatedAt:              u.UpdatedAt,
+		LastLoginAt:            u.LastLoginAt,
+		EmailVerifiedAt:        u.EmailVerifiedAt,
 	}
 }
 
 func toEntity(p *userPO) *domain.User {
 	return &domain.User{
-		ID:                  p.ID,
-		Username:            p.Username,
-		Email:               p.Email,
-		PasswordHash:        p.PasswordHash,
-		CredentialVersion:   domain.NormalizeCredentialVersion(p.CredentialVersion),
-		Nickname:            p.Nickname,
-		AvatarURL:           p.AvatarURL,
-		BackgroundURL:       p.BackgroundURL,
-		ProfileTheme:        domain.NormalizeProfileTheme(p.ProfileTheme),
-		Bio:                 p.Bio,
-		Status:              domain.Status(p.Status),
-		AccountState:        domain.NormalizeAccountState(domain.AccountState(p.AccountState)),
-		AccountStateVersion: p.AccountStateVersion,
-		ProtectedAccount:    p.ProtectedAccount,
-		DeletionRequestedAt: p.DeletionRequestedAt,
-		DeletedAt:           p.DeletedAt,
-		FollowerCount:       p.FollowerCount,
-		FollowingCount:      p.FollowingCount,
-		CreatedAt:           p.CreatedAt,
-		UpdatedAt:           p.UpdatedAt,
-		LastLoginAt:         p.LastLoginAt,
-		EmailVerifiedAt:     p.EmailVerifiedAt,
+		ID:                     p.ID,
+		Username:               p.Username,
+		Email:                  p.Email,
+		PasswordHash:           p.PasswordHash,
+		CredentialVersion:      domain.NormalizeCredentialVersion(p.CredentialVersion),
+		Nickname:               p.Nickname,
+		AvatarURL:              p.AvatarURL,
+		BackgroundURL:          p.BackgroundURL,
+		ProfileTheme:           domain.NormalizeProfileTheme(p.ProfileTheme),
+		Bio:                    p.Bio,
+		Status:                 domain.Status(p.Status),
+		AccountState:           domain.NormalizeAccountState(domain.AccountState(p.AccountState)),
+		AccountStateVersion:    p.AccountStateVersion,
+		ProtectedAccount:       p.ProtectedAccount,
+		FollowApprovalRequired: p.FollowApprovalRequired,
+		DeletionRequestedAt:    p.DeletionRequestedAt,
+		DeletedAt:              p.DeletedAt,
+		FollowerCount:          p.FollowerCount,
+		FollowingCount:         p.FollowingCount,
+		CreatedAt:              p.CreatedAt,
+		UpdatedAt:              p.UpdatedAt,
+		LastLoginAt:            p.LastLoginAt,
+		EmailVerifiedAt:        p.EmailVerifiedAt,
 	}
 }
 
@@ -640,6 +643,12 @@ func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
 	}
 	now := time.Now()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockActiveUserPair(tx, followerID, followeeID); err != nil {
+			return err
+		}
+		if err := ensureUserPairNotBlocked(tx, followerID, followeeID); err != nil {
+			return err
+		}
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followPO{
 			FollowerID: followerID,
 			FolloweeID: followeeID,
@@ -696,6 +705,9 @@ func (r *Repo) Block(ctx context.Context, actorID, targetID int64) error {
 		return domain.ErrCannotRelateSelf
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockActiveUserPair(tx, actorID, targetID); err != nil {
+			return err
+		}
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&blockPO{
 			ActorID: actorID, TargetID: targetID, CreatedAt: time.Now(),
 		})
@@ -715,8 +727,55 @@ func (r *Repo) Block(ctx context.Context, actorID, targetID int64) error {
 		if err := removeFollow(tx, actorID, targetID); err != nil {
 			return err
 		}
-		return removeFollow(tx, targetID, actorID)
+		if err := removeFollow(tx, targetID, actorID); err != nil {
+			return err
+		}
+		// A blocked pair must not retain a pending request that can later be
+		// accepted into a new follow relationship.
+		return tx.Where(
+			"(requester_id = ? AND target_id = ?) OR (requester_id = ? AND target_id = ?)",
+			actorID, targetID, targetID, actorID,
+		).Delete(&followRequestPO{}).Error
 	})
+}
+
+// lockActiveUserPair serializes relationship creation and blocking for one
+// unordered user pair. Locking by ascending ID avoids deadlocks when callers
+// present the same pair in opposite directions.
+func lockActiveUserPair(tx *gorm.DB, leftID, rightID int64) error {
+	firstID, secondID := leftID, rightID
+	if firstID > secondID {
+		firstID, secondID = secondID, firstID
+	}
+	for _, id := range []int64{firstID, secondID} {
+		var row userPO
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if err := toEntity(&row).EnsureActive(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureUserPairNotBlocked(tx *gorm.DB, leftID, rightID int64) error {
+	var count int64
+	err := tx.Model(&blockPO{}).Where(
+		"(actor_id = ? AND target_id = ?) OR (actor_id = ? AND target_id = ?)",
+		leftID, rightID, rightID, leftID,
+	).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrFollowBlocked
+	}
+	return nil
 }
 
 func (r *Repo) Unblock(ctx context.Context, actorID, targetID int64) error {

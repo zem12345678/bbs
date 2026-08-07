@@ -221,10 +221,10 @@ func TestUserSafetyRelationsGuardFollowing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register bob: %v", err)
 	}
-	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+	if _, err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("follow bob: %v", err)
 	}
-	if err := svc.Follow(ctx, bob.ID, alice.ID); err != nil {
+	if _, err := svc.Follow(ctx, bob.ID, alice.ID); err != nil {
 		t.Fatalf("follow alice: %v", err)
 	}
 	if err := svc.Block(ctx, alice.ID, bob.ID); err != nil {
@@ -240,10 +240,10 @@ func TestUserSafetyRelationsGuardFollowing(t *testing.T) {
 	if err != nil || !relation.Blocked || !relation.Muted {
 		t.Fatalf("block relation = %+v, %v; want blocked and muted", relation, err)
 	}
-	if err := svc.Follow(ctx, alice.ID, bob.ID); !errors.Is(err, domain.ErrFollowBlocked) {
+	if _, err := svc.Follow(ctx, alice.ID, bob.ID); !errors.Is(err, domain.ErrFollowBlocked) {
 		t.Fatalf("actor follow after block = %v, want ErrFollowBlocked", err)
 	}
-	if err := svc.Follow(ctx, bob.ID, alice.ID); !errors.Is(err, domain.ErrFollowBlocked) {
+	if _, err := svc.Follow(ctx, bob.ID, alice.ID); !errors.Is(err, domain.ErrFollowBlocked) {
 		t.Fatalf("target follow after block = %v, want ErrFollowBlocked", err)
 	}
 	if err := svc.Unblock(ctx, alice.ID, bob.ID); err != nil {
@@ -253,7 +253,7 @@ func TestUserSafetyRelationsGuardFollowing(t *testing.T) {
 	if err != nil || relation.Blocked || relation.Muted {
 		t.Fatalf("unblock relation = %+v, %v; want neither blocked nor muted", relation, err)
 	}
-	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+	if _, err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("follow after unblock: %v", err)
 	}
 }
@@ -330,7 +330,7 @@ func TestUserMuteCanBeToggledWithoutRemovingFollow(t *testing.T) {
 	ctx := context.Background()
 	alice, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "alice", Email: "alice@example.com", Password: "password1", Nickname: "Alice"})
 	bob, _, _ := svc.Register(ctx, domain.RegisterCmd{Username: "bob", Email: "bob@example.com", Password: "password1", Nickname: "Bob"})
-	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+	if _, err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("follow bob: %v", err)
 	}
 	if err := svc.Mute(ctx, alice.ID, bob.ID); err != nil {
@@ -459,7 +459,7 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 		t.Fatalf("wrong password error = %v", err)
 	}
 
-	if err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
+	if _, err := svc.Follow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("follow: %v", err)
 	}
 	ok, err := repo.IsFollowing(ctx, alice.ID, bob.ID)
