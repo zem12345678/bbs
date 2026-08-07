@@ -52,6 +52,12 @@ type UserClient interface {
 	SetFollowApprovalRequired(context.Context, *userpb.SetFollowApprovalRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 }
 
+// UserChartClient is kept separate from UserClient so chart additions do not
+// widen the public profile test surface.
+type UserChartClient interface {
+	GetUserChart(context.Context, *userpb.UserChartRequest, ...grpc.CallOption) (*userpb.UserChartResponse, error)
+}
+
 type UserSafetyClient interface {
 	Block(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 	Unblock(context.Context, *userpb.UserRelationRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)

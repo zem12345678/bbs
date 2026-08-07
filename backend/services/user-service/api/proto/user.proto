@@ -77,6 +77,7 @@ service UserService {
   rpc GetSession(GetSessionRequest) returns (SessionResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
   rpc ListLoginEvents(ListLoginEventsRequest) returns (LoginEventListResponse);
+  rpc GetUserChart(UserChartRequest) returns (UserChartResponse);
 }
 
 message UserInfo {
@@ -625,4 +626,21 @@ message LoginEventListResponse {
 message SimpleResponse {
   bool success = 1;
   string message = 2;
+}
+
+message UserChartRequest {
+  string span = 1;
+  int32 limit = 2;
+  optional int64 offset = 3; // Unix milliseconds; absent means the current bucket.
+}
+
+message UserChartSeries {
+  repeated int64 total = 1;
+  repeated int64 inc = 2;
+  repeated int64 dec = 3;
+}
+
+message UserChartResponse {
+  UserChartSeries local = 1;
+  UserChartSeries remote = 2;
 }

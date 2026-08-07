@@ -103,4 +103,8 @@ var (
 	ErrSessionExpiryInvalid                  = errors.New("user session expiry invalid")
 	ErrLoginMethodInvalid                    = errors.New("login method invalid")
 	ErrLoginEventInvalid                     = errors.New("login event invalid")
+	ErrUserChartSpanInvalid                  = errors.New("user chart span invalid")
+	ErrUserChartLimitInvalid                 = errors.New("user chart limit invalid")
+	ErrUserChartOffsetInvalid                = errors.New("user chart offset invalid")
+	ErrUserChartRepositoryUnavailable        = errors.New("user chart repository unavailable")
 )

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"api-gateway/api/proto/adminpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/pkg/http/response"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,7 @@ func (h *Handler) adminOverview(c *gin.Context) {
 
 func (h *Handler) buildAdminOverview(ctx context.Context, actor *adminpb.Actor) (gin.H, error) {
 	var users *adminpb.UserListResponse
+	var userChart *userpb.UserChartResponse
 	var articles, hiddenArticles *adminpb.ArticleListResponse
 	var topics, hiddenTopics *adminpb.TopicListResponse
 	var comments, hiddenComments *adminpb.CommentListResponse
@@ -59,6 +61,13 @@ func (h *Handler) buildAdminOverview(ctx context.Context, actor *adminpb.Actor) 
 		users, err = h.clients.Admin.ListUsers(callCtx, &adminpb.ListUsersRequest{Actor: actor, Page: 1, PageSize: overviewSampleLimit})
 		return err
 	})
+	if h.clients.UserCharts != nil {
+		call("user_chart", func(callCtx context.Context) error {
+			var err error
+			userChart, err = h.clients.UserCharts.GetUserChart(callCtx, &userpb.UserChartRequest{Span: "day", Limit: 14})
+			return err
+		})
+	}
 	call("articles", func(callCtx context.Context) error {
 		var err error
 		articles, err = h.clients.Admin.ListArticles(callCtx, &adminpb.ListArticlesRequest{Actor: actor, Limit: overviewSampleLimit})
@@ -115,6 +124,11 @@ func (h *Handler) buildAdminOverview(ctx context.Context, actor *adminpb.Actor) 
 	labels14, keys14 := overviewDayKeys(14)
 	labels7 := labels14[7:]
 	usersSeries14 := overviewUserSeries(keys14, users.GetItems())
+	if userChart != nil {
+		if chartValues := userChart.GetLocal().GetInc(); len(chartValues) > 0 {
+			usersSeries14 = overviewChartSeries(chartValues, len(labels14))
+		}
+	}
 	articlesSeries14 := overviewArticleSeries(keys14, articles.GetItems())
 	topicsSeries14 := overviewTopicSeries(keys14, topics.GetItems())
 	commentsSeries14 := overviewCommentSeries(keys14, comments.GetItems())
@@ -185,9 +199,13 @@ func overviewRateText(value int64, total int64) string {
 }
 
 func overviewDayKeys(days int) ([]string, map[string]int) {
+	return overviewDayKeysAt(days, time.Now())
+}
+
+func overviewDayKeysAt(days int, now time.Time) ([]string, map[string]int) {
 	labels := make([]string, days)
 	keys := make(map[string]int, days)
-	now := time.Now()
+	now = now.UTC()
 	for i := days - 1; i >= 0; i-- {
 		day := now.AddDate(0, 0, -(days - 1 - i))
 		key := day.Format("2006-01-02")
@@ -201,6 +219,18 @@ func overviewUserSeries(keys map[string]int, items []*adminpb.UserInfo) []int {
 	series := make([]int, len(keys))
 	for _, item := range items {
 		bumpOverviewSeries(series, keys, item.GetCreatedAt())
+	}
+	return series
+}
+
+func overviewChartSeries(newestFirst []int64, size int) []int {
+	series := make([]int, size)
+	for sourceIndex, value := range newestFirst {
+		if sourceIndex >= size {
+			break
+		}
+		targetIndex := size - 1 - sourceIndex
+		series[targetIndex] = int(value)
 	}
 	return series
 }
@@ -242,7 +272,7 @@ func bumpOverviewSeries(series []int, keys map[string]int, timestamp int64) {
 	if value.IsZero() {
 		return
 	}
-	index, ok := keys[value.Format("2006-01-02")]
+	index, ok := keys[value.UTC().Format("2006-01-02")]
 	if !ok || index < 0 || index >= len(series) {
 		return
 	}

@@ -123,6 +123,7 @@ type Repo struct {
 
 var _ domain.Repository = (*Repo)(nil)
 var _ domain.SafetyRepository = (*Repo)(nil)
+var _ domain.UserChartRepository = (*Repo)(nil)
 
 func NewRepo(db *gorm.DB) *Repo {
 	return &Repo{db: db}

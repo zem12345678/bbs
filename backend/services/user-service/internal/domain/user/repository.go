@@ -75,6 +75,36 @@ type UserListQuery struct {
 	IDs      []int64
 }
 
+const (
+	UserChartSpanHour = "hour"
+	UserChartSpanDay  = "day"
+
+	DefaultUserChartLimit    = 30
+	MaxUserChartLimit        = 500
+	MaxUserChartOffsetMillis = int64(8640000000000000)
+)
+
+type UserChartQuery struct {
+	Span   string
+	Limit  int
+	Offset *int64
+}
+
+type UserChartSeries struct {
+	Total []int64
+	Inc   []int64
+	Dec   []int64
+}
+
+type UserChart struct {
+	Local  UserChartSeries
+	Remote UserChartSeries
+}
+
+type UserChartRepository interface {
+	GetUserChart(ctx context.Context, q UserChartQuery) (UserChart, error)
+}
+
 type PasswordResetToken struct {
 	TokenHash string
 	UserID    int64

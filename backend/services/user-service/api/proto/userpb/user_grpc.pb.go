@@ -89,6 +89,7 @@ const (
 	UserService_GetSession_FullMethodName                       = "/bbs.user.v1.UserService/GetSession"
 	UserService_RevokeSession_FullMethodName                    = "/bbs.user.v1.UserService/RevokeSession"
 	UserService_ListLoginEvents_FullMethodName                  = "/bbs.user.v1.UserService/ListLoginEvents"
+	UserService_GetUserChart_FullMethodName                     = "/bbs.user.v1.UserService/GetUserChart"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -167,6 +168,7 @@ type UserServiceClient interface {
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	ListLoginEvents(ctx context.Context, in *ListLoginEventsRequest, opts ...grpc.CallOption) (*LoginEventListResponse, error)
+	GetUserChart(ctx context.Context, in *UserChartRequest, opts ...grpc.CallOption) (*UserChartResponse, error)
 }
 
 type userServiceClient struct {
@@ -877,6 +879,16 @@ func (c *userServiceClient) ListLoginEvents(ctx context.Context, in *ListLoginEv
 	return out, nil
 }
 
+func (c *userServiceClient) GetUserChart(ctx context.Context, in *UserChartRequest, opts ...grpc.CallOption) (*UserChartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserChartResponse)
+	err := c.cc.Invoke(ctx, UserService_GetUserChart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -953,6 +965,7 @@ type UserServiceServer interface {
 	GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error)
 	RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error)
 	ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error)
+	GetUserChart(context.Context, *UserChartRequest) (*UserChartResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -1172,6 +1185,9 @@ func (UnimplementedUserServiceServer) RevokeSession(context.Context, *RevokeSess
 }
 func (UnimplementedUserServiceServer) ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLoginEvents not implemented")
+}
+func (UnimplementedUserServiceServer) GetUserChart(context.Context, *UserChartRequest) (*UserChartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserChart not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -2454,6 +2470,24 @@ func _UserService_ListLoginEvents_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetUserChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserChartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUserChart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUserChart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserChart(ctx, req.(*UserChartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2740,6 +2774,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLoginEvents",
 			Handler:    _UserService_ListLoginEvents_Handler,
+		},
+		{
+			MethodName: "GetUserChart",
+			Handler:    _UserService_GetUserChart_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

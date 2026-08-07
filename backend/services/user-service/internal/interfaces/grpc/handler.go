@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -73,7 +73,10 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrUserListNameRequired),
 		errors.Is(err, domain.ErrUserListNameTooLong),
 		errors.Is(err, domain.ErrPasskeyNameRequired),
-		errors.Is(err, domain.ErrPasskeyNameTooLong):
+		errors.Is(err, domain.ErrPasskeyNameTooLong),
+		errors.Is(err, domain.ErrUserChartSpanInvalid),
+		errors.Is(err, domain.ErrUserChartLimitInvalid),
+		errors.Is(err, domain.ErrUserChartOffsetInvalid):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -338,6 +341,23 @@ func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.
 		return nil, toStatus(err)
 	}
 	return &pb.UserListResponse{Items: toPbList(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) GetUserChart(ctx context.Context, req *pb.UserChartRequest) (*pb.UserChartResponse, error) {
+	result, err := h.qry.GetUserChart(ctx, domain.UserChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.UserChartResponse{
+		Local:  toPbUserChartSeries(result.Local),
+		Remote: toPbUserChartSeries(result.Remote),
+	}, nil
+}
+
+func toPbUserChartSeries(series domain.UserChartSeries) *pb.UserChartSeries {
+	return &pb.UserChartSeries{Total: series.Total, Inc: series.Inc, Dec: series.Dec}
 }
 
 func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserResponse, error) {
