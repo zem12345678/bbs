@@ -39,7 +39,7 @@ watch(
   async () => {
     await nextTick(); // 确保DOM更新完成后再执行
     setOptions({
-      container: ".bar-card",
+      container: chartRef,
       color: ["#41b6ff", "#e85f33"],
       tooltip: {
         trigger: "axis",

@@ -1090,6 +1090,18 @@ export type AdminOverview = {
   degraded_sources?: string[];
 };
 
+export type AdminActiveUsersChart = {
+  readWrite: number[];
+  read: number[];
+  write: number[];
+  registeredWithinWeek: number[];
+  registeredWithinMonth: number[];
+  registeredWithinYear: number[];
+  registeredOutsideWeek: number[];
+  registeredOutsideMonth: number[];
+  registeredOutsideYear: number[];
+};
+
 export type SendSystemNotificationPayload = {
   recipient_ids: string[];
   title: string;
@@ -1165,6 +1177,14 @@ export const getAdminOverview = () => {
   return http.request<ApiEnvelope<AdminOverview>>(
     "get",
     "/api/v1/admin/overview"
+  );
+};
+
+export const getAdminActiveUsersChart = (offset: number) => {
+  return http.request<AdminActiveUsersChart>(
+    "get",
+    "/api/v1/charts/active-users",
+    { params: { span: "day", limit: 7, offset } }
   );
 };
 

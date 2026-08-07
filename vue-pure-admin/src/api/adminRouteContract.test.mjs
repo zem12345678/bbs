@@ -56,6 +56,42 @@ test("admin UI API routes are registered in api-gateway", () => {
   assert.deepEqual(missing, []);
 });
 
+test("welcome active users chart is permission-gated and chronological", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const viewSource = read("vue-pure-admin/src/views/welcome/index.vue");
+  const chartSource = read(
+    "vue-pure-admin/src/views/welcome/components/charts/ChartBar.vue"
+  );
+
+  assert.match(apiSource, /getAdminActiveUsersChart/);
+  assert.match(apiSource, /\/api\/v1\/charts\/active-users/);
+  assert.match(apiSource, /params:\s*\{\s*span:\s*"day",\s*limit:\s*7,\s*offset\s*\}/);
+  assert.match(viewSource, /canViewActiveUsers\s*=\s*computed/);
+  assert.match(viewSource, /\["\*",\s*"\*:\*",\s*"governance:\*",\s*"governance:list_users"\]/);
+  assert.match(viewSource, /\.some\(permission\s*=>\s*hasPerms\(permission\)\s*\)/);
+  assert.match(viewSource, /if\s*\(!canViewActiveUsers\.value\)\s*return/);
+  assert.match(
+    viewSource,
+    /activeUsersChart\.value\?\.read[\s\S]*?\.reverse\(\)/
+  );
+  assert.match(
+    viewSource,
+    /activeUsersChart\.value\?\.write[\s\S]*?\.reverse\(\)/
+  );
+  assert.match(viewSource, /activeUsersError\s*=\s*ref\(""\)/);
+  assert.match(viewSource, /Date\.UTC\([\s\S]*getUTCFullYear\(\)[\s\S]*getUTCDate\(\)/);
+  assert.match(viewSource, /getAdminActiveUsersChart\(offset\)/);
+  assert.match(viewSource, /activeUsersReadData\.value\.some\(count\s*=>\s*count\s*>\s*0\)/);
+  assert.match(viewSource, /activeUsersWriteData\.value\.some\(count\s*=>\s*count\s*>\s*0\)/);
+  assert.match(viewSource, /role="alert"/);
+  assert.match(viewSource, /@click="loadActiveUsers"/);
+  assert.match(viewSource, /watch\(\s*canViewActiveUsers,/);
+  assert.match(viewSource, /\{\s*immediate:\s*true\s*\}/);
+  assert.match(viewSource, /activeUsersRequestVersion/);
+  assert.match(chartSource, /container:\s*chartRef/);
+  assert.doesNotMatch(chartSource, /container:\s*["']\.bar-card["']/);
+});
+
 test("admin static menu does not import template demo modules", () => {
   const source = read("vue-pure-admin/src/router/index.ts");
   const staticModules = extractStaticRouterModules(source);

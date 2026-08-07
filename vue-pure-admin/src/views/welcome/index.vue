@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, markRaw, onMounted } from "vue";
+import { computed, ref, markRaw, onMounted, watch } from "vue";
 import ReCol from "@/components/ReCol";
 import { useDark, randomGradient } from "./utils";
 import WelcomeTable from "./components/table/index.vue";
@@ -8,8 +8,11 @@ import { useRenderFlicker } from "@/components/ReFlicker";
 import { ChartBar, ChartLine, ChartRound } from "./components/charts";
 import Segmented, { type OptionsType } from "@/components/ReSegmented";
 import { message } from "@/utils/message";
+import { hasPerms } from "@/utils/auth";
 import {
+  getAdminActiveUsersChart,
   getAdminOverview,
+  type AdminActiveUsersChart,
   type AdminOverview,
   type AdminOverviewActivity
 } from "@/api/admin";
@@ -23,6 +26,11 @@ const { isDark } = useDark();
 
 const overview = ref<AdminOverview>();
 const loading = ref(false);
+const activeUsersChart = ref<AdminActiveUsersChart>();
+const activeUsersLoading = ref(false);
+const activeUsersError = ref("");
+const activeUsersOffset = ref(0);
+let activeUsersRequestVersion = 0;
 const curWeek = ref(1); // 0上期、1本期
 const optionsBasis: Array<OptionsType> = [
   {
@@ -70,6 +78,36 @@ const activeChart = computed(() => overview.value?.chart ?? fallbackChart);
 const activeBarData = computed(() =>
   curWeek.value === 0 ? activeChart.value.previous : activeChart.value.current
 );
+const canViewActiveUsers = computed(() =>
+  ["*", "*:*", "governance:*", "governance:list_users"].some(permission =>
+    hasPerms(permission)
+  )
+);
+const activeUsersReadData = computed(() =>
+  [...(activeUsersChart.value?.read ?? [])].reverse()
+);
+const activeUsersWriteData = computed(() =>
+  [...(activeUsersChart.value?.write ?? [])].reverse()
+);
+const hasActiveUsersData = computed(
+  () =>
+    activeUsersReadData.value.some(count => count > 0) ||
+    activeUsersWriteData.value.some(count => count > 0)
+);
+const activeUsersLabels = computed(() => {
+  const length = Math.max(
+    activeUsersReadData.value.length,
+    activeUsersWriteData.value.length
+  );
+  return Array.from({ length }, (_, index) => {
+    const date = new Date(
+      activeUsersOffset.value - (length - index - 1) * 86400000
+    );
+    return `${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
+      date.getUTCDate()
+    ).padStart(2, "0")}`;
+  });
+});
 const progressItems = computed(() => overview.value?.progress ?? []);
 const dailyRows = computed(() => overview.value?.daily ?? []);
 const latestActivities = computed(() => overview.value?.latest ?? []);
@@ -117,6 +155,55 @@ async function loadOverview() {
     loading.value = false;
   }
 }
+
+async function loadActiveUsers() {
+  if (!canViewActiveUsers.value) return;
+
+  const requestVersion = ++activeUsersRequestVersion;
+  activeUsersLoading.value = true;
+  activeUsersError.value = "";
+  try {
+    const now = new Date();
+    const offset = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    );
+    const chart = await getAdminActiveUsersChart(offset);
+    if (
+      requestVersion !== activeUsersRequestVersion ||
+      !canViewActiveUsers.value
+    )
+      return;
+    activeUsersChart.value = chart;
+    activeUsersOffset.value = offset;
+  } catch {
+    if (requestVersion !== activeUsersRequestVersion) return;
+    activeUsersChart.value = undefined;
+    activeUsersOffset.value = 0;
+    activeUsersError.value = "加载活跃用户趋势失败";
+  } finally {
+    if (requestVersion === activeUsersRequestVersion) {
+      activeUsersLoading.value = false;
+    }
+  }
+}
+
+watch(
+  canViewActiveUsers,
+  allowed => {
+    if (allowed) {
+      loadActiveUsers();
+      return;
+    }
+    activeUsersRequestVersion++;
+    activeUsersChart.value = undefined;
+    activeUsersLoading.value = false;
+    activeUsersError.value = "";
+    activeUsersOffset.value = 0;
+  },
+  { immediate: true }
+);
 
 onMounted(loadOverview);
 </script>
@@ -191,6 +278,61 @@ onMounted(loadOverview);
               :data="item.data"
             />
             <ChartRound v-else class="w-1/2!" />
+          </div>
+        </el-card>
+      </re-col>
+
+      <re-col
+        v-if="canViewActiveUsers"
+        v-motion
+        class="mb-4.5"
+        :value="24"
+        :xs="24"
+        :initial="{
+          opacity: 0,
+          y: 100
+        }"
+        :enter="{
+          opacity: 1,
+          y: 0,
+          transition: {
+            delay: 560
+          }
+        }"
+      >
+        <el-card shadow="never">
+          <div class="flex justify-between">
+            <span class="text-md font-medium">近 7 天活跃用户</span>
+          </div>
+          <div v-loading="activeUsersLoading" class="active-users-chart mt-3">
+            <div
+              v-if="activeUsersError"
+              role="alert"
+              class="active-users-state"
+            >
+              <el-alert
+                :title="activeUsersError"
+                type="error"
+                :closable="false"
+                show-icon
+              />
+              <el-button type="primary" plain @click="loadActiveUsers">
+                重试
+              </el-button>
+            </div>
+            <ChartBar
+              v-else-if="hasActiveUsersData"
+              :xLabels="activeUsersLabels"
+              :requireData="activeUsersReadData"
+              :questionData="activeUsersWriteData"
+              primaryName="阅读用户"
+              secondaryName="发布用户"
+            />
+            <el-empty
+              v-else-if="!activeUsersLoading"
+              description="暂无活跃用户数据"
+              :image-size="80"
+            />
           </div>
         </el-card>
       </re-col>
@@ -395,6 +537,23 @@ onMounted(loadOverview);
 
 :deep(.el-timeline.is-start) {
   padding-left: 0;
+}
+
+.active-users-chart {
+  min-height: 365px;
+}
+
+.active-users-state {
+  display: flex;
+  min-height: 365px;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.active-users-state :deep(.el-alert) {
+  width: min(100%, 480px);
 }
 
 .main-content {
