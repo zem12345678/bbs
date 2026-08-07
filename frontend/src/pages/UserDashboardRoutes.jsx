@@ -1,12 +1,13 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { BadgeCheck, BadgePercent, Bell, Download, FileText, FolderOpen, Heart, ImagePlus, LayoutDashboard, LoaderCircle, MailCheck, MapPin, MessageCircle, Plus, RefreshCcw, ShoppingBag, Star, Trash2, Trophy, Upload, UserRound } from "lucide-react";
+import { ArrowLeft, BadgeCheck, BadgePercent, Bell, ChevronRight, Download, FileText, Folder, FolderOpen, FolderPlus, Heart, ImagePlus, LayoutDashboard, LoaderCircle, MailCheck, MapPin, MessageCircle, Pencil, Plus, RefreshCcw, Save, ShoppingBag, Star, Trash2, Trophy, Upload, UserRound, X } from "lucide-react";
 import { bbsApi } from "../api";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
 import NotificationPreferencesPanel from "../components/notifications/NotificationPreferencesPanel.jsx";
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { dashboardOverviewLoadState, dashboardOverviewMetric } from "../lib/dashboardOverview";
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
+import { ROOT_FILE_FOLDER_ID, fileFolderMoveOptions, fileFolderOptionLabel, fileFolderParentPayload, loadFileFolderTree, mergeKnownFileFolders, normalizeFileFolderId } from "../lib/fileFolders";
 import { loadAllListPages, loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { clearCheckoutAttemptForOrder, paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -457,10 +458,26 @@ function FileLibraryPanel({ auth }) {
   const fileInputRef = React.useRef(null);
   const fileSessionRef = React.useRef(0);
   const fileTokenRef = React.useRef(auth.accessToken);
+  const currentFolderRef = React.useRef(ROOT_FILE_FOLDER_ID);
   const fileLoadRequestVersionRef = React.useRef(0);
+  const folderLoadRequestVersionRef = React.useRef(0);
+  const folderTreeRequestVersionRef = React.useRef(0);
+  const folderTreeCacheRef = React.useRef(null);
   const fileUsageRequestVersionRef = React.useRef(0);
   const fileActionSubmittingRef = React.useRef(false);
   const [fileActionBusy, setFileActionBusy] = React.useState(false);
+  const [folderPath, setFolderPath] = React.useState([]);
+  const [knownFolders, setKnownFolders] = React.useState([]);
+  const [editor, setEditor] = React.useState(null);
+  const [folderOptionsState, setFolderOptionsState] = React.useState({ loading: false, error: "" });
+  const [folderState, setFolderState] = React.useState({
+    items: [],
+    total: 0,
+    offset: 0,
+    loading: false,
+    loadingMore: false,
+    error: ""
+  });
   const [state, setState] = React.useState({
     items: [],
     total: 0,
@@ -474,20 +491,28 @@ function FileLibraryPanel({ auth }) {
     error: "",
     notice: ""
   });
+  const currentFolderId = normalizeFileFolderId(folderPath.at(-1)?.id);
   fileTokenRef.current = auth.accessToken;
+  currentFolderRef.current = currentFolderId;
 
   function isCurrentFileSessionRequest(requestToken, session) {
     return session === fileSessionRef.current && requestToken === fileTokenRef.current;
+  }
+
+  function isCurrentFileScopeRequest(requestToken, session, folderId) {
+    return isCurrentFileSessionRequest(requestToken, session)
+      && normalizeFileFolderId(folderId) === currentFolderRef.current;
   }
 
   const loadFiles = React.useCallback((offset = 0, appending = false) => {
     let alive = true;
     const requestToken = auth.accessToken;
     const fileSession = fileSessionRef.current;
+    const requestFolderId = currentFolderId;
     const requestVersion = ++fileLoadRequestVersionRef.current;
     const isCurrentRequest = () => alive
       && requestVersion === fileLoadRequestVersionRef.current
-      && isCurrentFileSessionRequest(requestToken, fileSession);
+      && isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
     if (!requestToken || !isCurrentRequest()) {
       return () => {
         alive = false;
@@ -501,7 +526,7 @@ function FileLibraryPanel({ auth }) {
       notice: appending ? current.notice : ""
     }));
     bbsApi
-      .listFiles({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset }, requestToken)
+      .listFiles({ limit: DASHBOARD_HISTORY_PAGE_SIZE, offset, folder_id: requestFolderId }, requestToken)
       .then((data) => {
         if (!isCurrentRequest()) return;
         const pageItems = listItems(data);
@@ -534,7 +559,63 @@ function FileLibraryPanel({ auth }) {
     return () => {
       alive = false;
     };
-  }, [auth.accessToken]);
+  }, [auth.accessToken, currentFolderId]);
+
+  const loadFolders = React.useCallback((offset = 0, appending = false) => {
+    let alive = true;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestFolderId = currentFolderId;
+    const requestVersion = ++folderLoadRequestVersionRef.current;
+    const isCurrentRequest = () => alive
+      && requestVersion === folderLoadRequestVersionRef.current
+      && isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
+    if (!requestToken || !isCurrentRequest()) {
+      return () => {
+        alive = false;
+      };
+    }
+    setFolderState((current) => ({
+      ...current,
+      loading: appending ? current.loading : true,
+      loadingMore: appending,
+      error: ""
+    }));
+    bbsApi
+      .fileFolders({ limit: 100, offset, parent_id: requestFolderId }, requestToken)
+      .then((data) => {
+        if (!isCurrentRequest()) return;
+        const pageItems = listItems(data);
+        setKnownFolders((current) => mergeKnownFileFolders(current, pageItems, folderPath));
+        setFolderState((current) => {
+          const items = appending ? appendUniqueDashboardItems(current.items, pageItems) : pageItems;
+          const total = Math.max(listTotal(data, pageItems), items.length);
+          return {
+            items,
+            total,
+            offset: appending ? (pageItems.length > 0 ? offset + pageItems.length : total) : pageItems.length,
+            loading: false,
+            loadingMore: false,
+            error: ""
+          };
+        });
+      })
+      .catch((error) => {
+        if (!isCurrentRequest()) return;
+        setFolderState((current) => ({
+          ...current,
+          items: appending ? current.items : [],
+          total: appending ? current.total : 0,
+          offset: appending ? current.offset : 0,
+          loading: false,
+          loadingMore: false,
+          error: error.message || (appending ? "更多文件夹加载失败" : "文件夹加载失败")
+        }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, currentFolderId, folderPath]);
 
   const loadFileUsage = React.useCallback(() => {
     let alive = true;
@@ -572,9 +653,24 @@ function FileLibraryPanel({ auth }) {
   React.useLayoutEffect(() => {
     fileSessionRef.current += 1;
     fileLoadRequestVersionRef.current += 1;
+    folderLoadRequestVersionRef.current += 1;
+    folderTreeRequestVersionRef.current += 1;
+    folderTreeCacheRef.current = null;
     fileUsageRequestVersionRef.current += 1;
     fileActionSubmittingRef.current = false;
     setFileActionBusy(false);
+    setFolderPath([]);
+    setKnownFolders([]);
+    setEditor(null);
+    setFolderOptionsState({ loading: false, error: "" });
+    setFolderState({
+      items: [],
+      total: 0,
+      offset: 0,
+      loading: false,
+      loadingMore: false,
+      error: ""
+    });
     setState({
       items: [],
       total: 0,
@@ -590,18 +686,60 @@ function FileLibraryPanel({ auth }) {
     });
   }, [auth.accessToken]);
 
+  React.useLayoutEffect(() => {
+    fileLoadRequestVersionRef.current += 1;
+    folderLoadRequestVersionRef.current += 1;
+    folderTreeRequestVersionRef.current += 1;
+    fileActionSubmittingRef.current = false;
+    setFileActionBusy(false);
+    setEditor(null);
+    setFolderOptionsState({ loading: false, error: "" });
+    setFolderState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "" });
+    setState((current) => ({
+      ...current,
+      items: [],
+      total: 0,
+      offset: 0,
+      loading: false,
+      loadingMore: false,
+      action: "",
+      error: "",
+      notice: ""
+    }));
+  }, [currentFolderId]);
+
   React.useEffect(loadFiles, [loadFiles]);
+  React.useEffect(loadFolders, [loadFolders]);
   React.useEffect(loadFileUsage, [loadFileUsage]);
 
   function refreshFiles() {
     if (state.loading || state.loadingMore || fileActionSubmittingRef.current) return;
+    folderTreeCacheRef.current = null;
     loadFiles();
+    loadFolders();
     loadFileUsage();
   }
 
   function loadMoreFiles() {
     if (state.loading || state.loadingMore || state.offset >= state.total || fileActionSubmittingRef.current) return;
     loadFiles(state.offset, true);
+  }
+
+  function loadMoreFolders() {
+    if (folderState.loading || folderState.loadingMore || folderState.offset >= folderState.total || fileActionSubmittingRef.current) return;
+    loadFolders(folderState.offset, true);
+  }
+
+  function openFolder(folder) {
+    if (fileActionSubmittingRef.current) return;
+    const id = normalizeFileFolderId(folder?.id);
+    if (id === ROOT_FILE_FOLDER_ID) return;
+    setFolderPath((current) => [...current, { id, name: String(folder?.name || "未命名文件夹") }]);
+  }
+
+  function navigateToFolder(index) {
+    if (fileActionSubmittingRef.current) return;
+    setFolderPath((current) => (index < 0 ? [] : current.slice(0, index + 1)));
   }
 
   async function uploadFile(event) {
@@ -614,13 +752,14 @@ function FileLibraryPanel({ auth }) {
     }
     const requestToken = auth.accessToken;
     const fileSession = fileSessionRef.current;
-    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    const requestFolderId = currentFolderId;
+    const isCurrentRequest = () => isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
     if (!requestToken || !isCurrentRequest()) return;
     fileActionSubmittingRef.current = true;
     setFileActionBusy(true);
     setState((current) => ({ ...current, action: "upload", error: "", notice: "" }));
     try {
-      const created = await bbsApi.uploadFile(file, requestToken);
+      const created = await bbsApi.uploadFile(file, requestToken, "files", requestFolderId);
       if (!isCurrentRequest()) return;
       if (!created?.id) throw new Error("文件上传成功但未返回文件信息");
       setState((current) => ({
@@ -647,7 +786,8 @@ function FileLibraryPanel({ auth }) {
     const fileId = toId(file?.id);
     const requestToken = auth.accessToken;
     const fileSession = fileSessionRef.current;
-    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    const requestFolderId = currentFolderId;
+    const isCurrentRequest = () => isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
     if (!fileId || !requestToken || !isCurrentRequest() || fileActionSubmittingRef.current) return;
     fileActionSubmittingRef.current = true;
     setFileActionBusy(true);
@@ -676,7 +816,8 @@ function FileLibraryPanel({ auth }) {
     if (typeof window !== "undefined" && !window.confirm(`确认删除文件“${file.original_name || fileId}”吗？`)) return;
     const requestToken = auth.accessToken;
     const fileSession = fileSessionRef.current;
-    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    const requestFolderId = currentFolderId;
+    const isCurrentRequest = () => isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
     if (!requestToken || !isCurrentRequest()) return;
     fileActionSubmittingRef.current = true;
     setFileActionBusy(true);
@@ -704,6 +845,210 @@ function FileLibraryPanel({ auth }) {
     }
   }
 
+  function createFolderEditor() {
+    if (fileActionSubmittingRef.current) return;
+    folderTreeRequestVersionRef.current += 1;
+    setFolderOptionsState({ loading: false, error: "" });
+    setEditor({ type: "create-folder", name: "", parentId: currentFolderId });
+  }
+
+  function closeFileEditor() {
+    if (fileActionSubmittingRef.current) return;
+    folderTreeRequestVersionRef.current += 1;
+    setFolderOptionsState({ loading: false, error: "" });
+    setEditor(null);
+  }
+
+  async function loadFolderOptions() {
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestFolderId = currentFolderId;
+    const requestVersion = ++folderTreeRequestVersionRef.current;
+    const isCurrentRequest = () => requestVersion === folderTreeRequestVersionRef.current
+      && isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
+    if (!requestToken || !isCurrentRequest()) return;
+    const cachedFolders = folderTreeCacheRef.current;
+    if (cachedFolders !== null) {
+      setKnownFolders(cachedFolders);
+      setFolderOptionsState({ loading: false, error: "" });
+      return;
+    }
+    setFolderOptionsState({ loading: true, error: "" });
+    try {
+      const folders = await loadFileFolderTree(
+        (params) => bbsApi.fileFolders(params, requestToken)
+      );
+      if (!isCurrentRequest()) return;
+      folderTreeCacheRef.current = folders;
+      setKnownFolders(folders);
+      setFolderOptionsState({ loading: false, error: "" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setFolderOptionsState({ loading: false, error: error.message || "目录树加载失败" });
+    }
+  }
+
+  function editFolder(folder) {
+    if (fileActionSubmittingRef.current) return;
+    setEditor({
+      type: "edit-folder",
+      folder,
+      name: String(folder?.name || ""),
+      parentId: normalizeFileFolderId(folder?.parent_id ?? folder?.parentId)
+    });
+    loadFolderOptions();
+  }
+
+  function editFile(file) {
+    if (fileActionSubmittingRef.current) return;
+    setEditor({
+      type: "edit-file",
+      file,
+      name: String(file?.original_name ?? file?.originalName ?? ""),
+      folderId: normalizeFileFolderId(file?.folder_id ?? file?.folderId),
+      isSensitive: Boolean(file?.is_sensitive ?? file?.isSensitive),
+      comment: String(file?.comment || "")
+    });
+    loadFolderOptions();
+  }
+
+  async function submitFileEditor(event) {
+    event.preventDefault();
+    if (!editor || fileActionSubmittingRef.current) return;
+    const name = editor.name.trim();
+    const maxNameLength = editor.type === "edit-file" ? 255 : 200;
+    if (!name || name.length > maxNameLength) {
+      setState((current) => ({ ...current, error: `名称需为 1 至 ${maxNameLength} 个字符。`, notice: "" }));
+      return;
+    }
+    if (editor.type === "edit-file" && editor.comment.length > 512) {
+      setState((current) => ({ ...current, error: "文件备注不能超过 512 个字符。", notice: "" }));
+      return;
+    }
+
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestFolderId = currentFolderId;
+    const isCurrentRequest = () => isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
+    if (!requestToken || !isCurrentRequest()) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: "metadata", error: "", notice: "" }));
+    try {
+      if (editor.type === "create-folder") {
+        const created = await bbsApi.createFileFolder({ name, parent_id: fileFolderParentPayload(requestFolderId) }, requestToken);
+        if (!isCurrentRequest()) return;
+        setFolderState((current) => ({
+          ...current,
+          items: [created, ...current.items],
+          total: current.total + 1,
+          offset: current.offset + 1
+        }));
+        folderTreeCacheRef.current = null;
+        setKnownFolders((current) => mergeKnownFileFolders(current, [created], folderPath));
+        setState((current) => ({ ...current, notice: "文件夹已创建。" }));
+      } else if (editor.type === "edit-folder") {
+        const folderId = normalizeFileFolderId(editor.folder?.id);
+        const destinationId = normalizeFileFolderId(editor.parentId);
+        const updated = await bbsApi.updateFileFolder(folderId, {
+          name,
+          parent_id: fileFolderParentPayload(destinationId)
+        }, requestToken);
+        if (!isCurrentRequest()) return;
+        setFolderState((current) => ({
+          ...current,
+          items: destinationId === requestFolderId
+            ? current.items.map((item) => normalizeFileFolderId(item?.id) === folderId ? updated : item)
+            : current.items.filter((item) => normalizeFileFolderId(item?.id) !== folderId),
+          total: destinationId === requestFolderId ? current.total : Math.max(0, current.total - 1),
+          offset: destinationId === requestFolderId ? current.offset : Math.max(0, current.offset - 1)
+        }));
+        folderTreeCacheRef.current = null;
+        setKnownFolders((current) => destinationId === requestFolderId
+          ? current.map((item) => normalizeFileFolderId(item?.id) === folderId ? { ...item, ...updated, id: folderId } : item)
+          : current.filter((item) => !(item?.path || []).map(normalizeFileFolderId).includes(folderId)));
+        setState((current) => ({ ...current, notice: "文件夹已更新。" }));
+        loadFolders();
+      } else {
+        const fileId = toId(editor.file?.id);
+        const destinationId = normalizeFileFolderId(editor.folderId);
+        const updated = await bbsApi.updateFile(fileId, {
+          name,
+          folder_id: fileFolderParentPayload(destinationId),
+          is_sensitive: editor.isSensitive,
+          comment: editor.comment.trim()
+        }, requestToken);
+        if (!isCurrentRequest()) return;
+        setState((current) => ({
+          ...current,
+          items: destinationId === requestFolderId
+            ? current.items.map((item) => toId(item?.id) === fileId ? updated : item)
+            : current.items.filter((item) => toId(item?.id) !== fileId),
+          total: destinationId === requestFolderId ? current.total : Math.max(0, current.total - 1),
+          offset: destinationId === requestFolderId ? current.offset : Math.max(0, current.offset - 1),
+          notice: "文件信息已更新。"
+        }));
+        loadFolders();
+      }
+      setEditor(null);
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "文件库更新失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
+  async function deleteFolder(folder) {
+    const folderId = normalizeFileFolderId(folder?.id);
+    if (folderId === ROOT_FILE_FOLDER_ID || fileActionSubmittingRef.current) return;
+    if (typeof window !== "undefined" && !window.confirm(`确认删除空文件夹“${folder?.name || folderId}”吗？`)) return;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestFolderId = currentFolderId;
+    const isCurrentRequest = () => isCurrentFileScopeRequest(requestToken, fileSession, requestFolderId);
+    if (!requestToken || !isCurrentRequest()) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: `delete-folder-${folderId}`, error: "", notice: "" }));
+    try {
+      await bbsApi.deleteFileFolder(folderId, requestToken);
+      if (!isCurrentRequest()) return;
+      setFolderState((current) => ({
+        ...current,
+        items: current.items.filter((item) => normalizeFileFolderId(item?.id) !== folderId),
+        total: Math.max(0, current.total - 1),
+        offset: Math.max(0, current.offset - 1)
+      }));
+      folderTreeCacheRef.current = null;
+      setKnownFolders((current) => current.filter((item) => !(item?.path || []).map(normalizeFileFolderId).includes(folderId)));
+      setState((current) => ({ ...current, notice: "文件夹已删除。" }));
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "文件夹删除失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
+  const folderOptions = editor?.type === "edit-folder"
+    ? fileFolderMoveOptions(knownFolders, editor.folder?.id)
+    : knownFolders;
+  const folderOptionLookup = React.useMemo(
+    () => new Map(knownFolders.map((folder) => [normalizeFileFolderId(folder?.id), folder])),
+    [knownFolders]
+  );
+  const editorNeedsFolderOptions = editor?.type === "edit-folder" || editor?.type === "edit-file";
+  const rowCount = state.total + folderState.total;
+
   return (
     <>
       {state.notice && <p className="form-success" role="status">{state.notice}</p>}
@@ -713,28 +1058,158 @@ function FileLibraryPanel({ auth }) {
         <Metric value={state.usage ? formatFileSize(state.usage.capacity_bytes) : state.usageLoading ? "加载中" : "暂不可用"} label="总容量" />
         <Metric value={state.usage ? formatFileSize(state.usage.remaining_bytes) : state.usageLoading ? "加载中" : "暂不可用"} label="剩余空间" />
       </div>
+      <nav className="file-library-navigation panel" aria-label="文件夹路径">
+        {folderPath.length > 0 && (
+          <button aria-label="返回上一级" disabled={fileActionBusy} type="button" onClick={() => navigateToFolder(folderPath.length - 2)}>
+            <ArrowLeft size={16} aria-hidden="true" />
+          </button>
+        )}
+        <button aria-current={folderPath.length === 0 ? "page" : undefined} className={folderPath.length === 0 ? "is-current" : ""} disabled={fileActionBusy} type="button" onClick={() => navigateToFolder(-1)}>
+          <FolderOpen size={16} aria-hidden="true" />
+          根目录
+        </button>
+        {folderPath.map((folder, index) => (
+          <React.Fragment key={folder.id}>
+            <ChevronRight size={15} aria-hidden="true" />
+            <button aria-current={index === folderPath.length - 1 ? "page" : undefined} className={index === folderPath.length - 1 ? "is-current" : ""} disabled={fileActionBusy} type="button" onClick={() => navigateToFolder(index)}>
+              {folder.name}
+            </button>
+          </React.Fragment>
+        ))}
+      </nav>
+      {editor && (
+        <form className="file-library-editor panel" onSubmit={submitFileEditor}>
+          <header>
+            <div>
+              <strong>{editor.type === "create-folder" ? "新建文件夹" : editor.type === "edit-folder" ? "管理文件夹" : "编辑文件"}</strong>
+              <span>{editor.type === "create-folder" ? "创建在当前目录" : "修改名称、位置和元数据"}</span>
+            </div>
+            <button aria-label="关闭编辑" disabled={fileActionBusy} type="button" onClick={closeFileEditor}>
+              <X size={17} aria-hidden="true" />
+            </button>
+          </header>
+          <div className="file-library-editor-grid">
+            <label>
+              名称
+              <input
+                autoFocus
+                maxLength={editor.type === "edit-file" ? 255 : 200}
+                required
+                value={editor.name}
+                onChange={(event) => setEditor((current) => ({ ...current, name: event.target.value }))}
+              />
+            </label>
+            {editor.type !== "create-folder" && (
+              <label>
+                所在文件夹
+                <select
+                  disabled={folderOptionsState.loading}
+                  value={editor.type === "edit-file" ? editor.folderId : editor.parentId}
+                  onChange={(event) => setEditor((current) => ({
+                    ...current,
+                    [current.type === "edit-file" ? "folderId" : "parentId"]: event.target.value
+                  }))}
+                >
+                  <option value={ROOT_FILE_FOLDER_ID}>根目录</option>
+                  {folderOptions.map((folder) => (
+                    <option key={folder.id} value={folder.id}>{fileFolderOptionLabel(folder, knownFolders, folderOptionLookup)}</option>
+                  ))}
+                </select>
+                {folderOptionsState.loading && <span>正在加载完整目录...</span>}
+              </label>
+            )}
+            {editor.type === "edit-file" && (
+              <>
+                <label className="file-library-comment">
+                  备注
+                  <textarea
+                    maxLength={512}
+                    rows={3}
+                    value={editor.comment}
+                    onChange={(event) => setEditor((current) => ({ ...current, comment: event.target.value }))}
+                  />
+                </label>
+                <label className="file-library-sensitive">
+                  <input
+                    checked={editor.isSensitive}
+                    type="checkbox"
+                    onChange={(event) => setEditor((current) => ({ ...current, isSensitive: event.target.checked }))}
+                  />
+                  标记为敏感内容
+                </label>
+              </>
+            )}
+          </div>
+          {folderOptionsState.error && (
+            <div className="file-library-options-error" role="alert">
+              <span>{folderOptionsState.error}</span>
+              <button type="button" onClick={loadFolderOptions}>重试</button>
+            </div>
+          )}
+          <div className="file-library-editor-actions">
+            <button disabled={fileActionBusy} type="button" onClick={closeFileEditor}>取消</button>
+            <button disabled={fileActionBusy || (editorNeedsFolderOptions && (folderOptionsState.loading || Boolean(folderOptionsState.error)))} type="submit">
+              {fileActionBusy ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+              {fileActionBusy ? "保存中" : "保存"}
+            </button>
+          </div>
+        </form>
+      )}
       <ModerationSection
-        actionError={state.error}
-        emptyText="暂无文件"
+        actionError={state.error || folderState.error}
+        emptyText="当前目录为空"
         filters={[]}
-        loading={state.loading}
+        loading={state.loading || folderState.loading}
         status=""
         title="文件库"
-        total={state.total}
+        total={rowCount}
         toolbar={
           <>
             <input className="sr-only" disabled={fileActionBusy} ref={fileInputRef} type="file" onChange={uploadFile} />
+            <button disabled={fileActionBusy || state.loading || folderState.loading} type="button" onClick={createFolderEditor}>
+              <FolderPlus size={16} aria-hidden="true" />
+              新建文件夹
+            </button>
             <button disabled={fileActionBusy || state.loading || state.loadingMore} type="button" onClick={() => fileInputRef.current?.click()}>
               {state.action === "upload" ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}
               {state.action === "upload" ? "上传中" : "上传文件"}
             </button>
-            <button disabled={fileActionBusy || state.loading || state.loadingMore} type="button" onClick={refreshFiles}>
-              <RefreshCcw className={state.loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
+            <button disabled={fileActionBusy || state.loading || state.loadingMore || folderState.loading || folderState.loadingMore} type="button" onClick={refreshFiles}>
+              <RefreshCcw className={state.loading || folderState.loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
               刷新
             </button>
           </>
         }
       >
+        {folderState.items.map((folder) => {
+          const folderId = normalizeFileFolderId(folder?.id);
+          const deleting = state.action === `delete-folder-${folderId}`;
+          return (
+            <WorkspaceRow
+              key={`folder-${folderId}`}
+              title={folder.name || `文件夹 #${folderId}`}
+              description={`${toNumber(folder.folders_count ?? folder.foldersCount)} 个子文件夹 · ${toNumber(folder.files_count ?? folder.filesCount)} 个文件`}
+              meta={`创建于 ${timeAgoMillis(folder.created_at || folder.createdAt)}`}
+              status="文件夹"
+              actions={
+                <>
+                  <button aria-label={`打开文件夹 ${folder.name || folderId}`} disabled={fileActionBusy} type="button" onClick={() => openFolder(folder)}>
+                    <Folder size={16} aria-hidden="true" />
+                    打开
+                  </button>
+                  <button aria-label={`管理文件夹 ${folder.name || folderId}`} disabled={fileActionBusy} type="button" onClick={() => editFolder(folder)}>
+                    <Pencil size={16} aria-hidden="true" />
+                    管理
+                  </button>
+                  <button aria-label={`删除文件夹 ${folder.name || folderId}`} disabled={fileActionBusy} type="button" onClick={() => deleteFolder(folder)}>
+                    {deleting ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
+                    {deleting ? "删除中" : "删除"}
+                  </button>
+                </>
+              }
+            />
+          );
+        })}
         {state.items.map((file) => {
           const fileId = toId(file?.id);
           const managedMedia = isManagedMediaFile(file);
@@ -744,17 +1219,21 @@ function FileLibraryPanel({ auth }) {
             <WorkspaceRow
               key={fileId}
               title={file.original_name || `文件 #${fileId}`}
-              description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}`}
+              description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}${file.comment ? ` · ${file.comment}` : ""}`}
               meta={`${fileSourceLabel(file)} · ${timeAgoMillis(file.created_at || file.createdAt)}`}
-              status={managedMedia ? "系统媒体" : fileStatusLabel(file.status)}
+              status={file.is_sensitive || file.isSensitive ? "敏感内容" : managedMedia ? "系统媒体" : fileStatusLabel(file.status)}
               actions={
                 <>
-                  <button disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>
+                  <button aria-label={`下载文件 ${file.original_name || fileId}`} disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>
                     {downloading ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
                     {downloading ? "下载中" : "下载"}
                   </button>
+                  <button aria-label={`编辑文件 ${file.original_name || fileId}`} disabled={fileActionBusy} type="button" onClick={() => editFile(file)}>
+                    <Pencil size={16} aria-hidden="true" />
+                    编辑
+                  </button>
                   {!managedMedia && (
-                    <button disabled={fileActionBusy} type="button" onClick={() => deleteFile(file)}>
+                    <button aria-label={`删除文件 ${file.original_name || fileId}`} disabled={fileActionBusy} type="button" onClick={() => deleteFile(file)}>
                       {deleting ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
                       {deleting ? "删除中" : "删除"}
                     </button>
@@ -765,6 +1244,14 @@ function FileLibraryPanel({ auth }) {
           );
         })}
       </ModerationSection>
+      {!folderState.loading && folderState.offset < folderState.total && (
+        <div className="dashboard-history-more">
+          <span>{folderState.loadingMore ? "正在加载更多文件夹..." : "继续查看当前目录中的文件夹。"}</span>
+          <button disabled={folderState.loadingMore || fileActionBusy} type="button" onClick={loadMoreFolders}>
+            {folderState.loadingMore ? "加载中" : "加载更多文件夹"}
+          </button>
+        </div>
+      )}
       {!state.loading && state.offset < state.total && (
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? "正在加载更多文件..." : "继续查看更早上传的文件。"}</span>

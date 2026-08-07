@@ -33,6 +33,11 @@ const (
 	FileService_SetFileCapacity_FullMethodName             = "/bbs.file.v1.FileService/SetFileCapacity"
 	FileService_GetFile_FullMethodName                     = "/bbs.file.v1.FileService/GetFile"
 	FileService_DeleteFile_FullMethodName                  = "/bbs.file.v1.FileService/DeleteFile"
+	FileService_ListFolders_FullMethodName                 = "/bbs.file.v1.FileService/ListFolders"
+	FileService_CreateFolder_FullMethodName                = "/bbs.file.v1.FileService/CreateFolder"
+	FileService_UpdateFolder_FullMethodName                = "/bbs.file.v1.FileService/UpdateFolder"
+	FileService_DeleteFolder_FullMethodName                = "/bbs.file.v1.FileService/DeleteFolder"
+	FileService_UpdateFile_FullMethodName                  = "/bbs.file.v1.FileService/UpdateFile"
 	FileService_GetDriveChart_FullMethodName               = "/bbs.file.v1.FileService/GetDriveChart"
 )
 
@@ -54,6 +59,11 @@ type FileServiceClient interface {
 	SetFileCapacity(ctx context.Context, in *SetFileCapacityRequest, opts ...grpc.CallOption) (*FileUsageResponse, error)
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
+	ListFolders(ctx context.Context, in *ListFoldersRequest, opts ...grpc.CallOption) (*FolderListResponse, error)
+	CreateFolder(ctx context.Context, in *CreateFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error)
+	UpdateFolder(ctx context.Context, in *UpdateFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error)
+	DeleteFolder(ctx context.Context, in *DeleteFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error)
+	UpdateFile(ctx context.Context, in *UpdateFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	GetDriveChart(ctx context.Context, in *DriveChartRequest, opts ...grpc.CallOption) (*DriveChartResponse, error)
 }
 
@@ -205,6 +215,56 @@ func (c *fileServiceClient) DeleteFile(ctx context.Context, in *DeleteFileReques
 	return out, nil
 }
 
+func (c *fileServiceClient) ListFolders(ctx context.Context, in *ListFoldersRequest, opts ...grpc.CallOption) (*FolderListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FolderListResponse)
+	err := c.cc.Invoke(ctx, FileService_ListFolders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) CreateFolder(ctx context.Context, in *CreateFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FolderResponse)
+	err := c.cc.Invoke(ctx, FileService_CreateFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) UpdateFolder(ctx context.Context, in *UpdateFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FolderResponse)
+	err := c.cc.Invoke(ctx, FileService_UpdateFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) DeleteFolder(ctx context.Context, in *DeleteFolderRequest, opts ...grpc.CallOption) (*FolderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FolderResponse)
+	err := c.cc.Invoke(ctx, FileService_DeleteFolder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) UpdateFile(ctx context.Context, in *UpdateFileRequest, opts ...grpc.CallOption) (*FileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FileResponse)
+	err := c.cc.Invoke(ctx, FileService_UpdateFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fileServiceClient) GetDriveChart(ctx context.Context, in *DriveChartRequest, opts ...grpc.CallOption) (*DriveChartResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DriveChartResponse)
@@ -233,6 +293,11 @@ type FileServiceServer interface {
 	SetFileCapacity(context.Context, *SetFileCapacityRequest) (*FileUsageResponse, error)
 	GetFile(context.Context, *GetFileRequest) (*FileResponse, error)
 	DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error)
+	ListFolders(context.Context, *ListFoldersRequest) (*FolderListResponse, error)
+	CreateFolder(context.Context, *CreateFolderRequest) (*FolderResponse, error)
+	UpdateFolder(context.Context, *UpdateFolderRequest) (*FolderResponse, error)
+	DeleteFolder(context.Context, *DeleteFolderRequest) (*FolderResponse, error)
+	UpdateFile(context.Context, *UpdateFileRequest) (*FileResponse, error)
 	GetDriveChart(context.Context, *DriveChartRequest) (*DriveChartResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
 }
@@ -285,6 +350,21 @@ func (UnimplementedFileServiceServer) GetFile(context.Context, *GetFileRequest) 
 }
 func (UnimplementedFileServiceServer) DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
+}
+func (UnimplementedFileServiceServer) ListFolders(context.Context, *ListFoldersRequest) (*FolderListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFolders not implemented")
+}
+func (UnimplementedFileServiceServer) CreateFolder(context.Context, *CreateFolderRequest) (*FolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateFolder not implemented")
+}
+func (UnimplementedFileServiceServer) UpdateFolder(context.Context, *UpdateFolderRequest) (*FolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateFolder not implemented")
+}
+func (UnimplementedFileServiceServer) DeleteFolder(context.Context, *DeleteFolderRequest) (*FolderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteFolder not implemented")
+}
+func (UnimplementedFileServiceServer) UpdateFile(context.Context, *UpdateFileRequest) (*FileResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateFile not implemented")
 }
 func (UnimplementedFileServiceServer) GetDriveChart(context.Context, *DriveChartRequest) (*DriveChartResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDriveChart not implemented")
@@ -562,6 +642,96 @@ func _FileService_DeleteFile_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_ListFolders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFoldersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).ListFolders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_ListFolders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).ListFolders(ctx, req.(*ListFoldersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_CreateFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).CreateFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_CreateFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).CreateFolder(ctx, req.(*CreateFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_UpdateFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).UpdateFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_UpdateFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).UpdateFolder(ctx, req.(*UpdateFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_DeleteFolder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFolderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).DeleteFolder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_DeleteFolder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).DeleteFolder(ctx, req.(*DeleteFolderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_UpdateFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).UpdateFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_UpdateFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).UpdateFile(ctx, req.(*UpdateFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FileService_GetDriveChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DriveChartRequest)
 	if err := dec(in); err != nil {
@@ -642,6 +812,26 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteFile",
 			Handler:    _FileService_DeleteFile_Handler,
+		},
+		{
+			MethodName: "ListFolders",
+			Handler:    _FileService_ListFolders_Handler,
+		},
+		{
+			MethodName: "CreateFolder",
+			Handler:    _FileService_CreateFolder_Handler,
+		},
+		{
+			MethodName: "UpdateFolder",
+			Handler:    _FileService_UpdateFolder_Handler,
+		},
+		{
+			MethodName: "DeleteFolder",
+			Handler:    _FileService_DeleteFolder_Handler,
+		},
+		{
+			MethodName: "UpdateFile",
+			Handler:    _FileService_UpdateFile_Handler,
 		},
 		{
 			MethodName: "GetDriveChart",

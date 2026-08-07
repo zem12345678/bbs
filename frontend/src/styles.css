@@ -8011,6 +8011,191 @@ a {
   overflow-wrap: anywhere;
 }
 
+.file-library-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 8px 12px;
+  overflow-x: auto;
+}
+
+.file-library-navigation > svg {
+  flex: 0 0 auto;
+  color: #a0a8b4;
+}
+
+.file-library-navigation button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 9px;
+  color: #657082;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.file-library-navigation button:hover:not(:disabled),
+.file-library-navigation button.is-current {
+  color: var(--blue);
+  background: #eef6ff;
+  border-color: #cfe6ff;
+}
+
+.file-library-editor {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.file-library-editor header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.file-library-editor header strong,
+.file-library-editor header span {
+  display: block;
+}
+
+.file-library-editor header strong {
+  color: #172033;
+  font-size: 17px;
+}
+
+.file-library-editor header span {
+  margin-top: 4px;
+  color: #7c8493;
+  font-size: 13px;
+}
+
+.file-library-editor header button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #657082;
+  background: #f5f7fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.file-library-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.file-library-editor-grid label {
+  display: grid;
+  gap: 7px;
+  color: #596171;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.file-library-editor-grid input:not([type="checkbox"]),
+.file-library-editor-grid select,
+.file-library-editor-grid textarea {
+  width: 100%;
+  padding: 0 11px;
+  color: #343946;
+  background: #fff;
+  border: 1px solid #dfe5ed;
+  border-radius: 6px;
+}
+
+.file-library-editor-grid input:not([type="checkbox"]),
+.file-library-editor-grid select {
+  min-height: 40px;
+}
+
+.file-library-editor-grid textarea {
+  min-height: 88px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  resize: vertical;
+}
+
+.file-library-comment,
+.file-library-sensitive {
+  grid-column: 1 / -1;
+}
+
+.file-library-sensitive {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+}
+
+.file-library-sensitive input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+
+.file-library-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.file-library-options-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  color: #a33a35;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff4f3;
+  border: 1px solid #f2cbc8;
+  border-radius: 6px;
+}
+
+.file-library-options-error button {
+  min-height: 32px;
+  padding: 0 11px;
+  color: #a33a35;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #e7b6b2;
+  border-radius: 6px;
+}
+
+.file-library-editor-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  color: #657082;
+  font-size: 14px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid #dfe5ed;
+  border-radius: 6px;
+}
+
+.file-library-editor-actions button[type="submit"] {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
 .moderation-actions button,
 .moderation-filters button,
 .workspace-toolbar-actions > button,
@@ -8684,6 +8869,12 @@ a {
   }
 }
 
+@media (max-width: 1180px) {
+  .floating-rail {
+    display: none;
+  }
+}
+
 @media (max-width: 960px) {
   .topbar {
     align-items: stretch;
@@ -9173,6 +9364,15 @@ a {
 
   .file-usage-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .file-library-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .file-library-comment,
+  .file-library-sensitive {
+    grid-column: auto;
   }
 
   .moderation-row aside {

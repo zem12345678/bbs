@@ -116,11 +116,17 @@ SET owner_user_id = 0,
     original_name = 'erased-file',
     content_type = 'application/octet-stream',
     size_bytes = 0,
+	folder_id = NULL,
+	is_sensitive = FALSE,
+	comment = '',
     status = 'ERASED',
     deleted_at = COALESCE(deleted_at, NOW()),
     updated_at = NOW()
 WHERE owner_user_id = $1
 `, userID); err != nil {
+		return domain.AccountErasureResult{}, nil, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM file_folders WHERE owner_user_id = $1`, userID); err != nil {
 		return domain.AccountErasureResult{}, nil, err
 	}
 	receipt.ArchivedAttachments += archivedAttachments.RowsAffected()

@@ -18,6 +18,10 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 		{name: "membership required", err: domain.ErrMembershipEntitlementRequired, want: codes.PermissionDenied},
 		{name: "attachment owner mismatch", err: domain.ErrAttachmentOwnerMismatch, want: codes.PermissionDenied},
 		{name: "file owner mismatch", err: domain.ErrFileOwnerMismatch, want: codes.NotFound},
+		{name: "folder not found", err: domain.ErrFolderNotFound, want: codes.NotFound},
+		{name: "folder not empty", err: domain.ErrFolderNotEmpty, want: codes.FailedPrecondition},
+		{name: "recursive folder", err: domain.ErrFolderRecursive, want: codes.FailedPrecondition},
+		{name: "invalid folder", err: domain.ErrInvalidFolder, want: codes.InvalidArgument},
 		{name: "managed media deletion", err: domain.ErrManagedMediaDeletionForbidden, want: codes.FailedPrecondition},
 		{name: "file capacity exhausted", err: domain.ErrFileCapacityExceeded, want: codes.ResourceExhausted},
 		{name: "invalid file capacity", err: domain.ErrInvalidFileCapacity, want: codes.InvalidArgument},
@@ -37,6 +41,18 @@ func TestToStatusMapsEnforcementErrors(t *testing.T) {
 				t.Fatalf("status code = %s, want %s", got, test.want)
 			}
 		})
+	}
+}
+
+func TestFileAndFolderToPBPreserveOrganizationMetadata(t *testing.T) {
+	file := fileToPB(domain.File{ID: 1, FolderID: 2, IsSensitive: true, Comment: "note"})
+	if file.GetFolderId() != 2 || !file.GetIsSensitive() || file.GetComment() != "note" {
+		t.Fatalf("fileToPB() = %+v", file)
+	}
+	folder := folderToPB(domain.Folder{ID: 2, OwnerID: 3, Name: "docs", ParentID: 4, FoldersCount: 5, FilesCount: 6})
+	if folder.GetId() != 2 || folder.GetOwnerId() != 3 || folder.GetName() != "docs" || folder.GetParentId() != 4 ||
+		folder.GetFoldersCount() != 5 || folder.GetFilesCount() != 6 {
+		t.Fatalf("folderToPB() = %+v", folder)
 	}
 }
 

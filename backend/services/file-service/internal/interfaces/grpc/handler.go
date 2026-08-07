@@ -135,6 +135,7 @@ func (h *Handler) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*p
 		OriginalName: req.GetOriginalName(),
 		ContentType:  req.GetContentType(),
 		SizeBytes:    req.GetSizeBytes(),
+		FolderID:     req.GetFolderId(),
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -143,7 +144,11 @@ func (h *Handler) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*p
 }
 
 func (h *Handler) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.FileListResponse, error) {
-	items, total, err := h.service.ListFiles(ctx, req.GetOwnerId(), req.GetLimit(), req.GetOffset())
+	var folderID *int64
+	if req != nil {
+		folderID = req.FolderId
+	}
+	items, total, err := h.service.ListFilesInFolder(ctx, req.GetOwnerId(), req.GetLimit(), req.GetOffset(), folderID)
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -185,6 +190,68 @@ func (h *Handler) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.File
 
 func (h *Handler) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*pb.FileResponse, error) {
 	file, err := h.service.DeleteFile(ctx, req.GetOwnerId(), req.GetFileId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FileResponse{File: fileToPB(file)}, nil
+}
+
+func (h *Handler) ListFolders(ctx context.Context, req *pb.ListFoldersRequest) (*pb.FolderListResponse, error) {
+	items, total, err := h.service.ListFolders(ctx, domain.FolderListQuery{
+		OwnerID:     req.GetOwnerId(),
+		ParentID:    req.GetParentId(),
+		Limit:       req.GetLimit(),
+		Offset:      req.GetOffset(),
+		SearchQuery: req.GetSearchQuery(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	folders := make([]*pb.Folder, 0, len(items))
+	for _, item := range items {
+		folders = append(folders, folderToPB(item))
+	}
+	return &pb.FolderListResponse{Items: folders, Total: total}, nil
+}
+
+func (h *Handler) CreateFolder(ctx context.Context, req *pb.CreateFolderRequest) (*pb.FolderResponse, error) {
+	folder, err := h.service.CreateFolder(ctx, app.CreateFolderCommand{
+		OwnerID:  req.GetOwnerId(),
+		Name:     req.GetName(),
+		ParentID: req.GetParentId(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FolderResponse{Folder: folderToPB(folder)}, nil
+}
+
+func (h *Handler) UpdateFolder(ctx context.Context, req *pb.UpdateFolderRequest) (*pb.FolderResponse, error) {
+	folder, err := h.service.UpdateFolder(ctx, req.GetOwnerId(), req.GetFolderId(), domain.FolderUpdate{
+		Name:     req.Name,
+		ParentID: req.ParentId,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FolderResponse{Folder: folderToPB(folder)}, nil
+}
+
+func (h *Handler) DeleteFolder(ctx context.Context, req *pb.DeleteFolderRequest) (*pb.FolderResponse, error) {
+	folder, err := h.service.DeleteFolder(ctx, req.GetOwnerId(), req.GetFolderId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FolderResponse{Folder: folderToPB(folder)}, nil
+}
+
+func (h *Handler) UpdateFile(ctx context.Context, req *pb.UpdateFileRequest) (*pb.FileResponse, error) {
+	file, err := h.service.UpdateFile(ctx, req.GetOwnerId(), req.GetFileId(), domain.FileUpdate{
+		Name:        req.Name,
+		FolderID:    req.FolderId,
+		IsSensitive: req.IsSensitive,
+		Comment:     req.Comment,
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -237,6 +304,22 @@ func fileToPB(file domain.File) *pb.File {
 		CreatedAt:    millis(file.CreatedAt),
 		UpdatedAt:    millis(file.UpdatedAt),
 		DeletedAt:    millisPointer(file.DeletedAt),
+		FolderId:     file.FolderID,
+		IsSensitive:  file.IsSensitive,
+		Comment:      file.Comment,
+	}
+}
+
+func folderToPB(folder domain.Folder) *pb.Folder {
+	return &pb.Folder{
+		Id:           folder.ID,
+		OwnerId:      folder.OwnerID,
+		Name:         folder.Name,
+		ParentId:     folder.ParentID,
+		CreatedAt:    millis(folder.CreatedAt),
+		UpdatedAt:    millis(folder.UpdatedAt),
+		FoldersCount: folder.FoldersCount,
+		FilesCount:   folder.FilesCount,
 	}
 }
 
@@ -305,6 +388,8 @@ func toStatus(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrFileNotFound):
 		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, domain.ErrFolderNotFound):
+		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrAttachmentOwnerMismatch):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, domain.ErrFileOwnerMismatch):
@@ -320,7 +405,9 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInsufficientCredits),
 		errors.Is(err, domain.ErrPaidAttachmentSalesMembershipInactive),
 		errors.Is(err, domain.ErrDownloadRecordMismatch),
-		errors.Is(err, domain.ErrAccountErased):
+		errors.Is(err, domain.ErrAccountErased),
+		errors.Is(err, domain.ErrFolderNotEmpty),
+		errors.Is(err, domain.ErrFolderRecursive):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrAttachmentObjectKeyTaken), errors.Is(err, domain.ErrFileObjectKeyTaken):
 		return status.Error(codes.AlreadyExists, err.Error())
@@ -328,6 +415,7 @@ func toStatus(err error) error {
 		return status.Error(codes.ResourceExhausted, err.Error())
 	case errors.Is(err, domain.ErrInvalidAttachment),
 		errors.Is(err, domain.ErrInvalidFile),
+		errors.Is(err, domain.ErrInvalidFolder),
 		errors.Is(err, domain.ErrInvalidFileCapacity),
 		errors.Is(err, domain.ErrInvalidDownload),
 		errors.Is(err, domain.ErrInvalidAccountErasure),
@@ -341,6 +429,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrContentServiceUnavailable),
 		errors.Is(err, domain.ErrAccountErasureUnavailable),
 		errors.Is(err, domain.ErrFileStorageUnavailable),
+		errors.Is(err, domain.ErrFileOrganizationUnavailable),
 		errors.Is(err, domain.ErrDriveChartRepositoryUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:

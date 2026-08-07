@@ -19,6 +19,11 @@ service FileService {
   rpc SetFileCapacity(SetFileCapacityRequest) returns (FileUsageResponse);
   rpc GetFile(GetFileRequest) returns (FileResponse);
   rpc DeleteFile(DeleteFileRequest) returns (FileResponse);
+  rpc ListFolders(ListFoldersRequest) returns (FolderListResponse);
+  rpc CreateFolder(CreateFolderRequest) returns (FolderResponse);
+  rpc UpdateFolder(UpdateFolderRequest) returns (FolderResponse);
+  rpc DeleteFolder(DeleteFolderRequest) returns (FolderResponse);
+  rpc UpdateFile(UpdateFileRequest) returns (FileResponse);
   rpc GetDriveChart(DriveChartRequest) returns (DriveChartResponse);
   rpc EraseUserData(EraseUserDataRequest) returns (EraseUserDataResponse);
 }
@@ -139,6 +144,9 @@ message File {
   int64 created_at = 9;
   int64 updated_at = 10;
   int64 deleted_at = 11;
+  int64 folder_id = 12;
+  bool is_sensitive = 13;
+  string comment = 14;
 }
 
 message CreateFileRequest {
@@ -148,6 +156,7 @@ message CreateFileRequest {
   string original_name = 4;
   string content_type = 5;
   int64 size_bytes = 6;
+  int64 folder_id = 7;
 }
 
 message FileResponse {
@@ -158,6 +167,7 @@ message ListFilesRequest {
   int64 owner_id = 1;
   int32 limit = 2;
   int32 offset = 3;
+  optional int64 folder_id = 4;
 }
 
 message FileListResponse {
@@ -194,6 +204,61 @@ message GetFileRequest {
 message DeleteFileRequest {
   int64 owner_id = 1;
   int64 file_id = 2;
+}
+
+message Folder {
+  int64 id = 1;
+  int64 owner_id = 2;
+  string name = 3;
+  int64 parent_id = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+  int64 folders_count = 7;
+  int64 files_count = 8;
+}
+
+message ListFoldersRequest {
+  int64 owner_id = 1;
+  int64 parent_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  string search_query = 5;
+}
+
+message FolderListResponse {
+  repeated Folder items = 1;
+  int64 total = 2;
+}
+
+message CreateFolderRequest {
+  int64 owner_id = 1;
+  string name = 2;
+  int64 parent_id = 3;
+}
+
+message UpdateFolderRequest {
+  int64 owner_id = 1;
+  int64 folder_id = 2;
+  optional string name = 3;
+  optional int64 parent_id = 4;
+}
+
+message DeleteFolderRequest {
+  int64 owner_id = 1;
+  int64 folder_id = 2;
+}
+
+message FolderResponse {
+  Folder folder = 1;
+}
+
+message UpdateFileRequest {
+  int64 owner_id = 1;
+  int64 file_id = 2;
+  optional string name = 3;
+  optional int64 folder_id = 4;
+  optional bool is_sensitive = 5;
+  optional string comment = 6;
 }
 
 message DriveChartRequest {

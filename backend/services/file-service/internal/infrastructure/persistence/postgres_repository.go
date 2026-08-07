@@ -40,6 +40,9 @@ func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File, c
 	if err := ensureFileUserActive(ctx, tx, file.OwnerID); err != nil {
 		return domain.File{}, err
 	}
+	if err := ensureOwnedFolder(ctx, tx, file.OwnerID, file.FolderID); err != nil {
+		return domain.File{}, err
+	}
 	capacityBytes, err = queryEffectiveFileCapacity(ctx, tx, file.OwnerID, capacityBytes)
 	if err != nil {
 		return domain.File{}, err
@@ -55,10 +58,11 @@ func (r *PostgresRepository) CreateFile(ctx context.Context, file domain.File, c
 		return domain.File{}, domain.ErrFileCapacityExceeded
 	}
 	err = scanFile(tx.QueryRow(ctx, `
-INSERT INTO files(owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at)
-VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
-`, file.OwnerID, file.BizType, file.ObjectKey, file.OriginalName, file.ContentType, file.SizeBytes, file.Status, file.CreatedAt, file.UpdatedAt), &file)
+INSERT INTO files(owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, folder_id, is_sensitive, comment)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, 0), $11, $12)
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+          COALESCE(folder_id, 0), is_sensitive, comment
+`, file.OwnerID, file.BizType, file.ObjectKey, file.OriginalName, file.ContentType, file.SizeBytes, file.Status, file.CreatedAt, file.UpdatedAt, file.FolderID, file.IsSensitive, file.Comment), &file)
 	if isUniqueViolation(err) {
 		return domain.File{}, domain.ErrFileObjectKeyTaken
 	}
@@ -134,7 +138,8 @@ WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
 		return nil, 0, err
 	}
 	rows, err := r.pool.Query(ctx, `
-SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+       COALESCE(folder_id, 0), is_sensitive, comment
 FROM files
 WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
 ORDER BY created_at DESC, id DESC
@@ -158,7 +163,8 @@ LIMIT $2 OFFSET $3
 func (r *PostgresRepository) GetFile(ctx context.Context, userID, fileID int64) (domain.File, error) {
 	var item domain.File
 	err := scanFile(r.pool.QueryRow(ctx, `
-SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+       COALESCE(folder_id, 0), is_sensitive, comment
 FROM files
 WHERE id = $1 AND owner_user_id = $2 AND status IN ('ACTIVE', 'DELETING')
 `, fileID, userID), &item)
@@ -193,7 +199,8 @@ func (r *PostgresRepository) BeginFileDeletion(ctx context.Context, userID, file
 UPDATE files
 SET status = $3, updated_at = $4
 WHERE id = $1 AND owner_user_id = $2 AND status IN ('ACTIVE', 'DELETING')
-RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+          COALESCE(folder_id, 0), is_sensitive, comment
 `, fileID, userID, domain.FileStatusDeleting, updatedAt), &item)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var ownerID int64
@@ -230,13 +237,15 @@ func (r *PostgresRepository) CompleteFileDeletion(ctx context.Context, userID, f
 	var item domain.File
 	err = scanFile(tx.QueryRow(ctx, `
 UPDATE files
-SET object_key = $3, status = $4, deleted_at = $5, updated_at = $5
+SET object_key = $3, folder_id = NULL, status = $4, deleted_at = $5, updated_at = $5
 WHERE id = $1 AND owner_user_id = $2 AND status = 'DELETING'
-RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+RETURNING id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+          COALESCE(folder_id, 0), is_sensitive, comment
 `, fileID, userID, fmt.Sprintf("deleted/files/%d", fileID), domain.FileStatusDeleted, deletedAt), &item)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if lookupErr := scanFile(tx.QueryRow(ctx, `
-SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+       COALESCE(folder_id, 0), is_sensitive, comment
 FROM files WHERE id = $1 AND owner_user_id = $2
 `, fileID, userID), &item); lookupErr != nil {
 			if errors.Is(lookupErr, pgx.ErrNoRows) {
@@ -712,6 +721,9 @@ func scanFile(row rowScanner, item *domain.File) error {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 		&item.DeletedAt,
+		&item.FolderID,
+		&item.IsSensitive,
+		&item.Comment,
 	)
 	item.Status = domain.FileStatus(status)
 	return err
@@ -790,6 +802,19 @@ var schemaStatements = []string{
 		CONSTRAINT file_user_capacity_overrides_identity_check CHECK (user_id > 0),
 		CONSTRAINT file_user_capacity_overrides_capacity_check CHECK (capacity_bytes >= 0)
 	)`,
+	`CREATE TABLE IF NOT EXISTS file_folders (
+		id BIGSERIAL PRIMARY KEY,
+		owner_user_id BIGINT NOT NULL,
+		name VARCHAR(200) NOT NULL,
+		parent_id BIGINT REFERENCES file_folders(id) ON DELETE RESTRICT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		CONSTRAINT file_folders_snapshot_check CHECK (
+			owner_user_id > 0 AND BTRIM(name) <> ''
+		)
+	)`,
+	`CREATE INDEX IF NOT EXISTS idx_file_folders_owner_parent_created
+		ON file_folders(owner_user_id, parent_id, created_at DESC, id DESC)`,
 	`CREATE TABLE IF NOT EXISTS files (
 		id BIGSERIAL PRIMARY KEY,
 		owner_user_id BIGINT NOT NULL,
@@ -802,6 +827,9 @@ var schemaStatements = []string{
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		deleted_at TIMESTAMPTZ,
+		folder_id BIGINT REFERENCES file_folders(id) ON DELETE RESTRICT,
+		is_sensitive BOOLEAN NOT NULL DEFAULT FALSE,
+		comment VARCHAR(512) NOT NULL DEFAULT '',
 		CONSTRAINT files_object_key_unique UNIQUE(object_key),
 		CONSTRAINT files_snapshot_check CHECK (
 			owner_user_id >= 0 AND BTRIM(biz_type) <> '' AND BTRIM(object_key) <> ''
@@ -813,8 +841,13 @@ var schemaStatements = []string{
 			)
 		)
 	)`,
+	`ALTER TABLE files ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES file_folders(id) ON DELETE RESTRICT`,
+	`ALTER TABLE files ADD COLUMN IF NOT EXISTS is_sensitive BOOLEAN NOT NULL DEFAULT FALSE`,
+	`ALTER TABLE files ADD COLUMN IF NOT EXISTS comment VARCHAR(512) NOT NULL DEFAULT ''`,
 	`CREATE INDEX IF NOT EXISTS idx_files_owner_created
 		ON files(owner_user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_files_owner_folder_created
+		ON files(owner_user_id, folder_id, created_at DESC, id DESC)`,
 	`CREATE INDEX IF NOT EXISTS idx_files_owner_deleted
 		ON files(owner_user_id, deleted_at) WHERE deleted_at IS NOT NULL`,
 	`CREATE INDEX IF NOT EXISTS idx_files_chart_created ON files(created_at)`,

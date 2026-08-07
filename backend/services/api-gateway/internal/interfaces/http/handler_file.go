@@ -43,6 +43,10 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		writeError(c, stdhttp.StatusBadRequest, "file size must be between 1 byte and 50 MiB", "bad_request")
 		return
 	}
+	folderID, ok := multipartRootID(c, "folder_id")
+	if !ok {
+		return
+	}
 	if isManagedMediaBizType(c.PostForm("biz_type")) {
 		writeError(c, stdhttp.StatusBadRequest, "biz_type images and avatars are reserved", "bad_request")
 		return
@@ -87,6 +91,7 @@ func (h *Handler) uploadFile(c *gin.Context) {
 		OriginalName: filename,
 		ContentType:  contentType,
 		SizeBytes:    fileHeader.Size,
+		FolderId:     folderID,
 	})
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {
@@ -108,12 +113,17 @@ func (h *Handler) listFiles(c *gin.Context) {
 	if !h.hasFileClient(c) {
 		return
 	}
+	folderID, ok := queryOptionalRootID(c, "folder_id")
+	if !ok {
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	result, err := h.clients.File.ListFiles(ctx, &filepb.ListFilesRequest{
-		OwnerId: currentUserID(c),
-		Limit:   queryInt32(c, "limit", 20),
-		Offset:  queryInt32(c, "offset", 0),
+		OwnerId:  currentUserID(c),
+		Limit:    queryInt32(c, "limit", 20),
+		Offset:   queryInt32(c, "offset", 0),
+		FolderId: folderID,
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -233,6 +243,9 @@ func (h *Handler) filePayload(c *gin.Context, item *filepb.File) gin.H {
 		"created_at":    item.GetCreatedAt(),
 		"updated_at":    item.GetUpdatedAt(),
 		"deleted_at":    item.GetDeletedAt(),
+		"folder_id":     nullableEntityID(item.GetFolderId()),
+		"is_sensitive":  item.GetIsSensitive(),
+		"comment":       item.GetComment(),
 		"url":           h.publicURL(c, "/api/v1/files/"+id+"/download"),
 		"download_url":  h.publicURL(c, "/api/v1/files/"+id+"/download"),
 	}

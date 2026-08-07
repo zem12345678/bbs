@@ -880,7 +880,7 @@ test("uploads topic attachments as multipart form data without exposing a JSON c
   assert.equal(data.id, "1001");
 });
 
-test("uploads generic files as multipart form data with a library source", async () => {
+test("uploads generic files as multipart form data with a library source and folder", async () => {
   let requestedUrl = "";
   let options;
   globalThis.fetch = async (url, requestOptions) => {
@@ -896,16 +896,54 @@ test("uploads generic files as multipart form data with a library source", async
   };
 
   const file = new Blob(["archive"], { type: "application/zip" });
-  const data = await bbsApi.uploadFile(file, "access-token");
+  const data = await bbsApi.uploadFile(file, "access-token", "files", "9223372036854775000");
 
   assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/files");
   assert.equal(options.method, "POST");
   assert.equal(options.headers.Authorization, "Bearer access-token");
   assert.equal(options.headers["Content-Type"], undefined);
   assert.equal(options.body.get("biz_type"), "files");
+  assert.equal(options.body.get("folder_id"), "9223372036854775000");
   assert.equal(options.body.get("file").size, file.size);
   assert.equal(options.body.get("file").type, "application/zip");
   assert.equal(data.id, "9223372036854775807");
+});
+
+test("manages file folders and updates file metadata with precise ids", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: requests.length === 1 ? { items: [], total: 0 } : { id: "9223372036854775807" }
+    });
+  };
+
+  await bbsApi.fileFolders({ parent_id: "9223372036854775000", limit: 50, offset: 25 }, "access-token");
+  await bbsApi.createFileFolder({ name: "资料", parent_id: null }, "access-token");
+  await bbsApi.updateFileFolder("9223372036854775807", { name: "归档", parent_id: null }, "access-token");
+  await bbsApi.updateFile("9223372036854775806", { name: "说明.txt", folder_id: "9223372036854775807", is_sensitive: false, comment: "版本说明" }, "access-token");
+  await bbsApi.deleteFileFolder("9223372036854775807", "access-token");
+
+  const listUrl = new URL(requests[0].url);
+  assert.equal(listUrl.pathname, "/api/v1/file-folders");
+  assert.equal(listUrl.searchParams.get("parent_id"), "9223372036854775000");
+  assert.equal(listUrl.searchParams.get("limit"), "50");
+  assert.equal(listUrl.searchParams.get("offset"), "25");
+  assert.equal(requests[1].options.method, "POST");
+  assert.equal(requests[2].options.method, "PUT");
+  assert.equal(requests[3].options.method, "PATCH");
+  assert.deepEqual(JSON.parse(requests[3].options.body), {
+    name: "说明.txt",
+    folder_id: "9223372036854775807",
+    is_sensitive: false,
+    comment: "版本说明"
+  });
+  assert.equal(requests[4].options.method, "DELETE");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
 test("lists, reads, and deletes files with pagination and authorization", async () => {

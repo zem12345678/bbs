@@ -48,6 +48,24 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	policyVersion := int32(3)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	objectPrefix := fmt.Sprintf("integration-erasure/%d", seed)
+	targetFolder, err := repo.CreateFolder(ctx, domain.Folder{
+		OwnerID: targetUserID, Name: "Private", CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("create target folder: %v", err)
+	}
+	childFolder, err := repo.CreateFolder(ctx, domain.Folder{
+		OwnerID: targetUserID, Name: "Nested", ParentID: targetFolder.ID, CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("create target child folder: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, `UPDATE file_folders SET parent_id = NULL WHERE owner_user_id = $1`, targetUserID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM file_folders WHERE owner_user_id = $1`, targetUserID)
+	})
 
 	var targetAttachments []domain.Attachment
 	for index := 1; index <= 2; index++ {
@@ -96,6 +114,9 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 			Status:       domain.FileStatusActive,
 			CreatedAt:    now.Add(time.Duration(index+3) * time.Second),
 			UpdatedAt:    now.Add(time.Duration(index+3) * time.Second),
+			FolderID:     childFolder.ID,
+			IsSensitive:  true,
+			Comment:      "private metadata",
 		}, 1<<30)
 		if createErr != nil {
 			t.Fatalf("create target file %d: %v", index, createErr)
@@ -184,6 +205,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	assertCount(t, ctx, pool, 2, `SELECT COUNT(*) FROM file_erased_file_objects WHERE user_id = $1 AND deleted_at IS NULL`, targetUserID)
 	assertCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM files WHERE id = $1 AND owner_user_id = $2 AND status = 'ACTIVE'`, otherFile.ID, otherUserID)
 	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM file_user_capacity_overrides WHERE user_id = $1`, targetUserID)
+	assertCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM file_folders WHERE owner_user_id = $1`, targetUserID)
 
 	if _, err := repo.CompleteAccountErasure(ctx, targetUserID, now.Add(time.Minute)); !errors.Is(err, domain.ErrAccountErasureUnavailable) {
 		t.Fatalf("complete with pending objects error = %v, want ErrAccountErasureUnavailable", err)
@@ -317,16 +339,18 @@ FROM attachments WHERE id = $1
 func assertErasedFile(t *testing.T, ctx context.Context, pool *pgxpool.Pool, fileID int64) {
 	t.Helper()
 	var ownerID, sizeBytes int64
-	var objectKey, originalName, contentType, status string
+	var objectKey, originalName, contentType, status, comment string
 	var deletedAt sql.NullTime
+	var folderID sql.NullInt64
+	var isSensitive bool
 	if err := pool.QueryRow(ctx, `
-SELECT owner_user_id, object_key, original_name, content_type, size_bytes, status, deleted_at
+SELECT owner_user_id, object_key, original_name, content_type, size_bytes, status, deleted_at, folder_id, is_sensitive, comment
 FROM files WHERE id = $1
-`, fileID).Scan(&ownerID, &objectKey, &originalName, &contentType, &sizeBytes, &status, &deletedAt); err != nil {
+`, fileID).Scan(&ownerID, &objectKey, &originalName, &contentType, &sizeBytes, &status, &deletedAt, &folderID, &isSensitive, &comment); err != nil {
 		t.Fatalf("read erased file %d: %v", fileID, err)
 	}
-	if ownerID != 0 || objectKey == "" || originalName != "erased-file" || contentType != "application/octet-stream" || sizeBytes != 0 || status != string(domain.FileStatusErased) || !deletedAt.Valid {
-		t.Fatalf("file %d after erasure = owner=%d key=%q name=%q type=%q size=%d status=%q deleted=%v", fileID, ownerID, objectKey, originalName, contentType, sizeBytes, status, deletedAt.Valid)
+	if ownerID != 0 || objectKey == "" || originalName != "erased-file" || contentType != "application/octet-stream" || sizeBytes != 0 || status != string(domain.FileStatusErased) || !deletedAt.Valid || folderID.Valid || isSensitive || comment != "" {
+		t.Fatalf("file %d after erasure = owner=%d key=%q name=%q type=%q size=%d status=%q deleted=%v folder=%v sensitive=%v comment=%q", fileID, ownerID, objectKey, originalName, contentType, sizeBytes, status, deletedAt.Valid, folderID, isSensitive, comment)
 	}
 }
 

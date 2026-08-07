@@ -15,6 +15,8 @@ const (
 	maxOriginalNameLength    = 255
 	maxContentTypeLength     = 255
 	maxBizTypeLength         = 64
+	maxFolderNameLength      = 200
+	maxFileCommentLength     = 512
 	MaxFileSizeBytes         = 50 << 20
 	MaxFileCapacityBytes     = 10 << 40
 	DefaultFileCapacityBytes = 100 << 20
@@ -102,6 +104,13 @@ type CreateFileCommand struct {
 	OriginalName string
 	ContentType  string
 	SizeBytes    int64
+	FolderID     int64
+}
+
+type CreateFolderCommand struct {
+	OwnerID  int64
+	Name     string
+	ParentID int64
 }
 
 type DownloadAuthorization struct {
@@ -171,6 +180,102 @@ func (s *Service) CreateFile(ctx context.Context, command CreateFileCommand) (do
 		return domain.File{}, err
 	}
 	return s.repo.CreateFile(ctx, file, s.fileCapacityBytes)
+}
+
+func (s *Service) ListFolders(ctx context.Context, query domain.FolderListQuery) ([]domain.Folder, int64, error) {
+	query.SearchQuery = strings.TrimSpace(query.SearchQuery)
+	if query.OwnerID <= 0 || query.ParentID < 0 || query.Limit <= 0 || query.Limit > maxDownloadHistoryLimit || query.Offset < 0 ||
+		len(query.SearchQuery) > maxFolderNameLength || strings.ContainsRune(query.SearchQuery, '\x00') {
+		return nil, 0, domain.ErrInvalidFolder
+	}
+	repository, err := s.fileOrganizationRepository()
+	if err != nil {
+		return nil, 0, err
+	}
+	return repository.ListFolders(ctx, query)
+}
+
+func (s *Service) CreateFolder(ctx context.Context, command CreateFolderCommand) (domain.Folder, error) {
+	name, err := normalizeEntryName(command.Name, maxFolderNameLength, domain.ErrInvalidFolder)
+	if err != nil || command.OwnerID <= 0 || command.ParentID < 0 {
+		return domain.Folder{}, domain.ErrInvalidFolder
+	}
+	repository, err := s.fileOrganizationRepository()
+	if err != nil {
+		return domain.Folder{}, err
+	}
+	now := s.now()
+	return repository.CreateFolder(ctx, domain.Folder{
+		OwnerID:   command.OwnerID,
+		Name:      name,
+		ParentID:  command.ParentID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+}
+
+func (s *Service) UpdateFolder(ctx context.Context, ownerID, folderID int64, update domain.FolderUpdate) (domain.Folder, error) {
+	if ownerID <= 0 || folderID <= 0 {
+		return domain.Folder{}, domain.ErrInvalidFolder
+	}
+	if update.Name != nil {
+		name, err := normalizeEntryName(*update.Name, maxFolderNameLength, domain.ErrInvalidFolder)
+		if err != nil {
+			return domain.Folder{}, err
+		}
+		update.Name = &name
+	}
+	if update.ParentID != nil && *update.ParentID < 0 {
+		return domain.Folder{}, domain.ErrInvalidFolder
+	}
+	repository, err := s.fileOrganizationRepository()
+	if err != nil {
+		return domain.Folder{}, err
+	}
+	return repository.UpdateFolder(ctx, ownerID, folderID, update, s.now())
+}
+
+func (s *Service) DeleteFolder(ctx context.Context, ownerID, folderID int64) (domain.Folder, error) {
+	if ownerID <= 0 || folderID <= 0 {
+		return domain.Folder{}, domain.ErrInvalidFolder
+	}
+	repository, err := s.fileOrganizationRepository()
+	if err != nil {
+		return domain.Folder{}, err
+	}
+	return repository.DeleteFolder(ctx, ownerID, folderID)
+}
+
+func (s *Service) UpdateFile(ctx context.Context, ownerID, fileID int64, update domain.FileUpdate) (domain.File, error) {
+	if ownerID <= 0 || fileID <= 0 {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	if update.Name != nil {
+		name, err := normalizeEntryName(*update.Name, maxOriginalNameLength, domain.ErrInvalidFile)
+		if err != nil {
+			return domain.File{}, err
+		}
+		update.Name = &name
+	}
+	if update.FolderID != nil && *update.FolderID < 0 {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	if update.Comment != nil && (len(*update.Comment) > maxFileCommentLength || strings.ContainsRune(*update.Comment, '\x00')) {
+		return domain.File{}, domain.ErrInvalidFile
+	}
+	repository, err := s.fileOrganizationRepository()
+	if err != nil {
+		return domain.File{}, err
+	}
+	return repository.UpdateFile(ctx, ownerID, fileID, update, s.now())
+}
+
+func (s *Service) fileOrganizationRepository() (domain.FileOrganizationRepository, error) {
+	repository, ok := s.repo.(domain.FileOrganizationRepository)
+	if !ok {
+		return nil, domain.ErrFileOrganizationUnavailable
+	}
+	return repository, nil
 }
 
 func (s *Service) GetFileUsage(ctx context.Context, userID int64) (domain.FileUsage, error) {
@@ -244,8 +349,22 @@ func effectiveFileCapacity(policyBytes int64, overrideBytes *int64) int64 {
 }
 
 func (s *Service) ListFiles(ctx context.Context, userID int64, limit, offset int32) ([]domain.File, int64, error) {
+	return s.ListFilesInFolder(ctx, userID, limit, offset, nil)
+}
+
+func (s *Service) ListFilesInFolder(ctx context.Context, userID int64, limit, offset int32, folderID *int64) ([]domain.File, int64, error) {
 	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
 		return nil, 0, domain.ErrInvalidFile
+	}
+	if folderID != nil {
+		if *folderID < 0 {
+			return nil, 0, domain.ErrInvalidFile
+		}
+		repository, err := s.fileOrganizationRepository()
+		if err != nil {
+			return nil, 0, err
+		}
+		return repository.ListUserFilesByFolder(ctx, userID, *folderID, limit, offset)
 	}
 	return s.repo.ListUserFiles(ctx, userID, limit, offset)
 }
@@ -289,6 +408,7 @@ func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error
 		OriginalName: strings.TrimSpace(command.OriginalName),
 		ContentType:  strings.TrimSpace(command.ContentType),
 		SizeBytes:    command.SizeBytes,
+		FolderID:     command.FolderID,
 		Status:       domain.FileStatusActive,
 		CreatedAt:    now,
 		UpdatedAt:    now,
@@ -299,10 +419,18 @@ func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error
 	if file.BizType == "" || len(file.BizType) > maxBizTypeLength || strings.ContainsAny(file.BizType, "/\\") || strings.ContainsRune(file.BizType, '\x00') ||
 		file.OwnerID <= 0 || file.ObjectKey == "" || len(file.ObjectKey) > maxObjectKeyLength || strings.ContainsRune(file.ObjectKey, '\x00') ||
 		file.OriginalName == "" || len(file.OriginalName) > maxOriginalNameLength || strings.ContainsAny(file.OriginalName, "\\/") || strings.ContainsRune(file.OriginalName, '\x00') ||
-		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > MaxFileSizeBytes {
+		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > MaxFileSizeBytes || file.FolderID < 0 {
 		return domain.File{}, domain.ErrInvalidFile
 	}
 	return file, nil
+}
+
+func normalizeEntryName(name string, maxLength int, invalid error) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > maxLength || strings.ContainsAny(name, "/\\") || strings.ContainsRune(name, '\x00') {
+		return "", invalid
+	}
+	return name, nil
 }
 
 func (s *Service) CreateAttachment(ctx context.Context, command CreateAttachmentCommand) (domain.Attachment, error) {

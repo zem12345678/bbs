@@ -305,10 +305,13 @@ export const bbsApi = {
     form.append("file", file);
     return request("/uploads/images", { method: "POST", body: form, token });
   },
-  uploadFile(file, token, bizType = "files") {
+  uploadFile(file, token, bizType = "files", folderId) {
     const form = new FormData();
     form.append("file", file);
     form.append("biz_type", bizType);
+    if (folderId !== undefined && folderId !== null && folderId !== "") {
+      form.append("folder_id", folderId);
+    }
     return request("/files", { method: "POST", body: form, token });
   },
   listFiles(params = {}, token) {
@@ -325,6 +328,21 @@ export const bbsApi = {
   },
   deleteFile(fileId, token) {
     return request(`/files/${encodeURIComponent(fileId)}`, { method: "DELETE", token });
+  },
+  updateFile(fileId, payload, token) {
+    return request(`/files/${encodeURIComponent(fileId)}`, { method: "PATCH", body: payload, token });
+  },
+  fileFolders(params = {}, token) {
+    return request(`/file-folders${buildQuery({ limit: 100, offset: 0, ...params })}`, { token });
+  },
+  createFileFolder(payload, token) {
+    return request("/file-folders", { method: "POST", body: payload, token });
+  },
+  updateFileFolder(folderId, payload, token) {
+    return request(`/file-folders/${encodeURIComponent(folderId)}`, { method: "PUT", body: payload, token });
+  },
+  deleteFileFolder(folderId, token) {
+    return request(`/file-folders/${encodeURIComponent(folderId)}`, { method: "DELETE", token });
   },
   requestPasswordReset(payload) {
     return request("/auth/password/forgot", { method: "POST", body: payload });

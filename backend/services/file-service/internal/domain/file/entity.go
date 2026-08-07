@@ -44,6 +44,11 @@ var (
 	ErrInvalidFileCapacity                   = errors.New("invalid file capacity")
 	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
 	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
+	ErrFolderNotFound                        = errors.New("folder not found")
+	ErrFolderNotEmpty                        = errors.New("folder is not empty")
+	ErrFolderRecursive                       = errors.New("folder cannot be moved into itself or its descendant")
+	ErrInvalidFolder                         = errors.New("invalid folder")
+	ErrFileOrganizationUnavailable           = errors.New("file organization repository unavailable")
 	ErrDriveChartSpanInvalid                 = errors.New("drive chart span invalid")
 	ErrDriveChartLimitInvalid                = errors.New("drive chart limit invalid")
 	ErrDriveChartOffsetInvalid               = errors.New("drive chart offset invalid")
@@ -87,6 +92,49 @@ type File struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time
+	FolderID     int64
+	IsSensitive  bool
+	Comment      string
+}
+
+type Folder struct {
+	ID           int64
+	OwnerID      int64
+	Name         string
+	ParentID     int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	FoldersCount int64
+	FilesCount   int64
+}
+
+type FolderListQuery struct {
+	OwnerID     int64
+	ParentID    int64
+	Limit       int32
+	Offset      int32
+	SearchQuery string
+}
+
+type FolderUpdate struct {
+	Name     *string
+	ParentID *int64
+}
+
+type FileUpdate struct {
+	Name        *string
+	FolderID    *int64
+	IsSensitive *bool
+	Comment     *string
+}
+
+type FileOrganizationRepository interface {
+	ListFolders(ctx context.Context, query FolderListQuery) ([]Folder, int64, error)
+	CreateFolder(ctx context.Context, folder Folder) (Folder, error)
+	UpdateFolder(ctx context.Context, ownerID, folderID int64, update FolderUpdate, updatedAt time.Time) (Folder, error)
+	DeleteFolder(ctx context.Context, ownerID, folderID int64) (Folder, error)
+	ListUserFilesByFolder(ctx context.Context, userID, folderID int64, limit, offset int32) ([]File, int64, error)
+	UpdateFile(ctx context.Context, userID, fileID int64, update FileUpdate, updatedAt time.Time) (File, error)
 }
 
 type FileUsage struct {
