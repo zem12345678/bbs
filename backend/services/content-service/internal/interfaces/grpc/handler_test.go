@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	categoryDomain "content-service/internal/domain/category"
+	channelDomain "content-service/internal/domain/channel"
 	topicDomain "content-service/internal/domain/topic"
 
 	"google.golang.org/grpc/codes"
@@ -14,6 +16,15 @@ func TestToStatusMapsMembershipEntitlementRequired(t *testing.T) {
 	err := toStatus(topicDomain.ErrMembershipEntitlementRequired)
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("status code = %v, want %v", grpcstatus.Code(err), codes.PermissionDenied)
+	}
+}
+
+func TestToStatusMapsChannelCategoryErrors(t *testing.T) {
+	if err := toStatus(categoryDomain.ErrNotFound); grpcstatus.Code(err) != codes.NotFound {
+		t.Fatalf("missing category status code = %v, want %v", grpcstatus.Code(err), codes.NotFound)
+	}
+	if err := toStatus(channelDomain.ErrCategoryDisabled); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("disabled category status code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
 	}
 }
 

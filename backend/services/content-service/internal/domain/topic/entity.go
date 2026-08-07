@@ -14,6 +14,7 @@ type Topic struct {
 	Tags                    []string
 	AuthorID                int64
 	CategoryID              int64
+	ChannelID               int64
 	BountyScore             int64
 	QAStatus                QAStatus
 	AcceptedCommentID       int64
@@ -35,6 +36,7 @@ type CreateCmd struct {
 	Tags        []string
 	AuthorID    int64
 	CategoryID  int64
+	ChannelID   int64
 	BountyScore int64
 	Poll        *PollInput
 }
@@ -44,6 +46,7 @@ type UpdateCmd struct {
 	Body        string
 	Tags        []string
 	CategoryID  int64
+	ChannelID   int64
 	BountyScore int64
 	Poll        *PollInput
 }
@@ -62,6 +65,7 @@ func New(id int64, cmd CreateCmd) (*Topic, error) {
 		Tags:        normalizeTags(cmd.Tags),
 		AuthorID:    cmd.AuthorID,
 		CategoryID:  normalizeCategoryID(cmd.CategoryID),
+		ChannelID:   normalizeChannelID(cmd.ChannelID),
 		BountyScore: cmd.BountyScore,
 		Status:      StatusDraft,
 		CreatedAt:   time.Now(),
@@ -130,6 +134,7 @@ func (t *Topic) Update(cmd UpdateCmd) error {
 	t.Body = strings.TrimSpace(cmd.Body)
 	t.Tags = normalizeTags(cmd.Tags)
 	t.CategoryID = normalizeCategoryID(cmd.CategoryID)
+	t.ChannelID = normalizeChannelID(cmd.ChannelID)
 	t.BountyScore = cmd.BountyScore
 	t.UpdatedAt = time.Now()
 	return t.Validate()
@@ -259,6 +264,13 @@ func normalizeTags(tags []string) []string {
 func normalizeCategoryID(id int64) int64 {
 	if id <= 0 {
 		return 1
+	}
+	return id
+}
+
+func normalizeChannelID(id int64) int64 {
+	if id <= 0 {
+		return 0
 	}
 	return id
 }

@@ -11,6 +11,7 @@ import (
 
 	accountDomain "content-service/internal/domain/account"
 	articleDomain "content-service/internal/domain/article"
+	channelDomain "content-service/internal/domain/channel"
 	outboxDomain "content-service/internal/domain/outbox"
 	topicDomain "content-service/internal/domain/topic"
 	"content-service/migrations"
@@ -30,6 +31,9 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	migration, err := migrations.Files.ReadFile("0015_add_account_erasure.sql")
 	require.NoError(t, err)
 	require.NoError(t, db.Exec(string(migration)).Error)
+	channelMigration, err := migrations.Files.ReadFile("0016_create_channels.sql")
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(string(channelMigration)).Error)
 
 	ctx := context.Background()
 	seed := time.Now().UnixNano()
@@ -43,6 +47,8 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	otherTopicID := seed + 1_002
 	raceArticleID := seed + 1_003
 	raceVoteTopicID := seed + 1_004
+	targetChannelID := seed + 1_005
+	otherChannelID := seed + 1_006
 	contentIDs := []int64{articleID, topicID, otherTopicID, raceArticleID, raceVoteTopicID}
 	userIDs := []int64{targetUserID, otherUserID, raceAuthorID, raceVoterID}
 
@@ -51,12 +57,22 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		_ = cleanup.Where("message_key IN ?", stringIDs(contentIDs)).Delete(&contentLifecycleOutboxPO{}).Error
 		_ = cleanup.Where("id IN ?", []int64{articleID, raceArticleID}).Delete(&articlePO{}).Error
 		_ = cleanup.Where("id IN ?", []int64{topicID, otherTopicID, raceVoteTopicID}).Delete(&topicPO{}).Error
+		_ = cleanup.Where("id IN ?", []int64{targetChannelID, otherChannelID}).Delete(&channelPO{}).Error
 		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&contentErasedUserPO{}).Error
 	})
 
 	articleRepo := NewRepo(db)
 	topicRepo := NewTopicRepo(db)
+	channelRepo := NewChannelRepo(db)
 	erasureRepo := NewAccountErasureRepository(db)
+	targetChannel, err := channelDomain.New(targetChannelID, channelDomain.CreateCmd{OwnerID: targetUserID, Name: "target channel"})
+	require.NoError(t, err)
+	otherChannel, err := channelDomain.New(otherChannelID, channelDomain.CreateCmd{OwnerID: otherUserID, Name: "other channel"})
+	require.NoError(t, err)
+	require.NoError(t, channelRepo.CreateChannel(ctx, targetChannel))
+	require.NoError(t, channelRepo.CreateChannel(ctx, otherChannel))
+	require.NoError(t, channelRepo.FollowChannel(ctx, otherChannelID, targetUserID))
+	require.NoError(t, channelRepo.FavoriteChannel(ctx, targetChannelID, targetUserID))
 
 	article, err := articleDomain.New(articleID, articleDomain.CreateCmd{
 		Slug: fmt.Sprintf("erasure-article-%d", articleID), Title: "article", Body: "body", AuthorID: targetUserID,
@@ -83,6 +99,10 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	require.EqualValues(t, 2, result.DeletedPollBallots)
 	require.Equal(t, []string{article.Slug}, result.ArticleSlugs)
 	assertAccountContentErased(t, ctx, db, targetUserID, articleID, topicID)
+	assertDatabaseCount(t, ctx, db, 1, `SELECT COUNT(*) FROM channels WHERE id = ? AND is_archived = TRUE`, targetChannelID)
+	assertDatabaseCount(t, ctx, db, 1, `SELECT COUNT(*) FROM channels WHERE id = ? AND is_archived = FALSE`, otherChannelID)
+	assertDatabaseCount(t, ctx, db, 0, `SELECT COUNT(*) FROM channel_followers WHERE user_id = ?`, targetUserID)
+	assertDatabaseCount(t, ctx, db, 0, `SELECT COUNT(*) FROM channel_favorites WHERE user_id = ?`, targetUserID)
 	assertPollVoteCount(t, ctx, db, targetTopic.ID, 0, 0)
 	assertPollVoteCount(t, ctx, db, otherTopic.ID, 1, 0)
 	assertContentLifecycleEvent(t, ctx, db, articleID, "article.archived.v1")
@@ -105,6 +125,11 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	require.ErrorIs(t, articleRepo.Create(ctx, lateArticle), accountDomain.ErrUserErased)
 	lateTopic := accountErasurePollTopic(t, seed+2_001, targetUserID, "late")
 	require.ErrorIs(t, topicRepo.CreateTopic(ctx, lateTopic), accountDomain.ErrUserErased)
+	lateChannel, err := channelDomain.New(seed+2_002, channelDomain.CreateCmd{OwnerID: targetUserID, Name: "late"})
+	require.NoError(t, err)
+	require.ErrorIs(t, channelRepo.CreateChannel(ctx, lateChannel), accountDomain.ErrUserErased)
+	require.ErrorIs(t, channelRepo.FollowChannel(ctx, otherChannelID, targetUserID), accountDomain.ErrUserErased)
+	require.ErrorIs(t, channelRepo.FavoriteChannel(ctx, otherChannelID, targetUserID), accountDomain.ErrUserErased)
 	_, err = topicRepo.VoteTopicPoll(ctx, otherTopic.ID, targetUserID, []int32{0}, time.Now())
 	require.ErrorIs(t, err, accountDomain.ErrUserErased)
 	require.ErrorIs(t, articleRepo.UpdateStatus(ctx, articleID, articleDomain.StatusPublished, &publishedAt), articleDomain.ErrNotFound)

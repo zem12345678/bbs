@@ -38,6 +38,7 @@ function emptyEditorForm() {
     tags: "",
     cover_url: "",
     category_id: "",
+    channel_id: "",
     bounty_score: 0,
     poll: emptyPollDraft(),
     publish: true
@@ -494,8 +495,10 @@ function commentIdFromHash(hash) {
 export function EditorPage({ auth, categories = [], edit = false, kind = "topic" }) {
   const params = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isArticle = kind === "article";
   const isQuestion = kind === "question";
+  const requestedChannelId = isArticle ? "" : toId(searchParams.get("channel_id"));
   const contentLabel = isArticle ? "文章" : isQuestion ? "求助" : "话题";
   const routeTitle = `${edit ? "编辑" : "发布"}${contentLabel}`;
   const [form, setForm] = React.useState(emptyEditorForm);
@@ -530,8 +533,8 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     bountyRequiresMembershipForCurrentSubmit && bountyGateState.blocked;
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
-    () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1`,
-    [auth?.user?.id, edit, kind, params.id]
+    () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1${!edit && requestedChannelId ? `:channel-${requestedChannelId}` : ""}`,
+    [auth?.user?.id, edit, kind, params.id, requestedChannelId]
   );
 
   React.useEffect(() => {
@@ -614,6 +617,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           tags: (item.tags || item.tag_names || item.tagNames || []).join(" "),
           cover_url: item.cover_url || item.coverUrl || "",
           category_id: toId(item.category_id ?? item.categoryId),
+          channel_id: toId(item.channel_id),
           bounty_score: loadedBountyScore,
           poll: pollDraftFromApi(item.poll),
           publish: status === 2
@@ -655,15 +659,15 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
     setDraftReady(false);
     const draft = readDraft(draftKey);
     if (draft?.form && hasEditorDraftContent(draft.form)) {
-      setForm({ ...emptyEditorForm(), ...draft.form });
+      setForm({ ...emptyEditorForm(), ...draft.form, channel_id: requestedChannelId || toId(draft.form.channel_id) });
       setState((current) => ({ ...current, message: "已恢复本地草稿。" }));
     } else {
-      setForm(emptyEditorForm());
+      setForm({ ...emptyEditorForm(), channel_id: requestedChannelId });
     }
     setState((current) => ({ ...current, loadedStatus: 0, loadedBountyScore: 0, loadedPollVoters: 0 }));
     draftDirtyRef.current = false;
     setDraftReady(true);
-  }, [draftKey, edit]);
+  }, [draftKey, edit, requestedChannelId]);
 
   React.useEffect(() => {
     if (!draftReady || !draftDirtyRef.current) return undefined;
@@ -787,6 +791,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
       body,
       tags,
       category_id: form.category_id || undefined,
+      channel_id: !isArticle ? form.channel_id || undefined : undefined,
       bounty_score: isQuestion ? bountyScore : undefined,
       cover_url: isArticle ? form.cover_url.trim() || undefined : undefined,
       publish: form.publish,
@@ -914,6 +919,9 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
             ))}
           </select>
         </div>
+        {!isArticle && form.channel_id && (
+          <div className="editor-channel-context"><Hash size={15} aria-hidden="true" />这条内容将发布到当前圈子</div>
+        )}
         {!isArticle && (
           <section className={`editor-poll ${form.poll.enabled ? "is-enabled" : ""}`.trim()}>
             <header>

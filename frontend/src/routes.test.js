@@ -15,6 +15,52 @@ test("maps username profile routes to the member navigation section", () => {
   assert.equal(pathToPage("/u/alice/articles"), "会员");
 });
 
+test("maps circle directory and channel management routes to the circle navigation section", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+  const channelSource = fs.readFileSync(new URL("./pages/ChannelRoutes.jsx", import.meta.url), "utf8");
+  const cardSource = fs.readFileSync(new URL("./pages/SectionBlocks.jsx", import.meta.url), "utf8");
+
+  assert.equal(pathToPage("/circles"), "圈子");
+  assert.equal(pathToPage("/circles/new"), "圈子");
+  assert.equal(pathToPage("/circles/9223372036854775807"), "圈子");
+  assert.equal(pathToPage("/circles/9223372036854775807/edit"), "圈子");
+  assert.match(appSource, /path="\/circles\/new"/);
+  assert.match(appSource, /path="\/circles\/:id\/edit"/);
+  assert.match(appSource, /path="\/circles\/:id"/);
+  assert.match(appSource, /<CirclesPage auth=\{auth\}/);
+  assert.match(channelSource, /const CHANNEL_VIEWS = \[/);
+  assert.match(channelSource, /bbsApi\.channelCategories\(\)/);
+  assert.match(channelSource, /const requests = \[bbsApi\.categories\(\)\]/);
+  assert.match(channelSource, /normalizeCategoriesResponse\(categoriesData\)/);
+  assert.match(channelSource, /if \(channel\?\.is_archived\) \{/);
+  assert.match(channelSource, /error: "已归档的圈子不能编辑。", blocked: true/);
+  assert.match(channelSource, /state\.blocked \? \(/);
+  assert.match(channelSource, /bbsApi\.channelTopics\(params\.id/);
+  assert.match(channelSource, /bbsApi\.createChannel\(payload, auth\.accessToken\)/);
+  assert.match(channelSource, /bbsApi\.updateChannel\(params\.id, payload, auth\.accessToken\)/);
+  assert.match(channelSource, /bbsApi\.archiveChannel\(state\.channel\.id, auth\.accessToken\)/);
+  assert.match(channelSource, /\/topic\/create\?channel_id=/);
+  assert.match(cardSource, /export function CircleCard\(\{ channel, pendingAction/);
+  assert.match(cardSource, /channel\.followers_count/);
+  assert.match(cardSource, /channel\.topics_count/);
+  assert.match(cardSource, /channel\.is_following/);
+  assert.match(cardSource, /channel\.is_favorited/);
+  assert.match(cardSource, /channel\.is_archived/);
+  assert.match(channelSource, /isOwner && !channel\.is_archived/);
+  assert.match(channelSource, /已归档，仅保留历史内容/);
+});
+
+test("passes circle context through topic editor and composer requests", () => {
+  const editorSource = fs.readFileSync(new URL("./pages/ContentRoutes.jsx", import.meta.url), "utf8");
+  const composerSource = fs.readFileSync(new URL("./components/feed/Composer.jsx", import.meta.url), "utf8");
+
+  assert.match(editorSource, /const requestedChannelId = isArticle \? "" : toId\(searchParams\.get\("channel_id"\)\)/);
+  assert.match(editorSource, /channel_id: toId\(item\.channel_id\)/);
+  assert.match(editorSource, /channel_id: !isArticle \? form\.channel_id \|\| undefined : undefined/);
+  assert.match(composerSource, /const channelId = toId\(searchParams\.get\("channel_id"\)\)/);
+  assert.match(composerSource, /channel_id: channelId \|\| undefined/);
+});
+
 test("keeps explicit chat entries on user message surfaces", () => {
   const messageSurfaces = [
     fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8"),
@@ -211,7 +257,7 @@ test("loads sidebar popular channels and resources from backend rankings", () =>
 
 test("links home recent community items to detail pages", () => {
   const source = fs.readFileSync(new URL("./pages/SectionPages.jsx", import.meta.url), "utf8");
-  const home = source.slice(source.indexOf("export function HomePage"), source.indexOf("export function CirclesPage"));
+  const home = source.slice(source.indexOf("export function HomePage"), source.indexOf("export function HelpPage"));
   const mapper = source.slice(source.indexOf("function homeContentItem"), source.indexOf("function topicToQuestion"));
 
   assert.match(source, /import \{ Link, useNavigate, useSearchParams \}/);

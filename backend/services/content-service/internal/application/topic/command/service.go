@@ -8,6 +8,7 @@ import (
 	"time"
 
 	outboxapp "content-service/internal/application/outbox"
+	channelDomain "content-service/internal/domain/channel"
 	outboxDomain "content-service/internal/domain/outbox"
 	domain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/messaging"
@@ -42,6 +43,10 @@ type BountyCreditReader interface {
 	ReverseQAAcceptance(ctx context.Context, questionAuthorID, topicID, acceptedCommentID, acceptedCommentAuthorID, amount, acceptanceCycle int64, title string) error
 }
 
+type ChannelReader interface {
+	FindChannelByID(ctx context.Context, id, viewerID int64, includeArchived bool) (*channelDomain.Channel, error)
+}
+
 type Service struct {
 	repo                   domain.Repository
 	idgen                  IDGenerator
@@ -52,6 +57,7 @@ type Service struct {
 	bountyCredits          BountyCreditReader
 	qaAcceptanceOutbox     domain.QAAcceptanceOutboxRepository
 	polls                  domain.PollRepository
+	channels               ChannelReader
 	log                    logger.Logger
 }
 
@@ -67,6 +73,12 @@ func NewService(repo domain.Repository, idgen IDGenerator, publisher messaging.E
 		lifecycleOutbox = lifecycleOutboxes[0]
 	}
 	return &Service{repo: repo, idgen: idgen, publisher: publisher, lifecycleOutbox: lifecycleOutbox, commentReader: commentReader, membershipEntitlements: membershipEntitlements, bountyCredits: bountyCredits, qaAcceptanceOutbox: qaAcceptanceOutbox, polls: polls, log: log}
+}
+
+func NewServiceWithChannelReader(repo domain.Repository, idgen IDGenerator, publisher messaging.EventPublisher, commentReader CommentReader, log logger.Logger, membershipEntitlements MembershipEntitlementReader, bountyCredits BountyCreditReader, channels ChannelReader, lifecycleOutboxes ...*outboxapp.LifecycleDispatcher) *Service {
+	service := NewService(repo, idgen, publisher, commentReader, log, membershipEntitlements, bountyCredits, lifecycleOutboxes...)
+	service.channels = channels
+	return service
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -87,6 +99,9 @@ func (s *Service) Create(ctx context.Context, cmd domain.CreateCmd) (*domain.Top
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureChannelAvailable(ctx, t.ChannelID); err != nil {
+		return nil, err
+	}
 	if err := s.repo.CreateTopic(ctx, t); err != nil {
 		return nil, err
 	}
@@ -104,6 +119,14 @@ func (s *Service) Update(ctx context.Context, id int64, cmd domain.UpdateCmd) (*
 			t.Poll = poll
 		} else if !errors.Is(pollErr, domain.ErrPollNotFound) {
 			return nil, pollErr
+		}
+	}
+	if err := s.ensureChannelAvailable(ctx, t.ChannelID); err != nil {
+		return nil, err
+	}
+	if cmd.ChannelID != t.ChannelID {
+		if err := s.ensureChannelAvailable(ctx, cmd.ChannelID); err != nil {
+			return nil, err
 		}
 	}
 	requiresMembership := topicBountyChangeRequiresMembership(t, cmd.BountyScore)
@@ -145,6 +168,9 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureChannelAvailable(ctx, t.ChannelID); err != nil {
+		return nil, err
+	}
 	if err := t.Publish(); err != nil {
 		return nil, err
 	}
@@ -158,6 +184,26 @@ func (s *Service) Publish(ctx context.Context, id int64) (*domain.Topic, error) 
 		return nil, err
 	}
 	return t, nil
+}
+
+func (s *Service) ensureChannelAvailable(ctx context.Context, channelID int64) error {
+	if channelID <= 0 {
+		return nil
+	}
+	if s.channels == nil {
+		return domain.ErrChannelNotFound
+	}
+	channel, err := s.channels.FindChannelByID(ctx, channelID, 0, true)
+	if errors.Is(err, channelDomain.ErrNotFound) {
+		return domain.ErrChannelNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if channel.IsArchived {
+		return domain.ErrChannelArchived
+	}
+	return nil
 }
 
 func (s *Service) Hide(ctx context.Context, id int64) (*domain.Topic, error) {

@@ -515,6 +515,51 @@ export const bbsApi = {
   categories(params = {}) {
     return request(`/categories${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
   },
+  channels(params = {}, token) {
+    return request(`/channels${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  featuredChannels(params = {}, token) {
+    return request(`/channels/featured${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  channelCategories(params = {}) {
+    return request(`/channels/categories${buildQuery(params)}`);
+  },
+  ownedChannels(params = {}, token) {
+    return request(`/channels/owned${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  followedChannels(params = {}, token) {
+    return request(`/channels/followed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  favoriteChannels(params = {}, token) {
+    return request(`/channels/favorites${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
+  },
+  getChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}`, { token });
+  },
+  createChannel(payload, token) {
+    return request("/channels", { method: "POST", body: payload, token });
+  },
+  updateChannel(channelId, payload, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}`, { method: "PUT", body: payload, token });
+  },
+  archiveChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}`, { method: "DELETE", token });
+  },
+  followChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}/follow`, { method: "POST", token });
+  },
+  unfollowChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}/follow`, { method: "DELETE", token });
+  },
+  favoriteChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}/favorite`, { method: "POST", token });
+  },
+  unfavoriteChannel(channelId, token) {
+    return request(`/channels/${encodeURIComponent(channelId)}/favorite`, { method: "DELETE", token });
+  },
+  channelTopics(channelId, params = {}) {
+    return request(`/channels/${encodeURIComponent(channelId)}/topics${buildQuery({ limit: 20, offset: 0, ...params })}`);
+  },
   links(params = {}) {
     return request(`/links${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
   },

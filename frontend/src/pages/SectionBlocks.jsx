@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ExternalLink, Hash, Heart, Zap } from "lucide-react";
+import { Archive, ChevronDown, ExternalLink, Hash, Heart, MessageCircle, Star, UserCheck, UserPlus, Users, Zap } from "lucide-react";
 import { safeExternalURL } from "../lib/externalLinks.js";
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, stats }) {
@@ -56,21 +56,55 @@ export function BlockHeader({ icon: Icon, title, action, onAction }) {
   );
 }
 
-export function CircleCard({ category }) {
-  const categoryId = category?.id;
-  const topicCount = category?.topicCountKnown ? category.topicCount : null;
-  const topicPath = categoryId ? `/topics/category/${categoryId}` : "/topics";
+export function CircleCard({ channel, pendingAction = "", onFavorite, onFollow }) {
+  const detailPath = `/circles/${encodeURIComponent(channel.id)}`;
+  const canFollow = !channel.is_archived || channel.is_following;
+  const canFavorite = !channel.is_archived || channel.is_favorited;
   return (
-    <article className="circle-card panel">
+    <article className="circle-card channel-card panel" style={{ "--channel-color": channel.color }}>
+      <span className="channel-card-color" aria-hidden="true" />
       <div className="circle-body">
         <div className="circle-card-heading">
           <Hash size={19} aria-hidden="true" />
-          <h2><Link to={topicPath}>{category?.name || "未命名分类"}</Link></h2>
+          <h2><Link to={detailPath}>{channel.name || "未命名圈子"}</Link></h2>
+          {channel.is_archived ? (
+            <span className="channel-state-badge is-archived"><Archive size={13} aria-hidden="true" />已归档</span>
+          ) : channel.is_following && <span className="channel-state-badge"><UserCheck size={13} aria-hidden="true" />已关注</span>}
         </div>
-        <p>{category?.description || "暂无分类说明"}</p>
+        <p>{channel.description || "这个圈子暂时还没有简介。"}</p>
+        <div className="channel-card-stats" aria-label="圈子数据">
+          <span><MessageCircle size={14} aria-hidden="true" />{channel.topics_count} 个主题</span>
+          <span><Users size={14} aria-hidden="true" />{channel.followers_count} 人关注</span>
+        </div>
         <footer>
-          <span>{topicCount === null ? "话题数统计中" : `${topicCount} 条话题`}</span>
-          <Link className="circle-card-link" to={topicPath}>查看话题</Link>
+          <div className="channel-card-actions">
+            {canFollow && (
+              <button
+                aria-pressed={channel.is_following}
+                disabled={pendingAction === "follow"}
+                title={channel.is_following ? "取消关注" : "关注圈子"}
+                type="button"
+                onClick={() => onFollow?.(channel)}
+              >
+                {channel.is_following ? <UserCheck size={15} aria-hidden="true" /> : <UserPlus size={15} aria-hidden="true" />}
+                {pendingAction === "follow" ? "处理中" : channel.is_following ? "已关注" : "关注"}
+              </button>
+            )}
+            {canFavorite && (
+              <button
+                aria-pressed={channel.is_favorited}
+                className={channel.is_favorited ? "is-active" : ""}
+                disabled={pendingAction === "favorite"}
+                title={channel.is_favorited ? "取消收藏" : "收藏圈子"}
+                type="button"
+                onClick={() => onFavorite?.(channel)}
+              >
+                <Star fill={channel.is_favorited ? "currentColor" : "none"} size={15} aria-hidden="true" />
+                {pendingAction === "favorite" ? "处理中" : channel.is_favorited ? "已收藏" : "收藏"}
+              </button>
+            )}
+          </div>
+          <Link className="circle-card-link" to={detailPath}>进入圈子</Link>
         </footer>
       </div>
     </article>

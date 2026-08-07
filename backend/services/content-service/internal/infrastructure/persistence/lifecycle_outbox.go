@@ -77,6 +77,11 @@ func (r *TopicRepo) UpdateStatusWithOutbox(ctx context.Context, id int64, status
 		updatedAt = time.Now()
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if status == topicDomain.StatusPublished {
+			if err := lockTopicChannelForPublish(tx, id); err != nil {
+				return err
+			}
+		}
 		updates := map[string]any{
 			"status":     int32(status),
 			"updated_at": updatedAt,

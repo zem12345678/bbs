@@ -23,6 +23,8 @@ var (
 	ErrQAAcceptanceSettlementPending          = errors.New("TOPIC_QA_ACCEPTANCE_SETTLEMENT_PENDING")
 	ErrQAAcceptanceReversalInsufficientCredit = errors.New("TOPIC_QA_ACCEPTANCE_REVERSAL_INSUFFICIENT_CREDIT")
 	ErrTopicOwnerMismatch                     = errors.New("TOPIC_OWNER_MISMATCH")
+	ErrChannelNotFound                        = errors.New("TOPIC_CHANNEL_NOT_FOUND")
+	ErrChannelArchived                        = errors.New("TOPIC_CHANNEL_ARCHIVED")
 	ErrNotFound                               = errors.New("TOPIC_NOT_FOUND")
 	ErrSlugExists                             = errors.New("TOPIC_SLUG_EXISTS")
 	ErrAlreadyPublished                       = errors.New("TOPIC_ALREADY_PUBLISHED")

@@ -10,6 +10,8 @@ import (
 	articlequery "content-service/internal/application/article/query"
 	categorycommand "content-service/internal/application/category/command"
 	categoryquery "content-service/internal/application/category/query"
+	channelcommand "content-service/internal/application/channel/command"
+	channelquery "content-service/internal/application/channel/query"
 	outboxapp "content-service/internal/application/outbox"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
@@ -18,6 +20,7 @@ import (
 	mallclient "content-service/internal/clients/mall"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
+	channelDomain "content-service/internal/domain/channel"
 	outboxDomain "content-service/internal/domain/outbox"
 	topicDomain "content-service/internal/domain/topic"
 	"content-service/internal/infrastructure/cache"
@@ -66,6 +69,10 @@ func ProvideAccountErasureRepository(db *gorm.DB) *persistence.AccountErasureRep
 
 func ProvideCategoryRepository(db *gorm.DB) *persistence.CategoryRepo {
 	return persistence.NewCategoryRepo(db)
+}
+
+func ProvideChannelRepository(db *gorm.DB) *persistence.ChannelRepo {
+	return persistence.NewChannelRepo(db)
 }
 
 func ProvideArticleCache(v *viper.Viper, rdb *redis.Client) *cache.ArticleCache {
@@ -210,6 +217,7 @@ func ProvideAccountErasureService(repo *persistence.AccountErasureRepository, ar
 
 func ProvideTopicCommandService(
 	repo topicDomain.Repository,
+	channels *persistence.ChannelRepo,
 	idgen topiccommand.IDGenerator,
 	publisher messaging.EventPublisher,
 	commentReader topiccommand.CommentReader,
@@ -218,7 +226,7 @@ func ProvideTopicCommandService(
 	bountyCredits topiccommand.BountyCreditReader,
 	lifecycleOutbox *outboxapp.LifecycleDispatcher,
 ) *topiccommand.Service {
-	return topiccommand.NewService(repo, idgen, publisher, commentReader, log, membershipEntitlements, bountyCredits, lifecycleOutbox)
+	return topiccommand.NewServiceWithChannelReader(repo, idgen, publisher, commentReader, log, membershipEntitlements, bountyCredits, channels, lifecycleOutbox)
 }
 
 func ProvideTopicQueryService(repo topicDomain.Repository, publisher messaging.EventPublisher, log logger.Logger) *topicquery.Service {
@@ -233,6 +241,14 @@ func ProvideCategoryQueryService(repo categoryDomain.Repository) *categoryquery.
 	return categoryquery.NewService(repo)
 }
 
+func ProvideChannelCommandService(repo channelDomain.Repository, categories categoryDomain.Repository, idgen channelcommand.IDGenerator) *channelcommand.Service {
+	return channelcommand.NewService(repo, idgen, categories)
+}
+
+func ProvideChannelQueryService(repo channelDomain.Repository) *channelquery.Service {
+	return channelquery.NewService(repo)
+}
+
 var BusinessProviderSet = wire.NewSet(
 	ProvideZapLogger,
 	ProvideArticleRepository,
@@ -240,6 +256,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideContentLifecycleOutboxRepository,
 	ProvideAccountErasureRepository,
 	ProvideCategoryRepository,
+	ProvideChannelRepository,
 	ProvideArticleCache,
 	ProvideSnowflakeNode,
 	ProvideEventPublisher,
@@ -255,13 +272,17 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideTopicQueryService,
 	ProvideCategoryCommandService,
 	ProvideCategoryQueryService,
+	ProvideChannelCommandService,
+	ProvideChannelQueryService,
 )
 
 var _ articleDomain.Repository = (*persistence.Repo)(nil)
 var _ topicDomain.Repository = (*persistence.TopicRepo)(nil)
 var _ categoryDomain.Repository = (*persistence.CategoryRepo)(nil)
+var _ channelDomain.Repository = (*persistence.ChannelRepo)(nil)
 var _ outboxDomain.LifecycleRepository = (*persistence.ContentLifecycleOutboxRepo)(nil)
 var _ outboxDomain.LifecyclePublisher = (*messaging.KafkaEventPublisher)(nil)
 var _ articlecommand.IDGenerator = (*snowflake.Node)(nil)
 var _ topiccommand.IDGenerator = (*snowflake.Node)(nil)
 var _ categorycommand.IDGenerator = (*snowflake.Node)(nil)
+var _ channelcommand.IDGenerator = (*snowflake.Node)(nil)

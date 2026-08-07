@@ -17,6 +17,7 @@ export const navItems = pageRoutes.map((route) => route.label);
 const pathActivePageRules = [
   { prefix: "/chat", label: "聊天室" },
   { prefix: "/room", label: "聊天室" },
+  { prefix: "/circles", label: "圈子" },
   { prefix: "/topic", label: "广场" },
   { prefix: "/topics", label: "广场" },
   { prefix: "/article", label: "广场" },

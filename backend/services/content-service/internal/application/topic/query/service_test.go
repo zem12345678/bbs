@@ -126,7 +126,7 @@ func TestListReturnsRepositoryTotal(t *testing.T) {
 	}
 	service := NewService(repo, nil, nil)
 
-	views, total, err := service.List(context.Background(), 0, "", "", 10, 0, "", 2, 0)
+	views, total, err := service.List(context.Background(), 0, "", "", 10, 0, 0, "", 2, 0)
 
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
@@ -152,7 +152,7 @@ func (f *fakeTopicRepo) FindTopicBySlug(context.Context, string) (*domain.Topic,
 func (f *fakeTopicRepo) FindTopicByID(context.Context, int64) (*domain.Topic, error) {
 	return f.topic, nil
 }
-func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, string, int, int) ([]*domain.Topic, int64, error) {
+func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, int64, string, int, int) ([]*domain.Topic, int64, error) {
 	return f.topics, f.total, nil
 }
 func (f *fakeTopicRepo) UpdateTopicStatus(context.Context, int64, domain.Status, *time.Time) error {

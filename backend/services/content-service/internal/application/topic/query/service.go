@@ -91,8 +91,8 @@ func (s *Service) attachPoll(ctx context.Context, t *domain.Topic, viewerUserID 
 	return nil
 }
 
-func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]TopicView, int64, error) {
-	topics, total, err := s.repo.ListTopics(ctx, status, typ, tag, authorID, categoryID, sort, limit, offset)
+func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Type, tag string, authorID int64, categoryID int64, channelID int64, sort string, limit, offset int) ([]TopicView, int64, error) {
+	topics, total, err := s.repo.ListTopics(ctx, status, typ, tag, authorID, categoryID, channelID, sort, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -28,7 +28,9 @@ function setDocumentMeta(name, content) {
 const PlazaPage = React.lazy(() => import("./pages/PlazaPage.jsx"));
 const MemberPage = React.lazy(() => import("./pages/MemberPage.jsx"));
 const HomePage = lazyNamed(() => import("./pages/SectionPages.jsx"), "HomePage");
-const CirclesPage = lazyNamed(() => import("./pages/SectionPages.jsx"), "CirclesPage");
+const CirclesPage = lazyNamed(() => import("./pages/ChannelRoutes.jsx"), "CirclesPage");
+const ChannelDetailPage = lazyNamed(() => import("./pages/ChannelRoutes.jsx"), "ChannelDetailPage");
+const ChannelEditorPage = lazyNamed(() => import("./pages/ChannelRoutes.jsx"), "ChannelEditorPage");
 const HelpPage = lazyNamed(() => import("./pages/SectionPages.jsx"), "HelpPage");
 const ResourcesPage = lazyNamed(() => import("./pages/SectionPages.jsx"), "ResourcesPage");
 const ShopPage = lazyNamed(() => import("./pages/SectionPages.jsx"), "ShopPage");
@@ -243,6 +245,30 @@ function RoutedApp() {
               </FramedRoutePage>
             }
             path="/topics/tag/:id"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="圈子" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <ChannelEditorPage auth={auth} />
+              </FramedRoutePage>
+            }
+            path="/circles/new"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="圈子" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <ChannelEditorPage auth={auth} edit />
+              </FramedRoutePage>
+            }
+            path="/circles/:id/edit"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="圈子" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <ChannelDetailPage auth={auth} />
+              </FramedRoutePage>
+            }
+            path="/circles/:id"
           />
           <Route
             element={
@@ -626,7 +652,7 @@ function renderPage(activePage, auth, categories, hotTags) {
     case "首页":
       return <HomePage categories={categories} hotTags={hotTags} />;
     case "圈子":
-      return <CirclesPage categories={categories} hotTags={hotTags} />;
+      return <CirclesPage auth={auth} />;
     case "求助":
       return <HelpPage />;
     case "资源":

@@ -561,6 +561,21 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/topics/:id/report", h.requireAuth(), h.reportTopic)
 		api.GET("/topics/:id/reactions", h.getTopicReactions)
 		api.POST("/topics/:id/poll/votes", h.requireAuth(), h.voteTopicPoll)
+		api.GET("/channels", h.optionalAuth(), h.listChannels)
+		api.POST("/channels", h.requireAuth(), h.createChannel)
+		api.GET("/channels/categories", h.optionalAuth(), h.listChannelCategories)
+		api.GET("/channels/featured", h.optionalAuth(), h.listFeaturedChannels)
+		api.GET("/channels/owned", h.requireAuth(), h.listOwnedChannels)
+		api.GET("/channels/followed", h.requireAuth(), h.listFollowedChannels)
+		api.GET("/channels/favorites", h.requireAuth(), h.listFavoriteChannels)
+		api.GET("/channels/:id/topics", h.optionalAuth(), h.listChannelTopics)
+		api.POST("/channels/:id/follow", h.requireAuth(), h.followChannel)
+		api.DELETE("/channels/:id/follow", h.requireAuth(), h.unfollowChannel)
+		api.POST("/channels/:id/favorite", h.requireAuth(), h.favoriteChannel)
+		api.DELETE("/channels/:id/favorite", h.requireAuth(), h.unfavoriteChannel)
+		api.GET("/channels/:id", h.optionalAuth(), h.getChannel)
+		api.PUT("/channels/:id", h.requireAuth(), h.updateChannel)
+		api.DELETE("/channels/:id", h.requireAuth(), h.archiveChannel)
 		api.GET("/categories", h.listCategories)
 		api.GET("/categories/:id", h.getCategory)
 		api.GET("/links", h.listLinks)
@@ -1930,7 +1945,7 @@ func (h *Handler) createTopic(c *gin.Context) {
 		}
 	}
 	resp, err := h.clients.Content.CreateTopic(ctx, &contentpb.CreateTopicRequest{
-		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll),
+		Slug: req.Slug, Type: req.Type, Title: req.Title, Body: req.Body, Tags: req.Tags, AuthorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), ChannelId: req.ChannelID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll),
 	})
 	if err != nil {
 		writeRPCError(c, err)
@@ -1985,7 +2000,7 @@ func (h *Handler) updateTopic(c *gin.Context) {
 			return
 		}
 	}
-	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll)})
+	resp, err := h.clients.Content.UpdateTopic(ctx, &contentpb.UpdateTopicRequest{Id: id, Title: req.Title, Body: req.Body, Tags: req.Tags, CategoryId: req.CategoryID.Int64(), ChannelId: req.ChannelID.Int64(), BountyScore: req.BountyScore, Poll: topicPollInput(req.Poll)})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -2129,6 +2144,7 @@ func (h *Handler) listTopics(c *gin.Context) {
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 		CategoryId: queryInt64(c, "category_id", 0),
+		ChannelId:  queryInt64(c, "channel_id", 0),
 		Sort:       c.Query("sort"),
 	})
 	if err != nil {
@@ -2149,8 +2165,191 @@ func (h *Handler) listCurrentUserTopics(c *gin.Context) {
 		Limit:      queryInt32(c, "limit", 20),
 		Offset:     queryInt32(c, "offset", 0),
 		CategoryId: queryInt64(c, "category_id", 0),
+		ChannelId:  queryInt64(c, "channel_id", 0),
 		Sort:       c.Query("sort"),
 	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) createChannel(c *gin.Context) {
+	var req channelRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.CreateChannel(ctx, &contentpb.CreateChannelRequest{
+		OwnerId: currentUserID(c), CategoryId: req.CategoryID.Int64(), Name: req.Name, Description: req.Description, Color: req.Color,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) updateChannel(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req channelRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.UpdateChannel(ctx, &contentpb.UpdateChannelRequest{
+		Id: id, ActorId: currentUserID(c), CategoryId: req.CategoryID.Int64(), Name: req.Name, Description: req.Description, Color: req.Color,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) archiveChannel(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.ArchiveChannel(ctx, &contentpb.ArchiveChannelRequest{Id: id, ActorId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) getChannel(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.GetChannel(ctx, &contentpb.GetChannelRequest{Id: id, ViewerUserId: currentUserID(c), IncludeArchived: true})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listChannels(c *gin.Context) {
+	h.listChannelsBy(c, 0, 0, 0, false, false)
+}
+
+func (h *Handler) listFeaturedChannels(c *gin.Context) {
+	h.listChannelsBy(c, 0, 0, 0, true, false)
+}
+
+func (h *Handler) listOwnedChannels(c *gin.Context) {
+	h.listChannelsBy(c, currentUserID(c), 0, 0, false, true)
+}
+
+func (h *Handler) listFollowedChannels(c *gin.Context) {
+	h.listChannelsBy(c, 0, currentUserID(c), 0, false, false)
+}
+
+func (h *Handler) listFavoriteChannels(c *gin.Context) {
+	h.listChannelsBy(c, 0, 0, currentUserID(c), false, false)
+}
+
+func (h *Handler) listChannelsBy(c *gin.Context, ownerID, followerUserID, favoritedUserID int64, featured, includeArchived bool) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.ListChannels(ctx, &contentpb.ListChannelsRequest{
+		Query:           c.Query("q"),
+		CategoryId:      queryInt64(c, "category_id", 0),
+		Uncategorized:   queryBool(c, "uncategorized", false),
+		OwnerId:         ownerID,
+		FollowerUserId:  followerUserID,
+		FavoritedUserId: favoritedUserID,
+		ViewerUserId:    currentUserID(c),
+		Featured:        featured,
+		IncludeArchived: includeArchived,
+		Limit:           queryInt32(c, "limit", 20),
+		Offset:          queryInt32(c, "offset", 0),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listChannelCategories(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Content.ListChannelCategories(ctx, &contentpb.ListChannelCategoriesRequest{})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) listChannelTopics(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if _, err := h.clients.Content.GetChannel(ctx, &contentpb.GetChannelRequest{Id: id, ViewerUserId: currentUserID(c), IncludeArchived: true}); err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	resp, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{
+		Status: contentStatusPublished, ChannelId: id, Limit: queryInt32(c, "limit", 20), Offset: queryInt32(c, "offset", 0), Sort: c.Query("sort"),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) followChannel(c *gin.Context) {
+	h.channelUserAction(c, func(ctx context.Context, req *contentpb.ChannelUserRequest) (*contentpb.ChannelActionResponse, error) {
+		return h.clients.Content.FollowChannel(ctx, req)
+	})
+}
+
+func (h *Handler) unfollowChannel(c *gin.Context) {
+	h.channelUserAction(c, func(ctx context.Context, req *contentpb.ChannelUserRequest) (*contentpb.ChannelActionResponse, error) {
+		return h.clients.Content.UnfollowChannel(ctx, req)
+	})
+}
+
+func (h *Handler) favoriteChannel(c *gin.Context) {
+	h.channelUserAction(c, func(ctx context.Context, req *contentpb.ChannelUserRequest) (*contentpb.ChannelActionResponse, error) {
+		return h.clients.Content.FavoriteChannel(ctx, req)
+	})
+}
+
+func (h *Handler) unfavoriteChannel(c *gin.Context) {
+	h.channelUserAction(c, func(ctx context.Context, req *contentpb.ChannelUserRequest) (*contentpb.ChannelActionResponse, error) {
+		return h.clients.Content.UnfavoriteChannel(ctx, req)
+	})
+}
+
+func (h *Handler) channelUserAction(c *gin.Context, action func(context.Context, *contentpb.ChannelUserRequest) (*contentpb.ChannelActionResponse, error)) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := action(ctx, &contentpb.ChannelUserRequest{ChannelId: id, UserId: currentUserID(c)})
 	if err != nil {
 		writeRPCError(c, err)
 		return

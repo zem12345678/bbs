@@ -29,6 +29,16 @@ const (
 	ContentService_GetTopic_FullMethodName              = "/bbs.content.v1.ContentService/GetTopic"
 	ContentService_ListTopics_FullMethodName            = "/bbs.content.v1.ContentService/ListTopics"
 	ContentService_VoteTopicPoll_FullMethodName         = "/bbs.content.v1.ContentService/VoteTopicPoll"
+	ContentService_CreateChannel_FullMethodName         = "/bbs.content.v1.ContentService/CreateChannel"
+	ContentService_UpdateChannel_FullMethodName         = "/bbs.content.v1.ContentService/UpdateChannel"
+	ContentService_ArchiveChannel_FullMethodName        = "/bbs.content.v1.ContentService/ArchiveChannel"
+	ContentService_GetChannel_FullMethodName            = "/bbs.content.v1.ContentService/GetChannel"
+	ContentService_ListChannels_FullMethodName          = "/bbs.content.v1.ContentService/ListChannels"
+	ContentService_FollowChannel_FullMethodName         = "/bbs.content.v1.ContentService/FollowChannel"
+	ContentService_UnfollowChannel_FullMethodName       = "/bbs.content.v1.ContentService/UnfollowChannel"
+	ContentService_FavoriteChannel_FullMethodName       = "/bbs.content.v1.ContentService/FavoriteChannel"
+	ContentService_UnfavoriteChannel_FullMethodName     = "/bbs.content.v1.ContentService/UnfavoriteChannel"
+	ContentService_ListChannelCategories_FullMethodName = "/bbs.content.v1.ContentService/ListChannelCategories"
 	ContentService_CreateArticle_FullMethodName         = "/bbs.content.v1.ContentService/CreateArticle"
 	ContentService_UpdateArticle_FullMethodName         = "/bbs.content.v1.ContentService/UpdateArticle"
 	ContentService_PublishArticle_FullMethodName        = "/bbs.content.v1.ContentService/PublishArticle"
@@ -63,6 +73,16 @@ type ContentServiceClient interface {
 	GetTopic(ctx context.Context, in *GetTopicRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
 	VoteTopicPoll(ctx context.Context, in *VoteTopicPollRequest, opts ...grpc.CallOption) (*TopicPollResponse, error)
+	CreateChannel(ctx context.Context, in *CreateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	UpdateChannel(ctx context.Context, in *UpdateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	ArchiveChannel(ctx context.Context, in *ArchiveChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error)
+	FollowChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error)
+	UnfollowChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error)
+	FavoriteChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error)
+	UnfavoriteChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error)
+	ListChannelCategories(ctx context.Context, in *ListChannelCategoriesRequest, opts ...grpc.CallOption) (*ChannelCategoryListResponse, error)
 	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	PublishArticle(ctx context.Context, in *ArticleIDRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
@@ -185,6 +205,106 @@ func (c *contentServiceClient) VoteTopicPoll(ctx context.Context, in *VoteTopicP
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicPollResponse)
 	err := c.cc.Invoke(ctx, ContentService_VoteTopicPoll_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) CreateChannel(ctx context.Context, in *CreateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_CreateChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) UpdateChannel(ctx context.Context, in *UpdateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_UpdateChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) ArchiveChannel(ctx context.Context, in *ArchiveChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_ArchiveChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_GetChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelListResponse)
+	err := c.cc.Invoke(ctx, ContentService_ListChannels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) FollowChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelActionResponse)
+	err := c.cc.Invoke(ctx, ContentService_FollowChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) UnfollowChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelActionResponse)
+	err := c.cc.Invoke(ctx, ContentService_UnfollowChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) FavoriteChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelActionResponse)
+	err := c.cc.Invoke(ctx, ContentService_FavoriteChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) UnfavoriteChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelActionResponse)
+	err := c.cc.Invoke(ctx, ContentService_UnfavoriteChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) ListChannelCategories(ctx context.Context, in *ListChannelCategoriesRequest, opts ...grpc.CallOption) (*ChannelCategoryListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelCategoryListResponse)
+	err := c.cc.Invoke(ctx, ContentService_ListChannelCategories_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -385,6 +505,16 @@ type ContentServiceServer interface {
 	GetTopic(context.Context, *GetTopicRequest) (*TopicResponse, error)
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
 	VoteTopicPoll(context.Context, *VoteTopicPollRequest) (*TopicPollResponse, error)
+	CreateChannel(context.Context, *CreateChannelRequest) (*ChannelResponse, error)
+	UpdateChannel(context.Context, *UpdateChannelRequest) (*ChannelResponse, error)
+	ArchiveChannel(context.Context, *ArchiveChannelRequest) (*ChannelResponse, error)
+	GetChannel(context.Context, *GetChannelRequest) (*ChannelResponse, error)
+	ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error)
+	FollowChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error)
+	UnfollowChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error)
+	FavoriteChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error)
+	UnfavoriteChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error)
+	ListChannelCategories(context.Context, *ListChannelCategoriesRequest) (*ChannelCategoryListResponse, error)
 	CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error)
 	UpdateArticle(context.Context, *UpdateArticleRequest) (*ArticleResponse, error)
 	PublishArticle(context.Context, *ArticleIDRequest) (*ArticleResponse, error)
@@ -442,6 +572,36 @@ func (UnimplementedContentServiceServer) ListTopics(context.Context, *ListTopics
 }
 func (UnimplementedContentServiceServer) VoteTopicPoll(context.Context, *VoteTopicPollRequest) (*TopicPollResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VoteTopicPoll not implemented")
+}
+func (UnimplementedContentServiceServer) CreateChannel(context.Context, *CreateChannelRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateChannel not implemented")
+}
+func (UnimplementedContentServiceServer) UpdateChannel(context.Context, *UpdateChannelRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateChannel not implemented")
+}
+func (UnimplementedContentServiceServer) ArchiveChannel(context.Context, *ArchiveChannelRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ArchiveChannel not implemented")
+}
+func (UnimplementedContentServiceServer) GetChannel(context.Context, *GetChannelRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChannel not implemented")
+}
+func (UnimplementedContentServiceServer) ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListChannels not implemented")
+}
+func (UnimplementedContentServiceServer) FollowChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FollowChannel not implemented")
+}
+func (UnimplementedContentServiceServer) UnfollowChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnfollowChannel not implemented")
+}
+func (UnimplementedContentServiceServer) FavoriteChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FavoriteChannel not implemented")
+}
+func (UnimplementedContentServiceServer) UnfavoriteChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnfavoriteChannel not implemented")
+}
+func (UnimplementedContentServiceServer) ListChannelCategories(context.Context, *ListChannelCategoriesRequest) (*ChannelCategoryListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListChannelCategories not implemented")
 }
 func (UnimplementedContentServiceServer) CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateArticle not implemented")
@@ -694,6 +854,186 @@ func _ContentService_VoteTopicPoll_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContentServiceServer).VoteTopicPoll(ctx, req.(*VoteTopicPollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_CreateChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateChannelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).CreateChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_CreateChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).CreateChannel(ctx, req.(*CreateChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_UpdateChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateChannelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).UpdateChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_UpdateChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).UpdateChannel(ctx, req.(*UpdateChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_ArchiveChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveChannelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ArchiveChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ArchiveChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ArchiveChannel(ctx, req.(*ArchiveChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_GetChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChannelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).GetChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_GetChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).GetChannel(ctx, req.(*GetChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_ListChannels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ListChannels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ListChannels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ListChannels(ctx, req.(*ListChannelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_FollowChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).FollowChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_FollowChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).FollowChannel(ctx, req.(*ChannelUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_UnfollowChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).UnfollowChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_UnfollowChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).UnfollowChannel(ctx, req.(*ChannelUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_FavoriteChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).FavoriteChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_FavoriteChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).FavoriteChannel(ctx, req.(*ChannelUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_UnfavoriteChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).UnfavoriteChannel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_UnfavoriteChannel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).UnfavoriteChannel(ctx, req.(*ChannelUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_ListChannelCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ListChannelCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ListChannelCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ListChannelCategories(ctx, req.(*ListChannelCategoriesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1068,6 +1408,46 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VoteTopicPoll",
 			Handler:    _ContentService_VoteTopicPoll_Handler,
+		},
+		{
+			MethodName: "CreateChannel",
+			Handler:    _ContentService_CreateChannel_Handler,
+		},
+		{
+			MethodName: "UpdateChannel",
+			Handler:    _ContentService_UpdateChannel_Handler,
+		},
+		{
+			MethodName: "ArchiveChannel",
+			Handler:    _ContentService_ArchiveChannel_Handler,
+		},
+		{
+			MethodName: "GetChannel",
+			Handler:    _ContentService_GetChannel_Handler,
+		},
+		{
+			MethodName: "ListChannels",
+			Handler:    _ContentService_ListChannels_Handler,
+		},
+		{
+			MethodName: "FollowChannel",
+			Handler:    _ContentService_FollowChannel_Handler,
+		},
+		{
+			MethodName: "UnfollowChannel",
+			Handler:    _ContentService_UnfollowChannel_Handler,
+		},
+		{
+			MethodName: "FavoriteChannel",
+			Handler:    _ContentService_FavoriteChannel_Handler,
+		},
+		{
+			MethodName: "UnfavoriteChannel",
+			Handler:    _ContentService_UnfavoriteChannel_Handler,
+		},
+		{
+			MethodName: "ListChannelCategories",
+			Handler:    _ContentService_ListChannelCategories_Handler,
 		},
 		{
 			MethodName: "CreateArticle",

@@ -11,7 +11,6 @@ import {
   FolderOpen,
   Grid3X3,
   MessageCircle,
-  Rocket,
   Search,
   ShieldCheck,
   ShoppingBag,
@@ -35,7 +34,6 @@ import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } fro
 import { EmptyState } from "./RouteBlocks.jsx";
 import {
   BlockHeader,
-  CircleCard,
   ListRow,
   MetricCard,
   MoreCard,
@@ -163,50 +161,6 @@ export function HomePage({ categories = [], hotTags = [] }) {
                 </div>
               )}
             </div>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
-
-export function CirclesPage({ categories = [], hotTags = [] }) {
-  const navigate = useNavigate();
-  const totalTopics = categories.reduce((sum, item) => sum + toNumber(item.topicCount), 0);
-
-  return (
-    <>
-      <PageHero
-        icon={Users}
-        eyebrow="圈子"
-        title="按分类浏览社区讨论"
-        description="每个分类围绕稳定主题沉淀帖子、资源和实践经验，便于快速定位讨论。"
-        image={pageImages.圈子}
-        stats={[
-          [String(categories.length), "开放分类"],
-          [String(hotTags.length), "热门标签"],
-          [String(totalTopics), "已发布话题"]
-        ]}
-      />
-      {categories.length === 0 ? (
-        <EmptyState title="暂无分类数据" description="分类开放后会显示在这里。" />
-      ) : (
-        <div className="circle-grid">
-          {categories.map((category) => (
-            <CircleCard category={category} key={category.id || category.name} />
-          ))}
-        </div>
-      )}
-      <section className="panel content-block">
-        <BlockHeader icon={Rocket} title="分类概览" action="查看全部话题" onAction={() => navigate("/topics")} />
-        <div className="compact-list">
-          {categories.length === 0 && <ListRow title="暂无分类概览" meta="发布内容并维护分类后会显示更新" />}
-          {categories.slice(0, 4).map((category) => (
-            <ListRow
-              key={category.id || category.name}
-              title={category.name}
-              meta={`${category.topicCountKnown ? `${category.topicCount} 条话题` : "话题数统计中"} · ${category.description || "暂无分类说明"}`}
-            />
           ))}
         </div>
       </section>

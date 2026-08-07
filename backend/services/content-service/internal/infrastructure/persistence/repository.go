@@ -45,6 +45,7 @@ type topicPO struct {
 	Tags                    string    `gorm:"type:jsonb;not null;default:'[]'"`
 	AuthorID                int64     `gorm:"index;not null"`
 	CategoryID              int64     `gorm:"index;not null;default:1"`
+	ChannelID               *int64    `gorm:"index"`
 	BountyScore             int64     `gorm:"not null;default:0"`
 	QAStatus                string    `gorm:"size:16;not null;default:'';index"`
 	AcceptedCommentID       int64     `gorm:"not null;default:0;index"`
@@ -205,6 +206,11 @@ func toEntities(rows []articlePO) []*articleDomain.Article {
 
 func topicToPO(t *topicDomain.Topic) topicPO {
 	tags, _ := json.Marshal(t.Tags)
+	var channelID *int64
+	if t.ChannelID > 0 {
+		value := t.ChannelID
+		channelID = &value
+	}
 	return topicPO{
 		ID:                      t.ID,
 		Slug:                    t.Slug,
@@ -214,6 +220,7 @@ func topicToPO(t *topicDomain.Topic) topicPO {
 		Tags:                    string(tags),
 		AuthorID:                t.AuthorID,
 		CategoryID:              t.CategoryID,
+		ChannelID:               channelID,
 		BountyScore:             t.BountyScore,
 		QAStatus:                string(t.QAStatus),
 		AcceptedCommentID:       t.AcceptedCommentID,
@@ -230,6 +237,10 @@ func topicToPO(t *topicDomain.Topic) topicPO {
 func topicToEntity(p *topicPO) *topicDomain.Topic {
 	var tags []string
 	_ = json.Unmarshal([]byte(p.Tags), &tags)
+	var channelID int64
+	if p.ChannelID != nil {
+		channelID = *p.ChannelID
+	}
 	return &topicDomain.Topic{
 		ID:                      p.ID,
 		Slug:                    p.Slug,
@@ -239,6 +250,7 @@ func topicToEntity(p *topicPO) *topicDomain.Topic {
 		Tags:                    tags,
 		AuthorID:                p.AuthorID,
 		CategoryID:              p.CategoryID,
+		ChannelID:               channelID,
 		BountyScore:             p.BountyScore,
 		QAStatus:                topicDomain.QAStatus(p.QAStatus),
 		AcceptedCommentID:       p.AcceptedCommentID,
@@ -533,6 +545,9 @@ func (r *TopicRepo) CreateTopic(ctx context.Context, t *topicDomain.Topic) error
 		if erased {
 			return accountDomain.ErrUserErased
 		}
+		if err := lockActiveTopicChannel(tx, t.ChannelID); err != nil {
+			return err
+		}
 		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&po)
 		if res.Error != nil {
 			return res.Error
@@ -555,6 +570,9 @@ func (r *TopicRepo) UpdateTopicWithPoll(ctx context.Context, t *topicDomain.Topi
 func (r *TopicRepo) updateTopic(ctx context.Context, t *topicDomain.Topic, pollInput *topicDomain.PollInput) error {
 	po := topicToPO(t)
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockActiveTopicChannel(tx, t.ChannelID); err != nil {
+			return err
+		}
 		res := tx.Model(&topicPO{}).
 			Where("id = ?", t.ID).
 			Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
@@ -563,6 +581,7 @@ func (r *TopicRepo) updateTopic(ctx context.Context, t *topicDomain.Topic, pollI
 				"body":                       po.Body,
 				"tags":                       po.Tags,
 				"category_id":                po.CategoryID,
+				"channel_id":                 po.ChannelID,
 				"bounty_score":               po.BountyScore,
 				"qa_status":                  po.QAStatus,
 				"accepted_comment_id":        po.AcceptedCommentID,
@@ -747,7 +766,7 @@ func findTopicByID(db *gorm.DB, id int64) (*topicDomain.Topic, error) {
 	return topicToEntity(&p), nil
 }
 
-func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, sort string, limit, offset int) ([]*topicDomain.Topic, int64, error) {
+func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, typ topicDomain.Type, tag string, authorID int64, categoryID int64, channelID int64, sort string, limit, offset int) ([]*topicDomain.Topic, int64, error) {
 	q := r.db.WithContext(ctx).Model(&topicPO{})
 	if status > 0 {
 		q = q.Where("status = ?", int32(status))
@@ -760,6 +779,9 @@ func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, t
 	}
 	if categoryID > 0 {
 		q = q.Where("category_id = ?", categoryID)
+	}
+	if channelID > 0 {
+		q = q.Where("channel_id = ?", channelID)
 	}
 	if tag != "" {
 		q = q.Where("tags::text LIKE ?", "%\""+tag+"\"%")
@@ -783,15 +805,55 @@ func (r *TopicRepo) UpdateTopicStatus(ctx context.Context, id int64, status topi
 	if publishedAt != nil {
 		updates["published_at"] = publishedAt
 	}
-	res := r.db.WithContext(ctx).Model(&topicPO{}).
-		Where("id = ?", id).
-		Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
-		Updates(updates)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if status == topicDomain.StatusPublished {
+			if err := lockTopicChannelForPublish(tx, id); err != nil {
+				return err
+			}
+		}
+		res := tx.Model(&topicPO{}).
+			Where("id = ?", id).
+			Where("NOT EXISTS (SELECT 1 FROM content_erased_users WHERE user_id = topics.author_id)").
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return topicDomain.ErrNotFound
+		}
+		return nil
+	})
+}
+
+func lockTopicChannelForPublish(tx *gorm.DB, topicID int64) error {
+	var topic topicPO
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "channel_id").First(&topic, topicID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return topicDomain.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if topic.ChannelID == nil {
+		return nil
+	}
+	return lockActiveTopicChannel(tx, *topic.ChannelID)
+}
+
+func lockActiveTopicChannel(tx *gorm.DB, channelID int64) error {
+	if channelID <= 0 {
+		return nil
+	}
+	var channel channelPO
+	err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Select("id", "is_archived").First(&channel, channelID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return topicDomain.ErrChannelNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if channel.IsArchived {
+		return topicDomain.ErrChannelArchived
 	}
 	return nil
 }

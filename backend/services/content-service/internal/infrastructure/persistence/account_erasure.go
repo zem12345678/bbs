@@ -52,6 +52,9 @@ func (r *AccountErasureRepository) ArchiveAccountContent(ctx context.Context, us
 		switch {
 		case err == nil && policyVersion <= receipt.PolicyVersion:
 			result = erasureResult(receipt)
+			if err := eraseAccountChannelState(tx, userID, time.Now().UTC()); err != nil {
+				return err
+			}
 			return loadErasedArticleSlugs(tx, userID, &result)
 		case err == nil:
 			result = erasureResult(receipt)
@@ -71,6 +74,9 @@ func (r *AccountErasureRepository) ArchiveAccountContent(ctx context.Context, us
 		}
 
 		now := time.Now().UTC()
+		if err := eraseAccountChannelState(tx, userID, now); err != nil {
+			return err
+		}
 		var articles []articlePO
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("author_id = ? AND status <> ?", userID, int32(articleDomain.StatusArchived)).
@@ -171,6 +177,18 @@ WHERE choices.topic_id = decrements.topic_id
 		return loadErasedArticleSlugs(tx, userID, &result)
 	})
 	return result, err
+}
+
+func eraseAccountChannelState(tx *gorm.DB, userID int64, now time.Time) error {
+	if err := tx.Model(&channelPO{}).
+		Where("owner_id = ? AND is_archived = FALSE", userID).
+		Updates(map[string]any{"is_archived": true, "updated_at": now}).Error; err != nil {
+		return err
+	}
+	if err := tx.Table("channel_followers").Where("user_id = ?", userID).Delete(&channelRelationPO{}).Error; err != nil {
+		return err
+	}
+	return tx.Table("channel_favorites").Where("user_id = ?", userID).Delete(&channelRelationPO{}).Error
 }
 
 func erasureResult(receipt contentErasedUserPO) accountDomain.ErasureResult {

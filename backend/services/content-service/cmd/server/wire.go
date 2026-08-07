@@ -70,6 +70,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	accountErasureRepo := contentapp.ProvideAccountErasureRepository(db)
 	lifecycleOutboxRepo := contentapp.ProvideContentLifecycleOutboxRepository(db)
 	categoryRepo := contentapp.ProvideCategoryRepository(db)
+	channelRepo := contentapp.ProvideChannelRepository(db)
 	articleCache := contentapp.ProvideArticleCache(v, redisClient)
 	node, err := contentapp.ProvideSnowflakeNode(v)
 	if err != nil {
@@ -102,11 +103,13 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, node, publisher, commentReader, log, membershipEntitlements, bountyCredits, lifecycleOutboxDispatcher)
+	topicCmd := contentapp.ProvideTopicCommandService(topicRepo, channelRepo, node, publisher, commentReader, log, membershipEntitlements, bountyCredits, lifecycleOutboxDispatcher)
 	topicQry := contentapp.ProvideTopicQueryService(topicRepo, publisher, log)
 	categoryCmd := contentapp.ProvideCategoryCommandService(categoryRepo, node)
 	categoryQry := contentapp.ProvideCategoryQueryService(categoryRepo)
-	handler := interfacesgrpc.NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry, accountErasure)
+	channelCmd := contentapp.ProvideChannelCommandService(channelRepo, categoryRepo, node)
+	channelQry := contentapp.ProvideChannelQueryService(channelRepo)
+	handler := interfacesgrpc.NewHandlerWithChannels(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry, accountErasure, channelCmd, channelQry)
 	initServers := interfacesgrpc.NewInitServers(handler)
 
 	grpcOptions, err := iocgrpc.NewServerOptions(v, log)

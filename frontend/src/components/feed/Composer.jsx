@@ -1,4 +1,5 @@
 import React from "react";
+import { useSearchParams } from "react-router-dom";
 import { ChevronDown, Eye, Image, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import MarkdownPreview from "../content/MarkdownPreview.jsx";
@@ -9,6 +10,8 @@ import { userAvatar } from "../../lib/postMappers";
 import { makeSlug } from "../../lib/slugs";
 
 export default function Composer({ auth, categories = [], onPublished }) {
+  const [searchParams] = useSearchParams();
+  const channelId = toId(searchParams.get("channel_id"));
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
   const [tagText, setTagText] = React.useState("");
@@ -21,7 +24,10 @@ export default function Composer({ auth, categories = [], onPublished }) {
   const [error, setError] = React.useState("");
   const [message, setMessage] = React.useState("");
   const draftDirtyRef = React.useRef(false);
-  const draftKey = React.useMemo(() => `bbs:composer:${auth?.user?.id || "guest"}:topic:v1`, [auth?.user?.id]);
+  const draftKey = React.useMemo(
+    () => `bbs:composer:${auth?.user?.id || "guest"}:topic:v1${channelId ? `:channel-${channelId}` : ""}`,
+    [auth?.user?.id, channelId]
+  );
 
   React.useEffect(() => {
     setDraftReady(false);
@@ -87,6 +93,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
           body: content,
           tags,
           category_id: selectedCategoryId || undefined,
+          channel_id: channelId || undefined,
           publish: true
         },
         auth.accessToken
@@ -201,6 +208,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
             </select>
             <ChevronDown size={14} aria-hidden="true" />
           </label>
+          {channelId && <span className="composer-channel-context"><Zap size={15} aria-hidden="true" />发布到当前圈子</span>}
         </div>
       )}
       {error && <p className="form-error compose-error">{error}</p>}

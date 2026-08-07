@@ -11,11 +11,14 @@ import (
 	articlequery "content-service/internal/application/article/query"
 	categorycommand "content-service/internal/application/category/command"
 	categoryquery "content-service/internal/application/category/query"
+	channelcommand "content-service/internal/application/channel/command"
+	channelquery "content-service/internal/application/channel/query"
 	topiccommand "content-service/internal/application/topic/command"
 	topicquery "content-service/internal/application/topic/query"
 	accountDomain "content-service/internal/domain/account"
 	articleDomain "content-service/internal/domain/article"
 	categoryDomain "content-service/internal/domain/category"
+	channelDomain "content-service/internal/domain/channel"
 	topicDomain "content-service/internal/domain/topic"
 
 	"google.golang.org/grpc/codes"
@@ -30,6 +33,8 @@ type Handler struct {
 	topicQry     *topicquery.Service
 	categoryCmd  *categorycommand.Service
 	categoryQry  *categoryquery.Service
+	channelCmd   *channelcommand.Service
+	channelQry   *channelquery.Service
 	accountErase *accountcommand.Service
 }
 
@@ -41,6 +46,13 @@ func NewHandler(articleCmd *articlecommand.Service, articleQry *articlequery.Ser
 	return &Handler{articleCmd: articleCmd, articleQry: articleQry, topicCmd: topicCmd, topicQry: topicQry, categoryCmd: categoryCmd, categoryQry: categoryQry, accountErase: accountEraser}
 }
 
+func NewHandlerWithChannels(articleCmd *articlecommand.Service, articleQry *articlequery.Service, topicCmd *topiccommand.Service, topicQry *topicquery.Service, categoryCmd *categorycommand.Service, categoryQry *categoryquery.Service, accountEraser *accountcommand.Service, channelCmd *channelcommand.Service, channelQry *channelquery.Service) *Handler {
+	handler := NewHandler(articleCmd, articleQry, topicCmd, topicQry, categoryCmd, categoryQry, accountEraser)
+	handler.channelCmd = channelCmd
+	handler.channelQry = channelQry
+	return handler
+}
+
 func toStatus(err error) error {
 	if err == nil {
 		return nil
@@ -49,14 +61,17 @@ func toStatus(err error) error {
 	switch {
 	case errors.Is(err, articleDomain.ErrNotFound),
 		errors.Is(err, topicDomain.ErrNotFound),
+		errors.Is(err, topicDomain.ErrChannelNotFound),
 		errors.Is(err, topicDomain.ErrPollNotFound),
 		errors.Is(err, topicDomain.ErrCommentNotFound),
-		errors.Is(err, categoryDomain.ErrNotFound):
+		errors.Is(err, categoryDomain.ErrNotFound),
+		errors.Is(err, channelDomain.ErrNotFound):
 		code = codes.NotFound
 	case errors.Is(err, articleDomain.ErrSlugExists), errors.Is(err, topicDomain.ErrSlugExists), errors.Is(err, categoryDomain.ErrSlugExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, topicDomain.ErrMembershipEntitlementRequired),
-		errors.Is(err, topicDomain.ErrTopicOwnerMismatch):
+		errors.Is(err, topicDomain.ErrTopicOwnerMismatch),
+		errors.Is(err, channelDomain.ErrForbidden):
 		code = codes.PermissionDenied
 	case errors.Is(err, articleDomain.ErrSlugRequired),
 		errors.Is(err, articleDomain.ErrTitleRequired),
@@ -76,6 +91,11 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrCommentNotInTopic),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
 		errors.Is(err, categoryDomain.ErrNameRequired),
+		errors.Is(err, channelDomain.ErrOwnerRequired),
+		errors.Is(err, channelDomain.ErrNameRequired),
+		errors.Is(err, channelDomain.ErrNameTooLong),
+		errors.Is(err, channelDomain.ErrDescriptionTooLong),
+		errors.Is(err, channelDomain.ErrColorInvalid),
 		errors.Is(err, accountDomain.ErrInvalidErasure),
 		errors.Is(err, articleDomain.ErrNoteChartSpanInvalid),
 		errors.Is(err, articleDomain.ErrNoteChartLimitInvalid),
@@ -91,6 +111,7 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrAlreadyPublished),
 		errors.Is(err, topicDomain.ErrNotPublished),
 		errors.Is(err, topicDomain.ErrArchived),
+		errors.Is(err, topicDomain.ErrChannelArchived),
 		errors.Is(err, topicDomain.ErrNotQuestion),
 		errors.Is(err, topicDomain.ErrAlreadyAccepted),
 		errors.Is(err, topicDomain.ErrNotAccepted),
@@ -101,7 +122,9 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrPollExpired),
 		errors.Is(err, topicDomain.ErrPollLocked),
 		errors.Is(err, categoryDomain.ErrInUse),
-		errors.Is(err, accountDomain.ErrUserErased):
+		errors.Is(err, accountDomain.ErrUserErased),
+		errors.Is(err, channelDomain.ErrCategoryDisabled),
+		errors.Is(err, channelDomain.ErrArchived):
 		code = codes.FailedPrecondition
 	case errors.Is(err, topicDomain.ErrPollAlreadyVoted):
 		code = codes.AlreadyExists
@@ -172,6 +195,7 @@ func toPbTopic(t *topicDomain.Topic) *pb.TopicInfo {
 		UpdatedAt:         t.UpdatedAt.UnixMilli(),
 		PublishedAt:       publishedAt,
 		CategoryId:        t.CategoryID,
+		ChannelId:         t.ChannelID,
 		ViewCount:         t.ViewCount,
 		BountyScore:       t.BountyScore,
 		QaStatus:          string(t.QAStatus),
@@ -297,6 +321,7 @@ func (h *Handler) CreateTopic(ctx context.Context, req *pb.CreateTopicRequest) (
 		Tags:        req.GetTags(),
 		AuthorID:    req.GetAuthorId(),
 		CategoryID:  req.GetCategoryId(),
+		ChannelID:   req.GetChannelId(),
 		BountyScore: req.GetBountyScore(),
 		Poll:        pollInputFromPb(req.GetPoll()),
 	})
@@ -312,6 +337,7 @@ func (h *Handler) UpdateTopic(ctx context.Context, req *pb.UpdateTopicRequest) (
 		Body:        req.GetBody(),
 		Tags:        req.GetTags(),
 		CategoryID:  req.GetCategoryId(),
+		ChannelID:   req.GetChannelId(),
 		BountyScore: req.GetBountyScore(),
 		Poll:        pollInputFromPb(req.GetPoll()),
 	})
@@ -390,11 +416,128 @@ func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*p
 	if req.GetType() != "" {
 		typ = topicDomain.NormalizeType(req.GetType())
 	}
-	rows, total, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, total, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetChannelId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
 	if err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.TopicListResponse{Items: toPbTopicList(rows), Total: total}, nil
+}
+
+func toPbChannel(channel *channelDomain.Channel) *pb.ChannelInfo {
+	if channel == nil {
+		return nil
+	}
+	var lastPostedAt int64
+	if channel.LastPostedAt != nil {
+		lastPostedAt = channel.LastPostedAt.UnixMilli()
+	}
+	return &pb.ChannelInfo{
+		Id: channel.ID, OwnerId: channel.OwnerID, CategoryId: channel.CategoryID,
+		Name: channel.Name, Description: channel.Description, Color: channel.Color,
+		IsArchived: channel.IsArchived, FollowersCount: channel.FollowersCount,
+		TopicsCount: channel.TopicsCount, LastPostedAt: lastPostedAt,
+		CreatedAt: channel.CreatedAt.UnixMilli(), UpdatedAt: channel.UpdatedAt.UnixMilli(),
+		IsFollowing: channel.ViewerFollowing, IsFavorited: channel.ViewerFavorited,
+	}
+}
+
+func toPbChannels(channels []*channelDomain.Channel) []*pb.ChannelInfo {
+	out := make([]*pb.ChannelInfo, 0, len(channels))
+	for _, channel := range channels {
+		out = append(out, toPbChannel(channel))
+	}
+	return out
+}
+
+func (h *Handler) CreateChannel(ctx context.Context, req *pb.CreateChannelRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelCmd.Create(ctx, channelDomain.CreateCmd{
+		OwnerID: req.GetOwnerId(), CategoryID: req.GetCategoryId(), Name: req.GetName(), Description: req.GetDescription(), Color: req.GetColor(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
+func (h *Handler) UpdateChannel(ctx context.Context, req *pb.UpdateChannelRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelCmd.Update(ctx, req.GetId(), req.GetActorId(), channelDomain.UpdateCmd{
+		CategoryID: req.GetCategoryId(), Name: req.GetName(), Description: req.GetDescription(), Color: req.GetColor(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
+func (h *Handler) ArchiveChannel(ctx context.Context, req *pb.ArchiveChannelRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelCmd.Archive(ctx, req.GetId(), req.GetActorId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
+func (h *Handler) GetChannel(ctx context.Context, req *pb.GetChannelRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelQry.Get(ctx, req.GetId(), req.GetViewerUserId(), req.GetIncludeArchived())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
+func (h *Handler) ListChannels(ctx context.Context, req *pb.ListChannelsRequest) (*pb.ChannelListResponse, error) {
+	channels, total, err := h.channelQry.List(ctx, channelDomain.ListFilter{
+		Query: req.GetQuery(), CategoryID: req.GetCategoryId(), Uncategorized: req.GetUncategorized(),
+		OwnerID: req.GetOwnerId(), FollowerUserID: req.GetFollowerUserId(), FavoritedUserID: req.GetFavoritedUserId(),
+		ViewerID: req.GetViewerUserId(), Featured: req.GetFeatured(), IncludeArchived: req.GetIncludeArchived(),
+		Limit: int(req.GetLimit()), Offset: int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelListResponse{Items: toPbChannels(channels), Total: total}, nil
+}
+
+func (h *Handler) FollowChannel(ctx context.Context, req *pb.ChannelUserRequest) (*pb.ChannelActionResponse, error) {
+	return h.channelAction(ctx, req, h.channelCmd.Follow)
+}
+
+func (h *Handler) UnfollowChannel(ctx context.Context, req *pb.ChannelUserRequest) (*pb.ChannelActionResponse, error) {
+	return h.channelAction(ctx, req, h.channelCmd.Unfollow)
+}
+
+func (h *Handler) FavoriteChannel(ctx context.Context, req *pb.ChannelUserRequest) (*pb.ChannelActionResponse, error) {
+	return h.channelAction(ctx, req, h.channelCmd.Favorite)
+}
+
+func (h *Handler) UnfavoriteChannel(ctx context.Context, req *pb.ChannelUserRequest) (*pb.ChannelActionResponse, error) {
+	return h.channelAction(ctx, req, h.channelCmd.Unfavorite)
+}
+
+func (h *Handler) channelAction(ctx context.Context, req *pb.ChannelUserRequest, action func(context.Context, int64, int64) error) (*pb.ChannelActionResponse, error) {
+	if err := action(ctx, req.GetChannelId(), req.GetUserId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelActionResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) ListChannelCategories(ctx context.Context, req *pb.ListChannelCategoriesRequest) (*pb.ChannelCategoryListResponse, error) {
+	rows, err := h.channelQry.ListCategoryAggregates(ctx, req.GetIncludeArchived())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.ChannelCategoryInfo, 0, len(rows))
+	for _, row := range rows {
+		var lastPostedAt int64
+		if row.LastPostedAt != nil {
+			lastPostedAt = row.LastPostedAt.UnixMilli()
+		}
+		items = append(items, &pb.ChannelCategoryInfo{
+			CategoryId: row.CategoryID, Slug: row.Slug, Name: row.Name, ChannelsCount: row.ChannelCount,
+			FollowersCount: row.FollowersCount, TopicsCount: row.TopicsCount, LastPostedAt: lastPostedAt,
+		})
+	}
+	return &pb.ChannelCategoryListResponse{Items: items}, nil
 }
 
 func (h *Handler) ListCategories(ctx context.Context, req *pb.ListCategoriesRequest) (*pb.CategoryListResponse, error) {

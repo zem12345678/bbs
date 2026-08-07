@@ -15,6 +15,16 @@ service ContentService {
   rpc GetTopic(GetTopicRequest) returns (TopicResponse);
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
   rpc VoteTopicPoll(VoteTopicPollRequest) returns (TopicPollResponse);
+  rpc CreateChannel(CreateChannelRequest) returns (ChannelResponse);
+  rpc UpdateChannel(UpdateChannelRequest) returns (ChannelResponse);
+  rpc ArchiveChannel(ArchiveChannelRequest) returns (ChannelResponse);
+  rpc GetChannel(GetChannelRequest) returns (ChannelResponse);
+  rpc ListChannels(ListChannelsRequest) returns (ChannelListResponse);
+  rpc FollowChannel(ChannelUserRequest) returns (ChannelActionResponse);
+  rpc UnfollowChannel(ChannelUserRequest) returns (ChannelActionResponse);
+  rpc FavoriteChannel(ChannelUserRequest) returns (ChannelActionResponse);
+  rpc UnfavoriteChannel(ChannelUserRequest) returns (ChannelActionResponse);
+  rpc ListChannelCategories(ListChannelCategoriesRequest) returns (ChannelCategoryListResponse);
   rpc CreateArticle(CreateArticleRequest) returns (ArticleResponse);
   rpc UpdateArticle(UpdateArticleRequest) returns (ArticleResponse);
   rpc PublishArticle(ArticleIDRequest) returns (ArticleResponse);
@@ -32,6 +42,7 @@ service ContentService {
   rpc DeleteCategory(CategoryIDRequest) returns (CategoryResponse);
   rpc ListTags(ListTagsRequest) returns (TagListResponse);
   rpc AutocompleteTags(AutocompleteTagsRequest) returns (TagListResponse);
+  rpc ArchiveAccountContent(ArchiveAccountContentRequest) returns (ArchiveAccountContentResponse);
 }
 
 message TopicInfo {
@@ -52,6 +63,7 @@ message TopicInfo {
   string qa_status = 15;
   int64 accepted_comment_id = 16;
   TopicPollInfo poll = 17;
+  int64 channel_id = 18;
 }
 
 message TopicPollChoiceInfo {
@@ -102,6 +114,53 @@ message TopicResponse {
 message TopicListResponse {
   repeated TopicInfo items = 1;
   int64 total = 2;
+}
+
+message ChannelInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  int64 category_id = 3;
+  string name = 4;
+  string description = 5;
+  string color = 6;
+  bool is_archived = 7;
+  int64 followers_count = 8;
+  int64 topics_count = 9;
+  int64 last_posted_at = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  bool is_following = 13;
+  bool is_favorited = 14;
+}
+
+message ChannelResponse {
+  bool success = 1;
+  string message = 2;
+  ChannelInfo channel = 3;
+}
+
+message ChannelListResponse {
+  repeated ChannelInfo items = 1;
+  int64 total = 2;
+}
+
+message ChannelActionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ChannelCategoryInfo {
+  int64 category_id = 1;
+  string slug = 2;
+  string name = 3;
+  int64 channels_count = 4;
+  int64 followers_count = 5;
+  int64 topics_count = 6;
+  int64 last_posted_at = 7;
+}
+
+message ChannelCategoryListResponse {
+  repeated ChannelCategoryInfo items = 1;
 }
 
 message ArticleResponse {
@@ -156,6 +215,7 @@ message CreateTopicRequest {
   int64 category_id = 7;
   int64 bounty_score = 8;
   TopicPollInput poll = 9;
+  int64 channel_id = 10;
 }
 
 message UpdateTopicRequest {
@@ -166,6 +226,7 @@ message UpdateTopicRequest {
   int64 category_id = 5;
   int64 bounty_score = 6;
   TopicPollInput poll = 7;
+  int64 channel_id = 8;
 }
 
 message TopicIDRequest {
@@ -214,6 +275,58 @@ message ListTopicsRequest {
   int32 offset = 6;
   int64 category_id = 7;
   string sort = 8;
+  int64 channel_id = 9;
+}
+
+message CreateChannelRequest {
+  int64 owner_id = 1;
+  int64 category_id = 2;
+  string name = 3;
+  string description = 4;
+  string color = 5;
+}
+
+message UpdateChannelRequest {
+  int64 id = 1;
+  int64 actor_id = 2;
+  int64 category_id = 3;
+  string name = 4;
+  string description = 5;
+  string color = 6;
+}
+
+message ArchiveChannelRequest {
+  int64 id = 1;
+  int64 actor_id = 2;
+}
+
+message GetChannelRequest {
+  int64 id = 1;
+  int64 viewer_user_id = 2;
+  bool include_archived = 3;
+}
+
+message ListChannelsRequest {
+  string query = 1;
+  int64 category_id = 2;
+  bool uncategorized = 3;
+  int64 owner_id = 4;
+  int64 follower_user_id = 5;
+  int64 favorited_user_id = 6;
+  int64 viewer_user_id = 7;
+  bool featured = 8;
+  bool include_archived = 9;
+  int32 limit = 10;
+  int32 offset = 11;
+}
+
+message ChannelUserRequest {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+}
+
+message ListChannelCategoriesRequest {
+  bool include_archived = 1;
 }
 
 message CreateArticleRequest {
@@ -289,6 +402,19 @@ message ListTagsRequest {
 message AutocompleteTagsRequest {
   string query = 1;
   int32 limit = 2;
+}
+
+message ArchiveAccountContentRequest {
+  int64 user_id = 1;
+  int64 deletion_job_id = 2;
+  int32 policy_version = 3;
+}
+
+message ArchiveAccountContentResponse {
+  bool completed = 1;
+  int64 archived_articles = 2;
+  int64 archived_topics = 3;
+  int64 deleted_poll_ballots = 4;
 }
 
 message NoteChartRequest {

@@ -159,6 +159,7 @@ type createTopicRequest struct {
 	Body        string            `json:"body"`
 	Tags        []string          `json:"tags"`
 	CategoryID  jsonInt64         `json:"category_id"`
+	ChannelID   jsonInt64         `json:"channel_id"`
 	BountyScore int64             `json:"bounty_score"`
 	Publish     bool              `json:"publish"`
 	Poll        *topicPollRequest `json:"poll"`
@@ -169,8 +170,16 @@ type updateTopicRequest struct {
 	Body        string            `json:"body"`
 	Tags        []string          `json:"tags"`
 	CategoryID  jsonInt64         `json:"category_id"`
+	ChannelID   jsonInt64         `json:"channel_id"`
 	BountyScore int64             `json:"bounty_score"`
 	Poll        *topicPollRequest `json:"poll"`
+}
+
+type channelRequest struct {
+	CategoryID  jsonInt64 `json:"category_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Color       string    `json:"color"`
 }
 
 type topicPollRequest struct {

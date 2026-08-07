@@ -1357,6 +1357,53 @@ test("throws ApiError for business-error envelopes even when HTTP status is ok",
   );
 });
 
+test("maps channel discovery, management, and relationship requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return textResponse(
+      200,
+      '{"service":"api-gateway","http_code":200,"code":0,"message":"success","data":{"channel":{"id":9223372036854775807}}}'
+    );
+  };
+
+  await bbsApi.channels({ q: "工程", category_id: "9223372036854775806" }, "access-token");
+  await bbsApi.featuredChannels({ limit: 6 }, "access-token");
+  await bbsApi.channelCategories();
+  await bbsApi.ownedChannels({}, "access-token");
+  await bbsApi.followedChannels({ offset: 20 }, "access-token");
+  await bbsApi.favoriteChannels({}, "access-token");
+  const detail = await bbsApi.getChannel("9223372036854775807", "access-token");
+  await bbsApi.createChannel({ name: "工程实践", color: "#1683f7", category_id: "9" }, "access-token");
+  await bbsApi.updateChannel("9223372036854775807", { description: "经验沉淀" }, "access-token");
+  await bbsApi.archiveChannel("9223372036854775807", "access-token");
+  await bbsApi.followChannel("9223372036854775807", "access-token");
+  await bbsApi.unfollowChannel("9223372036854775807", "access-token");
+  await bbsApi.favoriteChannel("9223372036854775807", "access-token");
+  await bbsApi.unfavoriteChannel("9223372036854775807", "access-token");
+  await bbsApi.channelTopics("9223372036854775807", { limit: 10, offset: 10 });
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/channels?limit=20&offset=0&q=%E5%B7%A5%E7%A8%8B&category_id=9223372036854775806");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/channels/featured?limit=6&offset=0");
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/channels/categories");
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/channels/owned?limit=20&offset=0");
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/channels/followed?limit=20&offset=20");
+  assert.equal(requests[5].url, "http://127.0.0.1:18080/api/v1/channels/favorites?limit=20&offset=0");
+  assert.equal(detail.channel.id, "9223372036854775807");
+  assert.equal(requests[7].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[7].options.body), { name: "工程实践", color: "#1683f7", category_id: "9" });
+  assert.equal(requests[8].options.method, "PUT");
+  assert.equal(requests[9].options.method, "DELETE");
+  assert.equal(requests[10].url.endsWith("/channels/9223372036854775807/follow"), true);
+  assert.equal(requests[10].options.method, "POST");
+  assert.equal(requests[11].options.method, "DELETE");
+  assert.equal(requests[12].url.endsWith("/channels/9223372036854775807/favorite"), true);
+  assert.equal(requests[12].options.method, "POST");
+  assert.equal(requests[13].options.method, "DELETE");
+  assert.equal(requests[14].url, "http://127.0.0.1:18080/api/v1/channels/9223372036854775807/topics?limit=10&offset=10");
+});
+
 function jsonResponse(status, body, headers = {}) {
   return textResponse(status, JSON.stringify(body), headers);
 }
