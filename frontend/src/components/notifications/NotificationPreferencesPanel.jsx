@@ -5,6 +5,8 @@ import { bbsApi } from "../../api";
 const NOTIFICATION_PREFERENCES = [
   { type: "system", label: "系统通知", description: "平台维护和运营通知" },
   { type: "follow", label: "新增关注", description: "有人关注你的账号" },
+  { type: "follow_request_received", label: "关注申请", description: "有人申请关注你的账号" },
+  { type: "follow_request_accepted", label: "申请通过", description: "你的关注申请已被接受" },
   { type: "comment", label: "内容评论", description: "有人评论你的文章或话题" },
   { type: "reply", label: "评论回复", description: "有人回复你的评论" },
   { type: "like", label: "点赞", description: "有人点赞你的内容" },

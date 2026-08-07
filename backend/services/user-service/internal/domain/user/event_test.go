@@ -40,3 +40,35 @@ func TestUserEventCarriesSearchProjectionWithoutCredentials(t *testing.T) {
 		t.Fatalf("unexpected public search projection: %s", payload)
 	}
 }
+
+func TestFollowRequestEventContract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		event     FollowEvent
+		eventName string
+	}{
+		{name: "requested", event: NewFollowRequestedEvent(11, 22), eventName: "user.follow_requested"},
+		{name: "accepted", event: NewFollowRequestAcceptedEvent(11, 22), eventName: "user.follow_request_accepted"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.event.EventName() != tt.eventName || tt.event.AggregateID() != 11 {
+				t.Fatalf("event name/aggregate = %q/%d", tt.event.EventName(), tt.event.AggregateID())
+			}
+			payload, err := json.Marshal(tt.event)
+			if err != nil {
+				t.Fatalf("marshal event: %v", err)
+			}
+			var decoded map[string]int64
+			if err := json.Unmarshal(payload, &decoded); err != nil {
+				t.Fatalf("unmarshal event payload: %v", err)
+			}
+			if decoded["follower_id"] != 11 || decoded["followee_id"] != 22 {
+				t.Fatalf("payload = %s", payload)
+			}
+		})
+	}
+}

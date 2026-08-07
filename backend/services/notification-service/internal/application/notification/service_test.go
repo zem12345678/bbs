@@ -34,6 +34,70 @@ func TestNotifyTopicCommentCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyFollowRequestNotifications(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		notify     func(*Service, context.Context, string, int64, int64, time.Time) error
+		wantUserID int64
+		wantType   string
+		wantActor  int64
+		wantTitle  string
+	}{
+		{
+			name:       "received",
+			notify:     (*Service).NotifyFollowRequestReceived,
+			wantUserID: 22,
+			wantType:   domain.NotificationTypeFollowRequestReceived,
+			wantActor:  11,
+			wantTitle:  "收到关注申请",
+		},
+		{
+			name:       "accepted",
+			notify:     (*Service).NotifyFollowRequestAccepted,
+			wantUserID: 11,
+			wantType:   domain.NotificationTypeFollowRequestAccepted,
+			wantActor:  22,
+			wantTitle:  "关注申请已通过",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := newMemoryRepo()
+			svc := NewService(repo)
+			if err := tt.notify(svc, context.Background(), "evt-follow-request-"+tt.name, 11, 22, time.Now()); err != nil {
+				t.Fatalf("notify follow request: %v", err)
+			}
+			if len(repo.created) != 1 {
+				t.Fatalf("created notifications = %d, want 1", len(repo.created))
+			}
+			item := repo.created[0]
+			if item.UserID != tt.wantUserID || item.Type != tt.wantType || item.ActorID != tt.wantActor || item.EntityType != "user" || item.EntityID != tt.wantActor || item.SourceID != tt.wantActor {
+				t.Fatalf("notification = %+v", item)
+			}
+			if item.Title != tt.wantTitle || !strings.Contains(item.Content, strconv.FormatInt(tt.wantActor, 10)) {
+				t.Fatalf("notification copy = title %q content %q", item.Title, item.Content)
+			}
+		})
+	}
+
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	for _, pair := range [][2]int64{{0, 22}, {11, 0}, {11, 11}} {
+		if err := svc.NotifyFollowRequestReceived(context.Background(), "evt-invalid", pair[0], pair[1], time.Now()); err != nil {
+			t.Fatalf("invalid received notification: %v", err)
+		}
+		if err := svc.NotifyFollowRequestAccepted(context.Background(), "evt-invalid", pair[0], pair[1], time.Now()); err != nil {
+			t.Fatalf("invalid accepted notification: %v", err)
+		}
+	}
+	if len(repo.created) != 0 {
+		t.Fatalf("invalid participants created %d notifications", len(repo.created))
+	}
+}
+
 func TestNotificationPreferencesDefaultAndUpdate(t *testing.T) {
 	t.Parallel()
 

@@ -651,6 +651,9 @@ test("dashboard connects private-account follow request management", () => {
   assert.match(interactionsPanel, /bbsApi\.acceptFollowRequest/);
   assert.match(interactionsPanel, /bbsApi\.rejectFollowRequest/);
   assert.match(interactionsPanel, /bbsApi\.cancelFollowRequest/);
+  assert.match(interactionsPanel, /const \[searchParams, setSearchParams\] = useSearchParams\(\)/);
+  assert.match(interactionsPanel, /interactionMode\(searchParams\.get\("mode"\)\)/);
+  assert.match(interactionsPanel, /setSearchParams\(nextMode === "likes" \? \{\} : \{ mode: nextMode \}, \{ replace: true \}\)/);
   assert.match(profilePanel, /bbsApi\.setFollowApprovalRequired\(required, requestToken\)/);
   assert.match(profilePanel, /follow_approval_required: required/);
 });

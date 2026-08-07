@@ -46,14 +46,25 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 }
 
 func (p *Projector) HandleUser(ctx context.Context, env eventEnvelope) error {
-	if env.EventType != "user.followed" {
+	switch env.EventType {
+	case "user.followed", "user.follow_requested", "user.follow_request_accepted":
+	default:
 		return nil
 	}
 	var payload followPayload
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return err
 	}
-	return p.service.NotifyFollow(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
+	switch env.EventType {
+	case "user.followed":
+		return p.service.NotifyFollow(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
+	case "user.follow_requested":
+		return p.service.NotifyFollowRequestReceived(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
+	case "user.follow_request_accepted":
+		return p.service.NotifyFollowRequestAccepted(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
+	default:
+		return nil
+	}
 }
 
 func (p *Projector) HandleComment(ctx context.Context, env eventEnvelope) error {

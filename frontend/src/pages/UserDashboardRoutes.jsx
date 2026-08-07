@@ -779,7 +779,8 @@ function FileLibraryPanel({ auth }) {
 
 function InteractionsPanel({ auth }) {
   const navigate = useNavigate();
-  const [mode, setMode] = React.useState("likes");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const mode = interactionMode(searchParams.get("mode"));
   const [state, setState] = React.useState({ rows: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const [requestState, setRequestState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
   const interactionSessionRef = React.useRef(0);
@@ -990,7 +991,7 @@ function InteractionsPanel({ auth }) {
         loading={activeState.loading}
         status={mode}
         total={activeState.total}
-        onStatusChange={setMode}
+        onStatusChange={(nextMode) => setSearchParams(nextMode === "likes" ? {} : { mode: nextMode }, { replace: true })}
       >
         {followRequestMode ? requestState.items.map((item) => {
           const counterpart = item?.counterpart || {};
@@ -3450,6 +3451,10 @@ function appendUniqueFollowRequests(currentItems, pageItems) {
       return true;
     })
   ];
+}
+
+function interactionMode(value) {
+  return ["likes", "favorites", "follow-received", "follow-sent"].includes(value) ? value : "likes";
 }
 
 function interactionPostKey(post) {

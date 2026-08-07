@@ -29,8 +29,12 @@ func (s *Service) AcceptFollowRequest(ctx context.Context, targetID, requesterID
 	if relation.Blocked || relation.BlockedBy {
 		return domain.ErrFollowBlocked
 	}
-	if err := repo.AcceptFollowRequest(ctx, requesterID, targetID); err != nil {
+	followCreated, err := repo.AcceptFollowRequest(ctx, requesterID, targetID)
+	if err != nil {
 		return err
+	}
+	if !followCreated {
+		return nil
 	}
 	s.publishEvents(ctx,
 		domain.NewFollowRequestAcceptedEvent(requesterID, targetID),

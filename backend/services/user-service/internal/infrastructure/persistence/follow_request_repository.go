@@ -131,9 +131,10 @@ func (r *Repo) DeleteFollowRequest(ctx context.Context, requesterID, targetID in
 
 // AcceptFollowRequest consumes the pending row and materialises the follow in a
 // single transaction, mirroring the counter bookkeeping Repo.Follow performs.
-func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) error {
+func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error) {
 	now := time.Now()
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var followCreated bool
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockActiveUserPair(tx, requesterID, targetID); err != nil {
 			return err
 		}
@@ -160,11 +161,13 @@ func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID in
 			// is the desired end state and the counters already reflect reality.
 			return nil
 		}
+		followCreated = true
 		if err := tx.Model(&userPO{}).Where("id = ?", targetID).UpdateColumn("follower_count", gorm.Expr("follower_count + 1")).Error; err != nil {
 			return err
 		}
 		return tx.Model(&userPO{}).Where("id = ?", requesterID).UpdateColumn("following_count", gorm.Expr("following_count + 1")).Error
 	})
+	return followCreated, err
 }
 
 func (r *Repo) GetFollowRequest(ctx context.Context, requesterID, targetID int64) (*domain.FollowRequest, error) {

@@ -37,7 +37,9 @@ type FollowRequestRepository interface {
 	DeleteFollowRequest(ctx context.Context, requesterID, targetID int64) error
 	// AcceptFollowRequest deletes the pending row and creates the follow in one
 	// transaction so an approval can never leave a half-applied relation.
-	AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) error
+	// The boolean reports whether a new follow was created; stale requests that
+	// already have a live relation are consumed without emitting follow events.
+	AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error)
 	GetFollowRequest(ctx context.Context, requesterID, targetID int64) (*FollowRequest, error)
 	ListReceivedFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)
 	ListSentFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)

@@ -41,6 +41,7 @@ func TestNotificationPreferencesPersistAndGateWrites(t *testing.T) {
 
 	if err := repo.ReplacePreferences(ctx, userID, []domain.NotificationPreference{
 		{Type: domain.NotificationTypeComment, Enabled: false},
+		{Type: domain.NotificationTypeFollowRequestReceived, Enabled: false},
 		{Type: domain.SystemNotificationType, Enabled: false},
 	}); err != nil {
 		t.Fatalf("replace preferences: %v", err)
@@ -59,6 +60,9 @@ func TestNotificationPreferencesPersistAndGateWrites(t *testing.T) {
 	if err := repo.Create(ctx, domain.Notification{UserID: userID, Type: domain.NotificationTypeLike, Title: "enabled"}, prefix+"-like-enabled", time.Now()); err != nil {
 		t.Fatalf("create enabled like: %v", err)
 	}
+	if err := repo.Create(ctx, domain.Notification{UserID: userID, Type: domain.NotificationTypeFollowRequestReceived, Title: "disabled"}, prefix+"-follow-request-disabled", time.Now()); err != nil {
+		t.Fatalf("create disabled follow request: %v", err)
+	}
 	delivered, err := repo.CreateSystemNotifications(ctx, domain.SystemNotificationCommand{
 		RecipientIDs: []int64{userID}, ActorID: actorID, Title: "disabled", Content: "disabled", IdempotencyKey: prefix + "-system-disabled",
 	}, time.Now())
@@ -69,14 +73,24 @@ func TestNotificationPreferencesPersistAndGateWrites(t *testing.T) {
 		t.Fatalf("disabled system delivered = %d, want 0", delivered)
 	}
 	assertPostgresCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM notifications WHERE source_event_id = $1`, prefix+"-comment-disabled")
+	assertPostgresCount(t, ctx, pool, 0, `SELECT COUNT(*) FROM notifications WHERE source_event_id = $1`, prefix+"-follow-request-disabled")
 	assertPostgresCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM notifications WHERE source_event_id = $1`, prefix+"-like-enabled")
 
-	if err := repo.ReplacePreferences(ctx, userID, []domain.NotificationPreference{{Type: domain.NotificationTypeComment, Enabled: true}, {Type: domain.SystemNotificationType, Enabled: true}}); err != nil {
+	if err := repo.ReplacePreferences(ctx, userID, []domain.NotificationPreference{{Type: domain.NotificationTypeComment, Enabled: true}, {Type: domain.NotificationTypeFollowRequestAccepted, Enabled: true}, {Type: domain.SystemNotificationType, Enabled: true}}); err != nil {
 		t.Fatalf("re-enable preferences: %v", err)
 	}
 	if err := repo.Create(ctx, domain.Notification{UserID: userID, Type: domain.NotificationTypeComment, Title: "enabled"}, prefix+"-comment-enabled", time.Now()); err != nil {
 		t.Fatalf("create enabled comment: %v", err)
 	}
+	acceptedEventID := prefix + "-follow-request-accepted"
+	accepted := domain.Notification{UserID: userID, Type: domain.NotificationTypeFollowRequestAccepted, Title: "accepted", ActorID: actorID, EntityType: "user", EntityID: actorID, SourceID: actorID}
+	if err := repo.Create(ctx, accepted, acceptedEventID, time.Now()); err != nil {
+		t.Fatalf("create accepted follow request: %v", err)
+	}
+	if err := repo.Create(ctx, accepted, acceptedEventID, time.Now()); err != nil {
+		t.Fatalf("replay accepted follow request: %v", err)
+	}
+	assertPostgresCount(t, ctx, pool, 1, `SELECT COUNT(*) FROM notifications WHERE source_event_id = $1`, acceptedEventID)
 	delivered, err = repo.CreateSystemNotifications(ctx, domain.SystemNotificationCommand{
 		RecipientIDs: []int64{userID}, ActorID: actorID, Title: "enabled", Content: "enabled", IdempotencyKey: prefix + "-system-enabled",
 	}, time.Now())

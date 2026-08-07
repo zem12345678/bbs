@@ -16,6 +16,15 @@ type followRequestMemoryRepo struct {
 	requests map[[2]int64]*domain.FollowRequest
 }
 
+type recordingFollowEventPublisher struct {
+	events []domain.DomainEvent
+}
+
+func (p *recordingFollowEventPublisher) PublishDomainEvents(_ context.Context, events []domain.DomainEvent) error {
+	p.events = append(p.events, events...)
+	return nil
+}
+
 func newFollowRequestMemoryRepo() *followRequestMemoryRepo {
 	return &followRequestMemoryRepo{
 		memoryRepo: newMemoryRepo(),
@@ -83,14 +92,17 @@ func (r *followRequestMemoryRepo) DeleteFollowRequest(_ context.Context, request
 	return nil
 }
 
-func (r *followRequestMemoryRepo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) error {
+func (r *followRequestMemoryRepo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error) {
 	if err := r.DeleteFollowRequest(ctx, requesterID, targetID); err != nil {
-		return err
+		return false, err
 	}
-	if err := r.memoryRepo.Follow(ctx, requesterID, targetID); err != nil && !errors.Is(err, domain.ErrAlreadyFollowing) {
-		return err
+	if err := r.memoryRepo.Follow(ctx, requesterID, targetID); err != nil {
+		if errors.Is(err, domain.ErrAlreadyFollowing) {
+			return false, nil
+		}
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (r *followRequestMemoryRepo) GetFollowRequest(_ context.Context, requesterID, targetID int64) (*domain.FollowRequest, error) {
@@ -135,6 +147,11 @@ func (r *followRequestMemoryRepo) SetFollowApprovalRequired(_ context.Context, u
 func newFollowRequestService(t *testing.T, repo domain.Repository, firstID int64) *Service {
 	t.Helper()
 	return NewService(repo, &fakeIDGen{next: firstID}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
+}
+
+func newFollowRequestServiceWithPublisher(t *testing.T, repo domain.Repository, firstID int64, publisher *recordingFollowEventPublisher) *Service {
+	t.Helper()
+	return NewService(repo, &fakeIDGen{next: firstID}, publisher, nil, "test-secret", time.Hour, 8, nil, nil, nil)
 }
 
 func registerFollowPair(t *testing.T, ctx context.Context, svc *Service) (*domain.User, *domain.User) {
@@ -202,15 +219,21 @@ func TestFollowPublicAccountStaysImmediate(t *testing.T) {
 
 func TestAcceptFollowRequestAppliesFollow(t *testing.T) {
 	repo := newFollowRequestMemoryRepo()
-	svc := newFollowRequestService(t, repo, 3200)
+	publisher := &recordingFollowEventPublisher{}
+	svc := newFollowRequestServiceWithPublisher(t, repo, 3200, publisher)
 	ctx := context.Background()
 	requester, target := registerFollowPair(t, ctx, svc)
+	publisher.events = nil
 	if err := svc.SetFollowApprovalRequired(ctx, target.ID, true); err != nil {
 		t.Fatalf("set approval required: %v", err)
 	}
 	if _, err := svc.Follow(ctx, requester.ID, target.ID); err != nil {
 		t.Fatalf("follow: %v", err)
 	}
+	if len(publisher.events) != 1 || publisher.events[0].EventName() != "user.follow_requested" {
+		t.Fatalf("follow request events = %+v", eventNames(publisher.events))
+	}
+	publisher.events = nil
 
 	if err := svc.AcceptFollowRequest(ctx, target.ID, requester.ID); err != nil {
 		t.Fatalf("accept: %v", err)
@@ -221,9 +244,48 @@ func TestAcceptFollowRequestAppliesFollow(t *testing.T) {
 	if _, ok := repo.requests[[2]int64{requester.ID, target.ID}]; ok {
 		t.Fatal("accepting must consume the pending request")
 	}
+	if got := eventNames(publisher.events); len(got) != 2 || got[0] != "user.follow_request_accepted" || got[1] != "user.followed" {
+		t.Fatalf("accepted events = %+v", got)
+	}
 	if err := svc.AcceptFollowRequest(ctx, target.ID, requester.ID); !errors.Is(err, domain.ErrFollowRequestNotFound) {
 		t.Fatalf("second accept = %v, want ErrFollowRequestNotFound", err)
 	}
+}
+
+func TestAcceptStaleFollowRequestDoesNotRepublishFollow(t *testing.T) {
+	repo := newFollowRequestMemoryRepo()
+	publisher := &recordingFollowEventPublisher{}
+	svc := newFollowRequestServiceWithPublisher(t, repo, 3250, publisher)
+	ctx := context.Background()
+	requester, target := registerFollowPair(t, ctx, svc)
+	publisher.events = nil
+
+	request, err := domain.NewFollowRequest(999, requester.ID, target.ID)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	repo.requests[[2]int64{requester.ID, target.ID}] = request
+	if err := repo.memoryRepo.Follow(ctx, requester.ID, target.ID); err != nil {
+		t.Fatalf("seed live follow: %v", err)
+	}
+
+	if err := svc.AcceptFollowRequest(ctx, target.ID, requester.ID); err != nil {
+		t.Fatalf("accept stale request: %v", err)
+	}
+	if _, ok := repo.requests[[2]int64{requester.ID, target.ID}]; ok {
+		t.Fatal("stale request was not consumed")
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("stale request published events = %+v", eventNames(publisher.events))
+	}
+}
+
+func eventNames(events []domain.DomainEvent) []string {
+	names := make([]string, 0, len(events))
+	for _, event := range events {
+		names = append(names, event.EventName())
+	}
+	return names
 }
 
 func TestRejectFollowRequestDropsRequest(t *testing.T) {

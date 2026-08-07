@@ -31,6 +31,10 @@ export function notificationTarget(item) {
   const type = item?.type || "";
   const commentHash = (type === "comment" || type === "reply") && sourceId ? `#comment-${sourceId}` : "";
 
+  if (type === "follow_request_received") {
+    return "/dashboard/interactions?mode=follow-received";
+  }
+
   if (entityType === "topic" && entityId) {
     return `/topic/${entityId}${commentHash}`;
   }
@@ -73,6 +77,7 @@ export function notificationTarget(item) {
 export function notificationTargetLabel(item) {
   const entityType = item?.entity_type || item?.entityType || "";
   const type = item?.type || "";
+  if (type === "follow_request_received") return "处理申请";
   if (type === "reply") return "查看回复";
   if (type === "comment") return "查看评论";
   if (entityType === "topic") return "查看话题";
@@ -115,13 +120,16 @@ export function notificationGroupLabel(item) {
   if (type === "comment") return "评论";
   if (type === "like") return "点赞";
   if (type === "favorite") return "收藏";
-  if (type === "follow") return "关注";
+  if (["follow", "follow_request_received", "follow_request_accepted"].includes(type)) return "关注";
   return "互动";
 }
 
 export function notificationToneClass(item) {
   if (isMallNotification(item)) {
     return `type-mall-${mallNotificationGroup(item)}`;
+  }
+  if (["follow_request_received", "follow_request_accepted"].includes(item?.type || "")) {
+    return "type-follow";
   }
   return `type-${item?.type || "default"}`;
 }

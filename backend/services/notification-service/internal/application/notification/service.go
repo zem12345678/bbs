@@ -157,6 +157,38 @@ func (s *Service) NotifyFollow(ctx context.Context, eventID string, followerID, 
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyFollowRequestReceived(ctx context.Context, eventID string, requesterID, targetID int64, occurredAt time.Time) error {
+	if requesterID <= 0 || targetID <= 0 || requesterID == targetID {
+		return nil
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     targetID,
+		Type:       domain.NotificationTypeFollowRequestReceived,
+		Title:      "收到关注申请",
+		Content:    fmt.Sprintf("用户 #%d 请求关注你", requesterID),
+		ActorID:    requesterID,
+		EntityType: "user",
+		EntityID:   requesterID,
+		SourceID:   requesterID,
+	}, eventID, occurredAt)
+}
+
+func (s *Service) NotifyFollowRequestAccepted(ctx context.Context, eventID string, requesterID, targetID int64, occurredAt time.Time) error {
+	if requesterID <= 0 || targetID <= 0 || requesterID == targetID {
+		return nil
+	}
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     requesterID,
+		Type:       domain.NotificationTypeFollowRequestAccepted,
+		Title:      "关注申请已通过",
+		Content:    fmt.Sprintf("用户 #%d 已接受你的关注申请", targetID),
+		ActorID:    targetID,
+		EntityType: "user",
+		EntityID:   targetID,
+		SourceID:   targetID,
+	}, eventID, occurredAt)
+}
+
 func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID, parentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
 	if commentID <= 0 || entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
 		return nil

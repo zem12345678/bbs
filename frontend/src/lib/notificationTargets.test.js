@@ -66,3 +66,18 @@ test("labels directed system notifications distinctly", () => {
   assert.equal(notificationTarget(notification), "");
   assert.equal(notificationTargetLabel(notification), "查看");
 });
+
+test("routes follow request notifications to their actionable destination", () => {
+  const received = { type: "follow_request_received", entity_type: "user", entity_id: 22, actor_id: 22 };
+  const accepted = { type: "follow_request_accepted", entity_type: "user", entity_id: 33, actor_id: 33 };
+
+  assert.equal(notificationTarget(received), "/dashboard/interactions?mode=follow-received");
+  assert.equal(notificationTargetLabel(received), "处理申请");
+  assert.equal(notificationGroupLabel(received), "关注");
+  assert.equal(notificationToneClass(received), "type-follow");
+
+  assert.equal(notificationTarget(accepted), "/user/33");
+  assert.equal(notificationTargetLabel(accepted), "查看用户");
+  assert.equal(notificationGroupLabel(accepted), "关注");
+  assert.equal(notificationToneClass(accepted), "type-follow");
+});
