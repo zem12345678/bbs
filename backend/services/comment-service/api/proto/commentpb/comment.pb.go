@@ -881,6 +881,262 @@ func (x *SimpleResponse) GetMessage() string {
 	return ""
 }
 
+type NoteChartRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Span          string                 `protobuf:"bytes,1,opt,name=span,proto3" json:"span,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        *int64                 `protobuf:"varint,3,opt,name=offset,proto3,oneof" json:"offset,omitempty"`         // Unix milliseconds; absent means the current bucket.
+	UserId        int64                  `protobuf:"varint,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // Zero returns the instance-wide chart.
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NoteChartRequest) Reset() {
+	*x = NoteChartRequest{}
+	mi := &file_comment_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NoteChartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NoteChartRequest) ProtoMessage() {}
+
+func (x *NoteChartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NoteChartRequest.ProtoReflect.Descriptor instead.
+func (*NoteChartRequest) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *NoteChartRequest) GetSpan() string {
+	if x != nil {
+		return x.Span
+	}
+	return ""
+}
+
+func (x *NoteChartRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *NoteChartRequest) GetOffset() int64 {
+	if x != nil && x.Offset != nil {
+		return *x.Offset
+	}
+	return 0
+}
+
+func (x *NoteChartRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type NoteChartDiffs struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Normal        []int64                `protobuf:"varint,1,rep,packed,name=normal,proto3" json:"normal,omitempty"`
+	Reply         []int64                `protobuf:"varint,2,rep,packed,name=reply,proto3" json:"reply,omitempty"`
+	Renote        []int64                `protobuf:"varint,3,rep,packed,name=renote,proto3" json:"renote,omitempty"`
+	WithFile      []int64                `protobuf:"varint,4,rep,packed,name=with_file,json=withFile,proto3" json:"with_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NoteChartDiffs) Reset() {
+	*x = NoteChartDiffs{}
+	mi := &file_comment_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NoteChartDiffs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NoteChartDiffs) ProtoMessage() {}
+
+func (x *NoteChartDiffs) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NoteChartDiffs.ProtoReflect.Descriptor instead.
+func (*NoteChartDiffs) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *NoteChartDiffs) GetNormal() []int64 {
+	if x != nil {
+		return x.Normal
+	}
+	return nil
+}
+
+func (x *NoteChartDiffs) GetReply() []int64 {
+	if x != nil {
+		return x.Reply
+	}
+	return nil
+}
+
+func (x *NoteChartDiffs) GetRenote() []int64 {
+	if x != nil {
+		return x.Renote
+	}
+	return nil
+}
+
+func (x *NoteChartDiffs) GetWithFile() []int64 {
+	if x != nil {
+		return x.WithFile
+	}
+	return nil
+}
+
+type NoteChartSeries struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         []int64                `protobuf:"varint,1,rep,packed,name=total,proto3" json:"total,omitempty"`
+	Inc           []int64                `protobuf:"varint,2,rep,packed,name=inc,proto3" json:"inc,omitempty"`
+	Dec           []int64                `protobuf:"varint,3,rep,packed,name=dec,proto3" json:"dec,omitempty"`
+	Diffs         *NoteChartDiffs        `protobuf:"bytes,4,opt,name=diffs,proto3" json:"diffs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NoteChartSeries) Reset() {
+	*x = NoteChartSeries{}
+	mi := &file_comment_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NoteChartSeries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NoteChartSeries) ProtoMessage() {}
+
+func (x *NoteChartSeries) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NoteChartSeries.ProtoReflect.Descriptor instead.
+func (*NoteChartSeries) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NoteChartSeries) GetTotal() []int64 {
+	if x != nil {
+		return x.Total
+	}
+	return nil
+}
+
+func (x *NoteChartSeries) GetInc() []int64 {
+	if x != nil {
+		return x.Inc
+	}
+	return nil
+}
+
+func (x *NoteChartSeries) GetDec() []int64 {
+	if x != nil {
+		return x.Dec
+	}
+	return nil
+}
+
+func (x *NoteChartSeries) GetDiffs() *NoteChartDiffs {
+	if x != nil {
+		return x.Diffs
+	}
+	return nil
+}
+
+type NoteChartResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Local         *NoteChartSeries       `protobuf:"bytes,1,opt,name=local,proto3" json:"local,omitempty"`
+	Remote        *NoteChartSeries       `protobuf:"bytes,2,opt,name=remote,proto3" json:"remote,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NoteChartResponse) Reset() {
+	*x = NoteChartResponse{}
+	mi := &file_comment_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NoteChartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NoteChartResponse) ProtoMessage() {}
+
+func (x *NoteChartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_comment_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NoteChartResponse.ProtoReflect.Descriptor instead.
+func (*NoteChartResponse) Descriptor() ([]byte, []int) {
+	return file_comment_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *NoteChartResponse) GetLocal() *NoteChartSeries {
+	if x != nil {
+		return x.Local
+	}
+	return nil
+}
+
+func (x *NoteChartResponse) GetRemote() *NoteChartSeries {
+	if x != nil {
+		return x.Remote
+	}
+	return nil
+}
+
 var File_comment_proto protoreflect.FileDescriptor
 
 const file_comment_proto_rawDesc = "" +
@@ -956,7 +1212,26 @@ const file_comment_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"D\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xf8\x05\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"}\n" +
+	"\x10NoteChartRequest\x12\x12\n" +
+	"\x04span\x18\x01 \x01(\tR\x04span\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\x06offset\x18\x03 \x01(\x03H\x00R\x06offset\x88\x01\x01\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\x03R\x06userIdB\t\n" +
+	"\a_offset\"s\n" +
+	"\x0eNoteChartDiffs\x12\x16\n" +
+	"\x06normal\x18\x01 \x03(\x03R\x06normal\x12\x14\n" +
+	"\x05reply\x18\x02 \x03(\x03R\x05reply\x12\x16\n" +
+	"\x06renote\x18\x03 \x03(\x03R\x06renote\x12\x1b\n" +
+	"\twith_file\x18\x04 \x03(\x03R\bwithFile\"\x81\x01\n" +
+	"\x0fNoteChartSeries\x12\x14\n" +
+	"\x05total\x18\x01 \x03(\x03R\x05total\x12\x10\n" +
+	"\x03inc\x18\x02 \x03(\x03R\x03inc\x12\x10\n" +
+	"\x03dec\x18\x03 \x03(\x03R\x03dec\x124\n" +
+	"\x05diffs\x18\x04 \x01(\v2\x1e.bbs.comment.v1.NoteChartDiffsR\x05diffs\"\x83\x01\n" +
+	"\x11NoteChartResponse\x125\n" +
+	"\x05local\x18\x01 \x01(\v2\x1f.bbs.comment.v1.NoteChartSeriesR\x05local\x127\n" +
+	"\x06remote\x18\x02 \x01(\v2\x1f.bbs.comment.v1.NoteChartSeriesR\x06remote2\xcd\x06\n" +
 	"\x0eCommentService\x12V\n" +
 	"\rCreateComment\x12$.bbs.comment.v1.CreateCommentRequest\x1a\x1f.bbs.comment.v1.CommentResponse\x12U\n" +
 	"\rDeleteComment\x12$.bbs.comment.v1.DeleteCommentRequest\x1a\x1e.bbs.comment.v1.SimpleResponse\x12W\n" +
@@ -966,7 +1241,8 @@ const file_comment_proto_rawDesc = "" +
 	"\fListComments\x12#.bbs.comment.v1.ListCommentsRequest\x1a#.bbs.comment.v1.CommentListResponse\x12V\n" +
 	"\vListReplies\x12\".bbs.comment.v1.ListRepliesRequest\x1a#.bbs.comment.v1.CommentListResponse\x12d\n" +
 	"\x12ListRecentComments\x12).bbs.comment.v1.ListRecentCommentsRequest\x1a#.bbs.comment.v1.CommentListResponse\x12t\n" +
-	"\x15RedactAccountComments\x12,.bbs.comment.v1.RedactAccountCommentsRequest\x1a-.bbs.comment.v1.RedactAccountCommentsResponseB/Z-comment-service/api/proto/commentpb;commentpbb\x06proto3"
+	"\x15RedactAccountComments\x12,.bbs.comment.v1.RedactAccountCommentsRequest\x1a-.bbs.comment.v1.RedactAccountCommentsResponse\x12S\n" +
+	"\fGetNoteChart\x12 .bbs.comment.v1.NoteChartRequest\x1a!.bbs.comment.v1.NoteChartResponseB/Z-comment-service/api/proto/commentpb;commentpbb\x06proto3"
 
 var (
 	file_comment_proto_rawDescOnce sync.Once
@@ -980,7 +1256,7 @@ func file_comment_proto_rawDescGZIP() []byte {
 	return file_comment_proto_rawDescData
 }
 
-var file_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_comment_proto_goTypes = []any{
 	(*RedactAccountCommentsRequest)(nil),  // 0: bbs.comment.v1.RedactAccountCommentsRequest
 	(*RedactAccountCommentsResponse)(nil), // 1: bbs.comment.v1.RedactAccountCommentsResponse
@@ -995,31 +1271,40 @@ var file_comment_proto_goTypes = []any{
 	(*CommentResponse)(nil),               // 10: bbs.comment.v1.CommentResponse
 	(*CommentListResponse)(nil),           // 11: bbs.comment.v1.CommentListResponse
 	(*SimpleResponse)(nil),                // 12: bbs.comment.v1.SimpleResponse
+	(*NoteChartRequest)(nil),              // 13: bbs.comment.v1.NoteChartRequest
+	(*NoteChartDiffs)(nil),                // 14: bbs.comment.v1.NoteChartDiffs
+	(*NoteChartSeries)(nil),               // 15: bbs.comment.v1.NoteChartSeries
+	(*NoteChartResponse)(nil),             // 16: bbs.comment.v1.NoteChartResponse
 }
 var file_comment_proto_depIdxs = []int32{
 	2,  // 0: bbs.comment.v1.CommentResponse.comment:type_name -> bbs.comment.v1.CommentInfo
 	2,  // 1: bbs.comment.v1.CommentListResponse.items:type_name -> bbs.comment.v1.CommentInfo
-	3,  // 2: bbs.comment.v1.CommentService.CreateComment:input_type -> bbs.comment.v1.CreateCommentRequest
-	4,  // 3: bbs.comment.v1.CommentService.DeleteComment:input_type -> bbs.comment.v1.DeleteCommentRequest
-	5,  // 4: bbs.comment.v1.CommentService.RestoreComment:input_type -> bbs.comment.v1.RestoreCommentRequest
-	6,  // 5: bbs.comment.v1.CommentService.GetComment:input_type -> bbs.comment.v1.GetCommentRequest
-	7,  // 6: bbs.comment.v1.CommentService.ListComments:input_type -> bbs.comment.v1.ListCommentsRequest
-	8,  // 7: bbs.comment.v1.CommentService.ListReplies:input_type -> bbs.comment.v1.ListRepliesRequest
-	9,  // 8: bbs.comment.v1.CommentService.ListRecentComments:input_type -> bbs.comment.v1.ListRecentCommentsRequest
-	0,  // 9: bbs.comment.v1.CommentService.RedactAccountComments:input_type -> bbs.comment.v1.RedactAccountCommentsRequest
-	10, // 10: bbs.comment.v1.CommentService.CreateComment:output_type -> bbs.comment.v1.CommentResponse
-	12, // 11: bbs.comment.v1.CommentService.DeleteComment:output_type -> bbs.comment.v1.SimpleResponse
-	12, // 12: bbs.comment.v1.CommentService.RestoreComment:output_type -> bbs.comment.v1.SimpleResponse
-	10, // 13: bbs.comment.v1.CommentService.GetComment:output_type -> bbs.comment.v1.CommentResponse
-	11, // 14: bbs.comment.v1.CommentService.ListComments:output_type -> bbs.comment.v1.CommentListResponse
-	11, // 15: bbs.comment.v1.CommentService.ListReplies:output_type -> bbs.comment.v1.CommentListResponse
-	11, // 16: bbs.comment.v1.CommentService.ListRecentComments:output_type -> bbs.comment.v1.CommentListResponse
-	1,  // 17: bbs.comment.v1.CommentService.RedactAccountComments:output_type -> bbs.comment.v1.RedactAccountCommentsResponse
-	10, // [10:18] is the sub-list for method output_type
-	2,  // [2:10] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	14, // 2: bbs.comment.v1.NoteChartSeries.diffs:type_name -> bbs.comment.v1.NoteChartDiffs
+	15, // 3: bbs.comment.v1.NoteChartResponse.local:type_name -> bbs.comment.v1.NoteChartSeries
+	15, // 4: bbs.comment.v1.NoteChartResponse.remote:type_name -> bbs.comment.v1.NoteChartSeries
+	3,  // 5: bbs.comment.v1.CommentService.CreateComment:input_type -> bbs.comment.v1.CreateCommentRequest
+	4,  // 6: bbs.comment.v1.CommentService.DeleteComment:input_type -> bbs.comment.v1.DeleteCommentRequest
+	5,  // 7: bbs.comment.v1.CommentService.RestoreComment:input_type -> bbs.comment.v1.RestoreCommentRequest
+	6,  // 8: bbs.comment.v1.CommentService.GetComment:input_type -> bbs.comment.v1.GetCommentRequest
+	7,  // 9: bbs.comment.v1.CommentService.ListComments:input_type -> bbs.comment.v1.ListCommentsRequest
+	8,  // 10: bbs.comment.v1.CommentService.ListReplies:input_type -> bbs.comment.v1.ListRepliesRequest
+	9,  // 11: bbs.comment.v1.CommentService.ListRecentComments:input_type -> bbs.comment.v1.ListRecentCommentsRequest
+	0,  // 12: bbs.comment.v1.CommentService.RedactAccountComments:input_type -> bbs.comment.v1.RedactAccountCommentsRequest
+	13, // 13: bbs.comment.v1.CommentService.GetNoteChart:input_type -> bbs.comment.v1.NoteChartRequest
+	10, // 14: bbs.comment.v1.CommentService.CreateComment:output_type -> bbs.comment.v1.CommentResponse
+	12, // 15: bbs.comment.v1.CommentService.DeleteComment:output_type -> bbs.comment.v1.SimpleResponse
+	12, // 16: bbs.comment.v1.CommentService.RestoreComment:output_type -> bbs.comment.v1.SimpleResponse
+	10, // 17: bbs.comment.v1.CommentService.GetComment:output_type -> bbs.comment.v1.CommentResponse
+	11, // 18: bbs.comment.v1.CommentService.ListComments:output_type -> bbs.comment.v1.CommentListResponse
+	11, // 19: bbs.comment.v1.CommentService.ListReplies:output_type -> bbs.comment.v1.CommentListResponse
+	11, // 20: bbs.comment.v1.CommentService.ListRecentComments:output_type -> bbs.comment.v1.CommentListResponse
+	1,  // 21: bbs.comment.v1.CommentService.RedactAccountComments:output_type -> bbs.comment.v1.RedactAccountCommentsResponse
+	16, // 22: bbs.comment.v1.CommentService.GetNoteChart:output_type -> bbs.comment.v1.NoteChartResponse
+	14, // [14:23] is the sub-list for method output_type
+	5,  // [5:14] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_comment_proto_init() }
@@ -1027,13 +1312,14 @@ func file_comment_proto_init() {
 	if File_comment_proto != nil {
 		return
 	}
+	file_comment_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comment_proto_rawDesc), len(file_comment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

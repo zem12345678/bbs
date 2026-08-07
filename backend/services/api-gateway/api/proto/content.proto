@@ -23,6 +23,7 @@ service ContentService {
   rpc GetArticle(GetArticleRequest) returns (ArticleResponse);
   rpc ListArticles(ListArticlesRequest) returns (ArticleListResponse);
   rpc FeedArticlesByTime(FeedArticlesByTimeRequest) returns (ArticleListResponse);
+  rpc GetNoteChart(NoteChartRequest) returns (NoteChartResponse);
   rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
   rpc GetCategory(CategoryIDRequest) returns (CategoryResponse);
   rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
@@ -287,4 +288,30 @@ message ListTagsRequest {
 message AutocompleteTagsRequest {
   string query = 1;
   int32 limit = 2;
+}
+
+message NoteChartRequest {
+  string span = 1;
+  int32 limit = 2;
+  optional int64 offset = 3; // Unix milliseconds; absent means the current bucket.
+  int64 user_id = 4; // Zero returns the instance-wide chart.
+}
+
+message NoteChartDiffs {
+  repeated int64 normal = 1;
+  repeated int64 reply = 2;
+  repeated int64 renote = 3;
+  repeated int64 with_file = 4;
+}
+
+message NoteChartSeries {
+  repeated int64 total = 1;
+  repeated int64 inc = 2;
+  repeated int64 dec = 3;
+  NoteChartDiffs diffs = 4;
+}
+
+message NoteChartResponse {
+  NoteChartSeries local = 1;
+  NoteChartSeries remote = 2;
 }

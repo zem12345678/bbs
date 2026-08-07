@@ -27,6 +27,7 @@ const (
 	CommentService_ListReplies_FullMethodName           = "/bbs.comment.v1.CommentService/ListReplies"
 	CommentService_ListRecentComments_FullMethodName    = "/bbs.comment.v1.CommentService/ListRecentComments"
 	CommentService_RedactAccountComments_FullMethodName = "/bbs.comment.v1.CommentService/RedactAccountComments"
+	CommentService_GetNoteChart_FullMethodName          = "/bbs.comment.v1.CommentService/GetNoteChart"
 )
 
 // CommentServiceClient is the client API for CommentService service.
@@ -41,6 +42,7 @@ type CommentServiceClient interface {
 	ListReplies(ctx context.Context, in *ListRepliesRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListRecentComments(ctx context.Context, in *ListRecentCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	RedactAccountComments(ctx context.Context, in *RedactAccountCommentsRequest, opts ...grpc.CallOption) (*RedactAccountCommentsResponse, error)
+	GetNoteChart(ctx context.Context, in *NoteChartRequest, opts ...grpc.CallOption) (*NoteChartResponse, error)
 }
 
 type commentServiceClient struct {
@@ -131,6 +133,16 @@ func (c *commentServiceClient) RedactAccountComments(ctx context.Context, in *Re
 	return out, nil
 }
 
+func (c *commentServiceClient) GetNoteChart(ctx context.Context, in *NoteChartRequest, opts ...grpc.CallOption) (*NoteChartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NoteChartResponse)
+	err := c.cc.Invoke(ctx, CommentService_GetNoteChart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommentServiceServer is the server API for CommentService service.
 // All implementations must embed UnimplementedCommentServiceServer
 // for forward compatibility.
@@ -143,6 +155,7 @@ type CommentServiceServer interface {
 	ListReplies(context.Context, *ListRepliesRequest) (*CommentListResponse, error)
 	ListRecentComments(context.Context, *ListRecentCommentsRequest) (*CommentListResponse, error)
 	RedactAccountComments(context.Context, *RedactAccountCommentsRequest) (*RedactAccountCommentsResponse, error)
+	GetNoteChart(context.Context, *NoteChartRequest) (*NoteChartResponse, error)
 	mustEmbedUnimplementedCommentServiceServer()
 }
 
@@ -176,6 +189,9 @@ func (UnimplementedCommentServiceServer) ListRecentComments(context.Context, *Li
 }
 func (UnimplementedCommentServiceServer) RedactAccountComments(context.Context, *RedactAccountCommentsRequest) (*RedactAccountCommentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RedactAccountComments not implemented")
+}
+func (UnimplementedCommentServiceServer) GetNoteChart(context.Context, *NoteChartRequest) (*NoteChartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNoteChart not implemented")
 }
 func (UnimplementedCommentServiceServer) mustEmbedUnimplementedCommentServiceServer() {}
 func (UnimplementedCommentServiceServer) testEmbeddedByValue()                        {}
@@ -342,6 +358,24 @@ func _CommentService_RedactAccountComments_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommentService_GetNoteChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NoteChartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).GetNoteChart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_GetNoteChart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).GetNoteChart(ctx, req.(*NoteChartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommentService_ServiceDesc is the grpc.ServiceDesc for CommentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -380,6 +414,10 @@ var CommentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RedactAccountComments",
 			Handler:    _CommentService_RedactAccountComments_Handler,
+		},
+		{
+			MethodName: "GetNoteChart",
+			Handler:    _CommentService_GetNoteChart_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

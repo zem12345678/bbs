@@ -46,10 +46,39 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrContentTooLong),
 		errors.Is(err, domain.ErrInvalidParent),
 		errors.Is(err, domain.ErrInvalidStatus),
-		errors.Is(err, domain.ErrInvalidUserErasure):
+		errors.Is(err, domain.ErrInvalidUserErasure),
+		errors.Is(err, domain.ErrNoteChartSpanInvalid),
+		errors.Is(err, domain.ErrNoteChartLimitInvalid),
+		errors.Is(err, domain.ErrNoteChartOffsetInvalid),
+		errors.Is(err, domain.ErrNoteChartUserInvalid):
 		code = codes.InvalidArgument
+	case errors.Is(err, domain.ErrNoteChartRepositoryUnavailable):
+		code = codes.Unavailable
 	}
 	return status.Error(code, err.Error())
+}
+
+func (h *Handler) GetNoteChart(ctx context.Context, req *pb.NoteChartRequest) (*pb.NoteChartResponse, error) {
+	if h == nil || h.qry == nil {
+		return nil, status.Error(codes.Unavailable, "note chart service unavailable")
+	}
+	result, err := h.qry.GetNoteChart(ctx, domain.NoteChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset, UserID: req.GetUserId(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.NoteChartResponse{Local: toPbNoteChartSeries(result.Local), Remote: toPbNoteChartSeries(result.Remote)}, nil
+}
+
+func toPbNoteChartSeries(series domain.NoteChartSeries) *pb.NoteChartSeries {
+	return &pb.NoteChartSeries{
+		Total: series.Total, Inc: series.Inc, Dec: series.Dec,
+		Diffs: &pb.NoteChartDiffs{
+			Normal: series.Diffs.Normal, Reply: series.Diffs.Reply,
+			Renote: series.Diffs.Renote, WithFile: series.Diffs.WithFile,
+		},
+	}
 }
 
 func toPb(c *domain.Comment) *pb.CommentInfo {

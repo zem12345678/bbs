@@ -76,8 +76,14 @@ func toStatus(err error) error {
 		errors.Is(err, topicDomain.ErrCommentNotInTopic),
 		errors.Is(err, categoryDomain.ErrSlugRequired),
 		errors.Is(err, categoryDomain.ErrNameRequired),
-		errors.Is(err, accountDomain.ErrInvalidErasure):
+		errors.Is(err, accountDomain.ErrInvalidErasure),
+		errors.Is(err, articleDomain.ErrNoteChartSpanInvalid),
+		errors.Is(err, articleDomain.ErrNoteChartLimitInvalid),
+		errors.Is(err, articleDomain.ErrNoteChartOffsetInvalid),
+		errors.Is(err, articleDomain.ErrNoteChartUserInvalid):
 		code = codes.InvalidArgument
+	case errors.Is(err, articleDomain.ErrNoteChartRepositoryUnavailable):
+		code = codes.Unavailable
 	case errors.Is(err, articleDomain.ErrAlreadyPublished),
 		errors.Is(err, articleDomain.ErrNotPublished),
 		errors.Is(err, articleDomain.ErrArchived),
@@ -102,6 +108,29 @@ func toStatus(err error) error {
 		code = codes.Aborted
 	}
 	return status.Error(code, err.Error())
+}
+
+func (h *Handler) GetNoteChart(ctx context.Context, req *pb.NoteChartRequest) (*pb.NoteChartResponse, error) {
+	if h == nil || h.articleQry == nil {
+		return nil, status.Error(codes.Unavailable, "note chart service unavailable")
+	}
+	result, err := h.articleQry.GetNoteChart(ctx, articleDomain.NoteChartQuery{
+		Span: req.GetSpan(), Limit: int(req.GetLimit()), Offset: req.Offset, UserID: req.GetUserId(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.NoteChartResponse{Local: toPbNoteChartSeries(result.Local), Remote: toPbNoteChartSeries(result.Remote)}, nil
+}
+
+func toPbNoteChartSeries(series articleDomain.NoteChartSeries) *pb.NoteChartSeries {
+	return &pb.NoteChartSeries{
+		Total: series.Total, Inc: series.Inc, Dec: series.Dec,
+		Diffs: &pb.NoteChartDiffs{
+			Normal: series.Diffs.Normal, Reply: series.Diffs.Reply,
+			Renote: series.Diffs.Renote, WithFile: series.Diffs.WithFile,
+		},
+	}
 }
 
 func toPbTopic(t *topicDomain.Topic) *pb.TopicInfo {

@@ -37,6 +37,7 @@ const (
 	ContentService_GetArticle_FullMethodName            = "/bbs.content.v1.ContentService/GetArticle"
 	ContentService_ListArticles_FullMethodName          = "/bbs.content.v1.ContentService/ListArticles"
 	ContentService_FeedArticlesByTime_FullMethodName    = "/bbs.content.v1.ContentService/FeedArticlesByTime"
+	ContentService_GetNoteChart_FullMethodName          = "/bbs.content.v1.ContentService/GetNoteChart"
 	ContentService_ListCategories_FullMethodName        = "/bbs.content.v1.ContentService/ListCategories"
 	ContentService_GetCategory_FullMethodName           = "/bbs.content.v1.ContentService/GetCategory"
 	ContentService_CreateCategory_FullMethodName        = "/bbs.content.v1.ContentService/CreateCategory"
@@ -69,6 +70,7 @@ type ContentServiceClient interface {
 	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ArticleListResponse, error)
 	FeedArticlesByTime(ctx context.Context, in *FeedArticlesByTimeRequest, opts ...grpc.CallOption) (*ArticleListResponse, error)
+	GetNoteChart(ctx context.Context, in *NoteChartRequest, opts ...grpc.CallOption) (*NoteChartResponse, error)
 	ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error)
 	GetCategory(ctx context.Context, in *CategoryIDRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
@@ -267,6 +269,16 @@ func (c *contentServiceClient) FeedArticlesByTime(ctx context.Context, in *FeedA
 	return out, nil
 }
 
+func (c *contentServiceClient) GetNoteChart(ctx context.Context, in *NoteChartRequest, opts ...grpc.CallOption) (*NoteChartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NoteChartResponse)
+	err := c.cc.Invoke(ctx, ContentService_GetNoteChart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *contentServiceClient) ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CategoryListResponse)
@@ -369,6 +381,7 @@ type ContentServiceServer interface {
 	GetArticle(context.Context, *GetArticleRequest) (*ArticleResponse, error)
 	ListArticles(context.Context, *ListArticlesRequest) (*ArticleListResponse, error)
 	FeedArticlesByTime(context.Context, *FeedArticlesByTimeRequest) (*ArticleListResponse, error)
+	GetNoteChart(context.Context, *NoteChartRequest) (*NoteChartResponse, error)
 	ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error)
 	GetCategory(context.Context, *CategoryIDRequest) (*CategoryResponse, error)
 	CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
@@ -440,6 +453,9 @@ func (UnimplementedContentServiceServer) ListArticles(context.Context, *ListArti
 }
 func (UnimplementedContentServiceServer) FeedArticlesByTime(context.Context, *FeedArticlesByTimeRequest) (*ArticleListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method FeedArticlesByTime not implemented")
+}
+func (UnimplementedContentServiceServer) GetNoteChart(context.Context, *NoteChartRequest) (*NoteChartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNoteChart not implemented")
 }
 func (UnimplementedContentServiceServer) ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCategories not implemented")
@@ -810,6 +826,24 @@ func _ContentService_FeedArticlesByTime_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContentService_GetNoteChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NoteChartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).GetNoteChart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_GetNoteChart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).GetNoteChart(ctx, req.(*NoteChartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContentService_ListCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListCategoriesRequest)
 	if err := dec(in); err != nil {
@@ -1032,6 +1066,10 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FeedArticlesByTime",
 			Handler:    _ContentService_FeedArticlesByTime_Handler,
+		},
+		{
+			MethodName: "GetNoteChart",
+			Handler:    _ContentService_GetNoteChart_Handler,
 		},
 		{
 			MethodName: "ListCategories",
