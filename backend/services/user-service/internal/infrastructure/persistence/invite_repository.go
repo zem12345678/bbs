@@ -86,7 +86,8 @@ func (r *Repo) CreateWithInvite(ctx context.Context, u *domain.User, code string
 		case invite.ExpiresAt != nil && !invite.ExpiresAt.After(now):
 			return domain.ErrInviteCodeExpired
 		}
-		if err := tx.Create(toPO(u)).Error; err != nil {
+		po := toPO(u)
+		if err := tx.Create(&po).Error; err != nil {
 			return mapWriteError(err)
 		}
 		res := tx.Model(&inviteCodePO{}).
