@@ -191,6 +191,22 @@ func (h *Handler) DeleteFile(ctx context.Context, req *pb.DeleteFileRequest) (*p
 	return &pb.FileResponse{File: fileToPB(file)}, nil
 }
 
+func (h *Handler) GetDriveChart(ctx context.Context, req *pb.DriveChartRequest) (*pb.DriveChartResponse, error) {
+	chart, err := h.service.GetDriveChart(ctx, domain.DriveChartQuery{
+		Span:    req.GetSpan(),
+		Limit:   int(req.GetLimit()),
+		Offset:  req.Offset,
+		OwnerID: req.GetOwnerId(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.DriveChartResponse{
+		Local:  driveChartSeriesToPB(chart.Local),
+		Remote: driveChartSeriesToPB(chart.Remote),
+	}, nil
+}
+
 func toPB(attachment domain.Attachment) *pb.Attachment {
 	return &pb.Attachment{
 		Id:           attachment.ID,
@@ -238,6 +254,17 @@ func fileUsageToPB(usage domain.FileUsage) *pb.FileUsageResponse {
 		response.OverrideCapacityBytes = *usage.OverrideCapacityBytes
 	}
 	return response
+}
+
+func driveChartSeriesToPB(series domain.DriveChartSeries) *pb.DriveChartSeries {
+	return &pb.DriveChartSeries{
+		TotalCount: series.TotalCount,
+		TotalSize:  series.TotalSize,
+		IncCount:   series.IncCount,
+		IncSize:    series.IncSize,
+		DecCount:   series.DecCount,
+		DecSize:    series.DecSize,
+	}
 }
 
 func downloadToPB(download domain.AttachmentDownload) *pb.AttachmentDownload {
@@ -303,13 +330,18 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidFile),
 		errors.Is(err, domain.ErrInvalidFileCapacity),
 		errors.Is(err, domain.ErrInvalidDownload),
-		errors.Is(err, domain.ErrInvalidAccountErasure):
+		errors.Is(err, domain.ErrInvalidAccountErasure),
+		errors.Is(err, domain.ErrDriveChartSpanInvalid),
+		errors.Is(err, domain.ErrDriveChartLimitInvalid),
+		errors.Is(err, domain.ErrDriveChartOffsetInvalid),
+		errors.Is(err, domain.ErrDriveChartOwnerInvalid):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrCreditServiceUnavailable),
 		errors.Is(err, domain.ErrMembershipServiceUnavailable),
 		errors.Is(err, domain.ErrContentServiceUnavailable),
 		errors.Is(err, domain.ErrAccountErasureUnavailable),
-		errors.Is(err, domain.ErrFileStorageUnavailable):
+		errors.Is(err, domain.ErrFileStorageUnavailable),
+		errors.Is(err, domain.ErrDriveChartRepositoryUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, "file service request failed")

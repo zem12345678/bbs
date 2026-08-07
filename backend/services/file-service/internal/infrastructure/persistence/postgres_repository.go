@@ -815,6 +815,11 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_files_owner_created
 		ON files(owner_user_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_files_owner_deleted
+		ON files(owner_user_id, deleted_at) WHERE deleted_at IS NOT NULL`,
+	`CREATE INDEX IF NOT EXISTS idx_files_chart_created ON files(created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_files_chart_deleted
+		ON files(deleted_at) WHERE deleted_at IS NOT NULL`,
 	`CREATE TABLE IF NOT EXISTS attachments (
 		id BIGSERIAL PRIMARY KEY,
 		topic_id BIGINT NOT NULL,
@@ -840,6 +845,13 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX IF NOT EXISTS idx_attachments_topic_active
 		ON attachments(topic_id, status, created_at ASC, id ASC)`,
+	`CREATE INDEX IF NOT EXISTS idx_attachments_owner_created
+		ON attachments(owner_id, created_at DESC, id DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_attachments_owner_archived
+		ON attachments(owner_id, archived_at) WHERE archived_at IS NOT NULL`,
+	`CREATE INDEX IF NOT EXISTS idx_attachments_chart_created ON attachments(created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_attachments_chart_archived
+		ON attachments(archived_at) WHERE archived_at IS NOT NULL`,
 	`CREATE TABLE IF NOT EXISTS attachment_downloads (
 		attachment_id BIGINT NOT NULL REFERENCES attachments(id),
 		user_id BIGINT NOT NULL,

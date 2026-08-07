@@ -44,6 +44,11 @@ var (
 	ErrInvalidFileCapacity                   = errors.New("invalid file capacity")
 	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
 	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
+	ErrDriveChartSpanInvalid                 = errors.New("drive chart span invalid")
+	ErrDriveChartLimitInvalid                = errors.New("drive chart limit invalid")
+	ErrDriveChartOffsetInvalid               = errors.New("drive chart offset invalid")
+	ErrDriveChartOwnerInvalid                = errors.New("drive chart owner invalid")
+	ErrDriveChartRepositoryUnavailable       = errors.New("drive chart repository unavailable")
 )
 
 type Attachment struct {
@@ -92,6 +97,39 @@ type FileUsage struct {
 	PolicyCapacityBytes   int64
 	MaxFileSizeBytes      int64
 	OverrideCapacityBytes *int64
+}
+
+const (
+	DriveChartSpanHour = "hour"
+	DriveChartSpanDay  = "day"
+
+	MaxDriveChartLimit        = 500
+	MaxDriveChartOffsetMillis = int64(8640000000000000)
+)
+
+type DriveChartQuery struct {
+	Span    string
+	Limit   int
+	Offset  *int64
+	OwnerID int64
+}
+
+type DriveChartSeries struct {
+	TotalCount []int64
+	TotalSize  []float64
+	IncCount   []int64
+	IncSize    []float64
+	DecCount   []int64
+	DecSize    []float64
+}
+
+type DriveChart struct {
+	Local  DriveChartSeries
+	Remote DriveChartSeries
+}
+
+type DriveChartRepository interface {
+	GetDriveChart(ctx context.Context, query DriveChartQuery) (DriveChart, error)
 }
 
 type Download struct {

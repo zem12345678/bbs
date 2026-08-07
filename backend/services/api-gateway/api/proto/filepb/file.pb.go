@@ -1696,6 +1696,210 @@ func (x *DeleteFileRequest) GetFileId() int64 {
 	return 0
 }
 
+type DriveChartRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Span          string                 `protobuf:"bytes,1,opt,name=span,proto3" json:"span,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        *int64                 `protobuf:"varint,3,opt,name=offset,proto3,oneof" json:"offset,omitempty"`
+	OwnerId       int64                  `protobuf:"varint,4,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DriveChartRequest) Reset() {
+	*x = DriveChartRequest{}
+	mi := &file_file_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DriveChartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DriveChartRequest) ProtoMessage() {}
+
+func (x *DriveChartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DriveChartRequest.ProtoReflect.Descriptor instead.
+func (*DriveChartRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *DriveChartRequest) GetSpan() string {
+	if x != nil {
+		return x.Span
+	}
+	return ""
+}
+
+func (x *DriveChartRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *DriveChartRequest) GetOffset() int64 {
+	if x != nil && x.Offset != nil {
+		return *x.Offset
+	}
+	return 0
+}
+
+func (x *DriveChartRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+type DriveChartSeries struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TotalCount    []int64                `protobuf:"varint,1,rep,packed,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	TotalSize     []float64              `protobuf:"fixed64,2,rep,packed,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
+	IncCount      []int64                `protobuf:"varint,3,rep,packed,name=inc_count,json=incCount,proto3" json:"inc_count,omitempty"`
+	IncSize       []float64              `protobuf:"fixed64,4,rep,packed,name=inc_size,json=incSize,proto3" json:"inc_size,omitempty"`
+	DecCount      []int64                `protobuf:"varint,5,rep,packed,name=dec_count,json=decCount,proto3" json:"dec_count,omitempty"`
+	DecSize       []float64              `protobuf:"fixed64,6,rep,packed,name=dec_size,json=decSize,proto3" json:"dec_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DriveChartSeries) Reset() {
+	*x = DriveChartSeries{}
+	mi := &file_file_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DriveChartSeries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DriveChartSeries) ProtoMessage() {}
+
+func (x *DriveChartSeries) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DriveChartSeries.ProtoReflect.Descriptor instead.
+func (*DriveChartSeries) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *DriveChartSeries) GetTotalCount() []int64 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return nil
+}
+
+func (x *DriveChartSeries) GetTotalSize() []float64 {
+	if x != nil {
+		return x.TotalSize
+	}
+	return nil
+}
+
+func (x *DriveChartSeries) GetIncCount() []int64 {
+	if x != nil {
+		return x.IncCount
+	}
+	return nil
+}
+
+func (x *DriveChartSeries) GetIncSize() []float64 {
+	if x != nil {
+		return x.IncSize
+	}
+	return nil
+}
+
+func (x *DriveChartSeries) GetDecCount() []int64 {
+	if x != nil {
+		return x.DecCount
+	}
+	return nil
+}
+
+func (x *DriveChartSeries) GetDecSize() []float64 {
+	if x != nil {
+		return x.DecSize
+	}
+	return nil
+}
+
+type DriveChartResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Local         *DriveChartSeries      `protobuf:"bytes,1,opt,name=local,proto3" json:"local,omitempty"`
+	Remote        *DriveChartSeries      `protobuf:"bytes,2,opt,name=remote,proto3" json:"remote,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DriveChartResponse) Reset() {
+	*x = DriveChartResponse{}
+	mi := &file_file_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DriveChartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DriveChartResponse) ProtoMessage() {}
+
+func (x *DriveChartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DriveChartResponse.ProtoReflect.Descriptor instead.
+func (*DriveChartResponse) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *DriveChartResponse) GetLocal() *DriveChartSeries {
+	if x != nil {
+		return x.Local
+	}
+	return nil
+}
+
+func (x *DriveChartResponse) GetRemote() *DriveChartSeries {
+	if x != nil {
+		return x.Remote
+	}
+	return nil
+}
+
 var File_file_proto protoreflect.FileDescriptor
 
 const file_file_proto_rawDesc = "" +
@@ -1847,7 +2051,25 @@ const file_file_proto_rawDesc = "" +
 	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"G\n" +
 	"\x11DeleteFileRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x17\n" +
-	"\afile_id\x18\x02 \x01(\x03R\x06fileId2\x9a\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId\"\x80\x01\n" +
+	"\x11DriveChartRequest\x12\x12\n" +
+	"\x04span\x18\x01 \x01(\tR\x04span\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\x06offset\x18\x03 \x01(\x03H\x00R\x06offset\x88\x01\x01\x12\x19\n" +
+	"\bowner_id\x18\x04 \x01(\x03R\aownerIdB\t\n" +
+	"\a_offset\"\xc2\x01\n" +
+	"\x10DriveChartSeries\x12\x1f\n" +
+	"\vtotal_count\x18\x01 \x03(\x03R\n" +
+	"totalCount\x12\x1d\n" +
+	"\n" +
+	"total_size\x18\x02 \x03(\x01R\ttotalSize\x12\x1b\n" +
+	"\tinc_count\x18\x03 \x03(\x03R\bincCount\x12\x19\n" +
+	"\binc_size\x18\x04 \x03(\x01R\aincSize\x12\x1b\n" +
+	"\tdec_count\x18\x05 \x03(\x03R\bdecCount\x12\x19\n" +
+	"\bdec_size\x18\x06 \x03(\x01R\adecSize\"\x80\x01\n" +
+	"\x12DriveChartResponse\x123\n" +
+	"\x05local\x18\x01 \x01(\v2\x1d.bbs.file.v1.DriveChartSeriesR\x05local\x125\n" +
+	"\x06remote\x18\x02 \x01(\v2\x1d.bbs.file.v1.DriveChartSeriesR\x06remote2\xec\n" +
 	"\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
@@ -1865,7 +2087,8 @@ const file_file_proto_rawDesc = "" +
 	"\x0fSetFileCapacity\x12#.bbs.file.v1.SetFileCapacityRequest\x1a\x1e.bbs.file.v1.FileUsageResponse\x12A\n" +
 	"\aGetFile\x12\x1b.bbs.file.v1.GetFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12G\n" +
 	"\n" +
-	"DeleteFile\x12\x1e.bbs.file.v1.DeleteFileRequest\x1a\x19.bbs.file.v1.FileResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
+	"DeleteFile\x12\x1e.bbs.file.v1.DeleteFileRequest\x1a\x19.bbs.file.v1.FileResponse\x12P\n" +
+	"\rGetDriveChart\x12\x1e.bbs.file.v1.DriveChartRequest\x1a\x1f.bbs.file.v1.DriveChartResponseB%Z#api-gateway/api/proto/filepb;filepbb\x06proto3"
 
 var (
 	file_file_proto_rawDescOnce sync.Once
@@ -1879,7 +2102,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -1907,6 +2130,9 @@ var file_file_proto_goTypes = []any{
 	(*SetFileCapacityRequest)(nil),             // 23: bbs.file.v1.SetFileCapacityRequest
 	(*GetFileRequest)(nil),                     // 24: bbs.file.v1.GetFileRequest
 	(*DeleteFileRequest)(nil),                  // 25: bbs.file.v1.DeleteFileRequest
+	(*DriveChartRequest)(nil),                  // 26: bbs.file.v1.DriveChartRequest
+	(*DriveChartSeries)(nil),                   // 27: bbs.file.v1.DriveChartSeries
+	(*DriveChartResponse)(nil),                 // 28: bbs.file.v1.DriveChartResponse
 }
 var file_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -1918,39 +2144,43 @@ var file_file_proto_depIdxs = []int32{
 	0,  // 6: bbs.file.v1.DownloadAuthorizationResponse.attachment:type_name -> bbs.file.v1.Attachment
 	16, // 7: bbs.file.v1.FileResponse.file:type_name -> bbs.file.v1.File
 	16, // 8: bbs.file.v1.FileListResponse.items:type_name -> bbs.file.v1.File
-	1,  // 9: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
-	3,  // 10: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
-	4,  // 11: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
-	6,  // 12: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
-	9,  // 13: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
-	12, // 14: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
-	14, // 15: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
-	15, // 16: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
-	17, // 17: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
-	19, // 18: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
-	21, // 19: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
-	23, // 20: bbs.file.v1.FileService.SetFileCapacity:input_type -> bbs.file.v1.SetFileCapacityRequest
-	24, // 21: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
-	25, // 22: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
-	2,  // 23: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 24: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 25: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 26: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 27: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 28: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 29: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 30: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	18, // 31: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
-	20, // 32: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
-	22, // 33: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
-	22, // 34: bbs.file.v1.FileService.SetFileCapacity:output_type -> bbs.file.v1.FileUsageResponse
-	18, // 35: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
-	18, // 36: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
-	23, // [23:37] is the sub-list for method output_type
-	9,  // [9:23] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	27, // 9: bbs.file.v1.DriveChartResponse.local:type_name -> bbs.file.v1.DriveChartSeries
+	27, // 10: bbs.file.v1.DriveChartResponse.remote:type_name -> bbs.file.v1.DriveChartSeries
+	1,  // 11: bbs.file.v1.FileService.CreateAttachment:input_type -> bbs.file.v1.CreateAttachmentRequest
+	3,  // 12: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
+	4,  // 13: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
+	6,  // 14: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
+	9,  // 15: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
+	12, // 16: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
+	14, // 17: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
+	15, // 18: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
+	17, // 19: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
+	19, // 20: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
+	21, // 21: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
+	23, // 22: bbs.file.v1.FileService.SetFileCapacity:input_type -> bbs.file.v1.SetFileCapacityRequest
+	24, // 23: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
+	25, // 24: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
+	26, // 25: bbs.file.v1.FileService.GetDriveChart:input_type -> bbs.file.v1.DriveChartRequest
+	2,  // 26: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 27: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 28: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 29: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 30: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 31: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 32: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 33: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	18, // 34: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
+	20, // 35: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
+	22, // 36: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
+	22, // 37: bbs.file.v1.FileService.SetFileCapacity:output_type -> bbs.file.v1.FileUsageResponse
+	18, // 38: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
+	18, // 39: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
+	28, // 40: bbs.file.v1.FileService.GetDriveChart:output_type -> bbs.file.v1.DriveChartResponse
+	26, // [26:41] is the sub-list for method output_type
+	11, // [11:26] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_file_proto_init() }
@@ -1958,13 +2188,14 @@ func file_file_proto_init() {
 	if File_file_proto != nil {
 		return
 	}
+	file_file_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

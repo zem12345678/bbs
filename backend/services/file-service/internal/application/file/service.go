@@ -205,6 +205,27 @@ func (s *Service) GetFileUsage(ctx context.Context, userID int64) (domain.FileUs
 	}, nil
 }
 
+func (s *Service) GetDriveChart(ctx context.Context, query domain.DriveChartQuery) (domain.DriveChart, error) {
+	query.Span = strings.ToLower(strings.TrimSpace(query.Span))
+	if query.Span != domain.DriveChartSpanHour && query.Span != domain.DriveChartSpanDay {
+		return domain.DriveChart{}, domain.ErrDriveChartSpanInvalid
+	}
+	if query.Limit < 1 || query.Limit > domain.MaxDriveChartLimit {
+		return domain.DriveChart{}, domain.ErrDriveChartLimitInvalid
+	}
+	if query.Offset != nil && (*query.Offset < 0 || *query.Offset > domain.MaxDriveChartOffsetMillis) {
+		return domain.DriveChart{}, domain.ErrDriveChartOffsetInvalid
+	}
+	if query.OwnerID < 0 {
+		return domain.DriveChart{}, domain.ErrDriveChartOwnerInvalid
+	}
+	repository, ok := s.repo.(domain.DriveChartRepository)
+	if !ok {
+		return domain.DriveChart{}, domain.ErrDriveChartRepositoryUnavailable
+	}
+	return repository.GetDriveChart(ctx, query)
+}
+
 func (s *Service) SetFileCapacity(ctx context.Context, userID int64, overrideBytes *int64) (domain.FileUsage, error) {
 	if userID <= 0 || (overrideBytes != nil && (*overrideBytes < 0 || *overrideBytes > MaxFileCapacityBytes)) {
 		return domain.FileUsage{}, domain.ErrInvalidFileCapacity

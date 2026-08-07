@@ -33,6 +33,7 @@ const (
 	FileService_SetFileCapacity_FullMethodName             = "/bbs.file.v1.FileService/SetFileCapacity"
 	FileService_GetFile_FullMethodName                     = "/bbs.file.v1.FileService/GetFile"
 	FileService_DeleteFile_FullMethodName                  = "/bbs.file.v1.FileService/DeleteFile"
+	FileService_GetDriveChart_FullMethodName               = "/bbs.file.v1.FileService/GetDriveChart"
 )
 
 // FileServiceClient is the client API for FileService service.
@@ -53,6 +54,7 @@ type FileServiceClient interface {
 	SetFileCapacity(ctx context.Context, in *SetFileCapacityRequest, opts ...grpc.CallOption) (*FileUsageResponse, error)
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
 	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*FileResponse, error)
+	GetDriveChart(ctx context.Context, in *DriveChartRequest, opts ...grpc.CallOption) (*DriveChartResponse, error)
 }
 
 type fileServiceClient struct {
@@ -203,6 +205,16 @@ func (c *fileServiceClient) DeleteFile(ctx context.Context, in *DeleteFileReques
 	return out, nil
 }
 
+func (c *fileServiceClient) GetDriveChart(ctx context.Context, in *DriveChartRequest, opts ...grpc.CallOption) (*DriveChartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DriveChartResponse)
+	err := c.cc.Invoke(ctx, FileService_GetDriveChart_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FileServiceServer is the server API for FileService service.
 // All implementations must embed UnimplementedFileServiceServer
 // for forward compatibility.
@@ -221,6 +233,7 @@ type FileServiceServer interface {
 	SetFileCapacity(context.Context, *SetFileCapacityRequest) (*FileUsageResponse, error)
 	GetFile(context.Context, *GetFileRequest) (*FileResponse, error)
 	DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error)
+	GetDriveChart(context.Context, *DriveChartRequest) (*DriveChartResponse, error)
 	mustEmbedUnimplementedFileServiceServer()
 }
 
@@ -272,6 +285,9 @@ func (UnimplementedFileServiceServer) GetFile(context.Context, *GetFileRequest) 
 }
 func (UnimplementedFileServiceServer) DeleteFile(context.Context, *DeleteFileRequest) (*FileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteFile not implemented")
+}
+func (UnimplementedFileServiceServer) GetDriveChart(context.Context, *DriveChartRequest) (*DriveChartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDriveChart not implemented")
 }
 func (UnimplementedFileServiceServer) mustEmbedUnimplementedFileServiceServer() {}
 func (UnimplementedFileServiceServer) testEmbeddedByValue()                     {}
@@ -546,6 +562,24 @@ func _FileService_DeleteFile_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FileService_GetDriveChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DriveChartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).GetDriveChart(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_GetDriveChart_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).GetDriveChart(ctx, req.(*DriveChartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FileService_ServiceDesc is the grpc.ServiceDesc for FileService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -608,6 +642,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteFile",
 			Handler:    _FileService_DeleteFile_Handler,
+		},
+		{
+			MethodName: "GetDriveChart",
+			Handler:    _FileService_GetDriveChart_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
