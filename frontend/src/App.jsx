@@ -204,7 +204,7 @@ function RoutedApp() {
   return (
     <AppSessionContext.Provider value={{ auth, onLogout: handleLogout }}>
       <div className="app">
-        <SiteAnnouncements />
+        <SiteAnnouncements auth={auth} />
         <React.Suspense fallback={<RouteLoading />}>
           <Routes>
           {pageRoutes.filter(({ key }) => key !== "chat").map(({ label, path }) => (

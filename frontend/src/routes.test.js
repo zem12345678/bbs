@@ -115,9 +115,9 @@ test("keeps public announcements and hashtag search connected to the app shell",
   const contentSource = fs.readFileSync(new URL("./pages/ContentRoutes.jsx", import.meta.url), "utf8");
 
   assert.match(appSource, /import SiteAnnouncements from "\.\/components\/SiteAnnouncements\.jsx"/);
-  assert.match(appSource, /<SiteAnnouncements \/>/);
+  assert.match(appSource, /<SiteAnnouncements auth=\{auth\} \/>/);
   assert.match(appSource, /bbsApi\.trendingHashtags\(\{ limit: 8 \}\)/);
-  assert.match(announcementSource, /bbsApi\s*\.announcements\(\{ limit: 20 \}\)/);
+  assert.match(announcementSource, /bbsApi\s*\.announcements\(\{ limit: 20 \}, accessToken\)/);
   assert.match(announcementSource, /announcementDismissalKey\(announcement\)/);
   assert.match(contentSource, /bbsApi\.searchHashtags\(query, \{ limit: SEARCH_PAGE_SIZE/);
   assert.match(contentSource, /className="search-hashtag-results panel"/);

@@ -208,11 +208,18 @@ export const bbsApi = {
   meta(detail = false) {
     return request("/meta", { method: "POST", body: { detail: Boolean(detail) } });
   },
-  announcements(params = {}) {
-    return request(`/announcements${buildQuery({ limit: 10, ...params })}`);
+  announcements(params = {}, token) {
+    return request(`/announcements${buildQuery({ limit: 10, ...params })}`, { token });
   },
   announcement(announcementId) {
     return request(`/announcements/${encodeURIComponent(announcementId)}`);
+  },
+  readAnnouncement(announcementId, token) {
+    return request("/i/read-announcement", {
+      method: "POST",
+      body: { announcementId },
+      token
+    });
   },
   oauthStartUrl(provider, redirect) {
     return `${API_BASE}/auth/oauth/${encodeURIComponent(provider)}/start${buildQuery({ redirect })}`;

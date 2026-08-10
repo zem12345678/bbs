@@ -99,6 +99,15 @@ export default {
       }
     },
     {
+      path: "/governance/announcements",
+      name: "GovernanceAnnouncements",
+      component: () => import("@/views/governance/announcements/index.vue"),
+      meta: {
+        title: "公告管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/governance/links",
       name: "GovernanceLinks",
       component: () => import("@/views/governance/links/index.vue"),

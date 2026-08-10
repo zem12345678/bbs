@@ -122,6 +122,13 @@ type OperationStore interface {
 	DeleteForbiddenWord(ctx context.Context, id int64) error
 	ListSettings(ctx context.Context, group string, status int32, limit int32, offset int32) (domain.SettingList, error)
 	UpsertSetting(ctx context.Context, command domain.UpsertSettingCommand) (domain.Setting, error)
+	ListAnnouncements(ctx context.Context, filter domain.AnnouncementListFilter) (domain.AnnouncementList, error)
+	ListPublicAnnouncements(ctx context.Context, userID int64, userCreatedAt int64, filter domain.PublicAnnouncementListFilter, now int64) (domain.AnnouncementList, error)
+	GetPublicAnnouncement(ctx context.Context, userID int64, userCreatedAt int64, id string, now int64) (domain.Announcement, error)
+	CreateAnnouncement(ctx context.Context, id string, command domain.CreateAnnouncementCommand, now int64) (domain.Announcement, error)
+	UpdateAnnouncement(ctx context.Context, command domain.UpdateAnnouncementCommand, now int64) (domain.Announcement, error)
+	DeleteAnnouncement(ctx context.Context, id string) error
+	MarkAnnouncementRead(ctx context.Context, userID int64, announcementID string, now int64) error
 	ListEmailLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.EmailLogList, error)
 	ListLoginLogs(ctx context.Context, status int32, query string, limit int32, offset int32) (domain.LoginLogList, error)
 	RecordLoginLog(ctx context.Context, command domain.RecordLoginLogCommand) error
@@ -919,6 +926,9 @@ func (s *Service) UpdateSetting(ctx context.Context, actor domain.Actor, command
 	}
 	if strings.TrimSpace(command.Key) == "" {
 		return domain.Setting{}, domain.ErrInvalidSetting
+	}
+	if strings.EqualFold(strings.TrimSpace(command.Key), "site_announcements") {
+		return domain.Setting{}, domain.ErrAnnouncementsManaged
 	}
 	var err error
 	command, err = protectSensitiveSetting(command, s.settingSecrets)

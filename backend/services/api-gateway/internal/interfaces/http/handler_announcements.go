@@ -6,16 +6,23 @@ import (
 	"strings"
 	"time"
 
+	"api-gateway/api/proto/adminpb"
+	"api-gateway/api/proto/userpb"
 	"api-gateway/pkg/http/response"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const defaultAnnouncementLimit int32 = 10
 const maxAnnouncementLimit int32 = 100
 
 type announcementListRequest struct {
-	Limit int32 `json:"limit"`
+	Limit   int32  `json:"limit"`
+	SinceID string `json:"sinceId"`
+	UntilID string `json:"untilId"`
+	Active  *bool  `json:"isActive"`
 }
 
 type announcementShowRequest struct {
@@ -71,21 +78,53 @@ func (h *Handler) listAnnouncements(c *gin.Context) {
 	if !ok {
 		return
 	}
-	announcements, ok := h.publicAnnouncements(c)
+	var req announcementListRequest
+	if value, exists := c.Get("announcement_list_request"); exists {
+		req, _ = value.(announcementListRequest)
+	}
+	active := true
+	if req.Active != nil {
+		active = *req.Active
+	}
+	sinceID, untilID := req.SinceID, req.UntilID
+	if c.Request.Method != http.MethodPost {
+		sinceID, untilID = c.Query("sinceId"), c.Query("untilId")
+	}
+	items, typed := h.typedPublicAnnouncements(c, limit, sinceID, untilID, &active)
+	if typed {
+		if c.IsAborted() {
+			return
+		}
+		if c.Request.Method == http.MethodPost {
+			c.JSON(http.StatusOK, publicAnnouncementPayloads(items, currentUserID(c) > 0))
+		} else {
+			legacyItems := make([]publicAnnouncement, 0, len(items))
+			for _, item := range items {
+				legacyItems = append(legacyItems, publicAnnouncementFromProto(item))
+			}
+			response.Success(c, gin.H{"items": legacyItems, "total": len(legacyItems)})
+		}
+		return
+	}
+	legacy, ok := h.publicAnnouncements(c)
 	if !ok {
 		return
 	}
-	items := make([]publicAnnouncement, 0, min(len(announcements), int(limit)))
-	for _, item := range announcements {
-		if !item.Active {
+	visible := make([]publicAnnouncement, 0, min(len(legacy), int(limit)))
+	for _, item := range legacy {
+		if item.Active != active {
 			continue
 		}
-		items = append(items, item)
-		if int32(len(items)) >= limit {
+		visible = append(visible, item)
+		if int32(len(visible)) >= limit {
 			break
 		}
 	}
-	response.Success(c, gin.H{"items": items, "total": len(items)})
+	if c.Request.Method == http.MethodPost {
+		c.JSON(http.StatusOK, visible)
+	} else {
+		response.Success(c, gin.H{"items": visible, "total": len(visible)})
+	}
 }
 
 func (h *Handler) getAnnouncement(c *gin.Context) {
@@ -109,6 +148,14 @@ func (h *Handler) showAnnouncement(c *gin.Context) {
 }
 
 func (h *Handler) writeAnnouncement(c *gin.Context, id string) {
+	if item, typed := h.typedPublicAnnouncement(c, id); typed {
+		if c.Request.Method == http.MethodPost {
+			c.JSON(http.StatusOK, publicAnnouncementPayloadFromProto(item, currentUserID(c) > 0))
+		} else {
+			response.Success(c, gin.H{"announcement": publicAnnouncementFromProto(item)})
+		}
+		return
+	}
 	announcements, ok := h.publicAnnouncements(c)
 	if !ok {
 		return
@@ -120,6 +167,101 @@ func (h *Handler) writeAnnouncement(c *gin.Context, id string) {
 		}
 	}
 	writeError(c, http.StatusNotFound, "announcement not found", "not_found")
+}
+
+func (h *Handler) typedPublicAnnouncements(c *gin.Context, limit int32, sinceID string, untilID string, active *bool) ([]*adminpb.AnnouncementInfo, bool) {
+	if h.clients == nil || h.clients.Admin == nil {
+		return nil, false
+	}
+	userID, userCreatedAt := h.announcementViewer(c)
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.ListPublicAnnouncements(ctx, &adminpb.ListPublicAnnouncementsRequest{UserId: userID, UserCreatedAt: userCreatedAt, Limit: limit, SinceId: strings.TrimSpace(sinceID), UntilId: strings.TrimSpace(untilID), Active: active})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return nil, false
+		}
+		writeRPCError(c, err)
+		return nil, true
+	}
+	return resp.GetItems(), true
+}
+
+func (h *Handler) typedPublicAnnouncement(c *gin.Context, id string) (*adminpb.AnnouncementInfo, bool) {
+	if h.clients == nil || h.clients.Admin == nil {
+		return nil, false
+	}
+	userID, userCreatedAt := h.announcementViewer(c)
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.GetPublicAnnouncement(ctx, &adminpb.GetPublicAnnouncementRequest{UserId: userID, UserCreatedAt: userCreatedAt, Id: strings.TrimSpace(id)})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return nil, false
+		}
+		writeRPCError(c, err)
+		return nil, true
+	}
+	return resp.GetAnnouncement(), true
+}
+
+func (h *Handler) announcementViewer(c *gin.Context) (int64, int64) {
+	userID := currentUserID(c)
+	if userID <= 0 {
+		return 0, 0
+	}
+	if h.clients == nil || h.clients.User == nil {
+		return userID, 0
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.User.GetUser(ctx, &userpb.UserIDRequest{Id: userID})
+	if err != nil || resp.GetUser() == nil {
+		return userID, 0
+	}
+	return userID, resp.GetUser().GetCreatedAt()
+}
+
+type publicAnnouncementPayload struct {
+	ID                     string  `json:"id"`
+	CreatedAt              string  `json:"createdAt"`
+	UpdatedAt              *string `json:"updatedAt"`
+	Title                  string  `json:"title"`
+	Text                   string  `json:"text"`
+	ImageURL               *string `json:"imageUrl"`
+	Icon                   string  `json:"icon"`
+	Display                string  `json:"display"`
+	NeedConfirmationToRead bool    `json:"needConfirmationToRead"`
+	Silence                bool    `json:"silence"`
+	Confetti               bool    `json:"confetti"`
+	ForYou                 bool    `json:"forYou"`
+	IsRead                 *bool   `json:"isRead,omitempty"`
+	IsActive               bool    `json:"isActive"`
+}
+
+func publicAnnouncementPayloads(items []*adminpb.AnnouncementInfo, includeRead bool) []publicAnnouncementPayload {
+	result := make([]publicAnnouncementPayload, 0, len(items))
+	for _, item := range items {
+		result = append(result, publicAnnouncementPayloadFromProto(item, includeRead))
+	}
+	return result
+}
+
+func publicAnnouncementPayloadFromProto(item *adminpb.AnnouncementInfo, includeRead bool) publicAnnouncementPayload {
+	result := publicAnnouncementPayload{ID: item.GetId(), CreatedAt: formatUnixMilli(item.GetCreatedAt()), UpdatedAt: formatUnixMilliPointer(item.GetUpdatedAt()), Title: item.GetTitle(), Text: item.GetText(), Icon: item.GetIcon(), Display: item.GetDisplay(), NeedConfirmationToRead: item.GetNeedConfirmationToRead(), Silence: item.GetSilence(), Confetti: item.GetConfetti(), ForYou: item.GetForYou(), IsActive: item.GetActive()}
+	if item.GetImageUrl() != "" {
+		imageURL := item.GetImageUrl()
+		result.ImageURL = &imageURL
+	}
+	if includeRead {
+		value := item.GetIsRead()
+		result.IsRead = &value
+	}
+	return result
+}
+
+func publicAnnouncementFromProto(item *adminpb.AnnouncementInfo) publicAnnouncement {
+	return publicAnnouncement{ID: item.GetId(), Title: item.GetTitle(), Text: item.GetText(), ImageURL: item.GetImageUrl(), Icon: item.GetIcon(), Display: item.GetDisplay(), NeedConfirmationToRead: item.GetNeedConfirmationToRead(), Silence: item.GetSilence(), Confetti: item.GetConfetti(), ForYou: item.GetForYou(), IsRead: item.GetIsRead(), Active: item.GetActive(), CreatedAt: item.GetCreatedAt(), UpdatedAt: item.GetUpdatedAt()}
 }
 
 func (h *Handler) publicAnnouncements(c *gin.Context) ([]publicAnnouncement, bool) {
@@ -143,6 +285,7 @@ func announcementListLimit(c *gin.Context) (int32, bool) {
 	if req.Limit > 0 {
 		limit = normalizeAnnouncementLimit(req.Limit)
 	}
+	c.Set("announcement_list_request", req)
 	return limit, true
 }
 

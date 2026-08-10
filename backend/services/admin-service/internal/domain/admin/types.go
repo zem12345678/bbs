@@ -55,6 +55,10 @@ const (
 	ActionListOperationLogs            Action = "list_operation_logs"
 	ActionListSettings                 Action = "list_settings"
 	ActionUpdateSetting                Action = "update_setting"
+	ActionListAnnouncements            Action = "list_announcements"
+	ActionCreateAnnouncement           Action = "create_announcement"
+	ActionUpdateAnnouncement           Action = "update_announcement"
+	ActionDeleteAnnouncement           Action = "delete_announcement"
 	ActionListInviteCodes              Action = "list_invite_codes"
 	ActionCreateInviteCodes            Action = "create_invite_codes"
 	ActionRevokeInviteCode             Action = "revoke_invite_code"
@@ -106,42 +110,46 @@ const (
 )
 
 var (
-	ErrInvalidActor           = errors.New("invalid admin actor")
-	ErrPermissionDenied       = errors.New("admin permission denied")
-	ErrInvalidUserID          = errors.New("invalid user id")
-	ErrInvalidReportID        = errors.New("invalid report id")
-	ErrInvalidReportAction    = errors.New("invalid report action")
-	ErrInvalidArticleID       = errors.New("invalid article id")
-	ErrInvalidTopicID         = errors.New("invalid topic id")
-	ErrInvalidChannelID       = errors.New("invalid channel id")
-	ErrInvalidCategoryID      = errors.New("invalid category id")
-	ErrInvalidCommentID       = errors.New("invalid comment id")
-	ErrInvalidAdminUserID     = errors.New("invalid admin user id")
-	ErrInvalidBadgeID         = errors.New("invalid badge id")
-	ErrInvalidForbiddenWordID = errors.New("invalid forbidden word id")
-	ErrInvalidLevelID         = errors.New("invalid level id")
-	ErrInvalidLinkID          = errors.New("invalid link id")
-	ErrInvalidAdID            = errors.New("invalid ad id")
-	ErrInvalidSettingID       = errors.New("invalid setting id")
-	ErrInvalidTaskID          = errors.New("invalid task id")
-	ErrInvalidRoleKeys        = errors.New("invalid role keys")
-	ErrInvalidPassword        = errors.New("密码必须为 8-64 位，且同时包含字母、数字和特殊字符，不能包含空白字符")
-	ErrInvalidBadge           = errors.New("invalid badge")
-	ErrInvalidForbiddenWord   = errors.New("invalid forbidden word")
-	ErrInvalidLevel           = errors.New("invalid level")
-	ErrInvalidLink            = errors.New("invalid link")
-	ErrInvalidAd              = errors.New("invalid ad")
-	ErrInvalidSetting         = errors.New("invalid setting")
-	ErrInvalidTask            = errors.New("invalid task")
-	ErrInvalidStatus          = errors.New("invalid status")
-	ErrTaskDefinitionsManaged = errors.New("task definitions are managed by the system")
-	ErrInvalidCategory        = errors.New("invalid category")
-	ErrInvalidCredentials     = errors.New("invalid admin credentials")
-	ErrTooManyLoginAttempts   = errors.New("登录失败次数过多，请 15 分钟后再试")
-	ErrInvalidAdminProfile    = errors.New("invalid admin profile")
-	ErrAdminDisabled          = errors.New("admin account disabled")
-	ErrInvalidToken           = errors.New("invalid admin token")
-	ErrAdminUserExists        = errors.New("用户名、邮箱或手机号已存在")
+	ErrInvalidActor            = errors.New("invalid admin actor")
+	ErrPermissionDenied        = errors.New("admin permission denied")
+	ErrInvalidUserID           = errors.New("invalid user id")
+	ErrInvalidReportID         = errors.New("invalid report id")
+	ErrInvalidReportAction     = errors.New("invalid report action")
+	ErrInvalidArticleID        = errors.New("invalid article id")
+	ErrInvalidTopicID          = errors.New("invalid topic id")
+	ErrInvalidChannelID        = errors.New("invalid channel id")
+	ErrInvalidCategoryID       = errors.New("invalid category id")
+	ErrInvalidCommentID        = errors.New("invalid comment id")
+	ErrInvalidAdminUserID      = errors.New("invalid admin user id")
+	ErrInvalidBadgeID          = errors.New("invalid badge id")
+	ErrInvalidForbiddenWordID  = errors.New("invalid forbidden word id")
+	ErrInvalidLevelID          = errors.New("invalid level id")
+	ErrInvalidLinkID           = errors.New("invalid link id")
+	ErrInvalidAdID             = errors.New("invalid ad id")
+	ErrInvalidSettingID        = errors.New("invalid setting id")
+	ErrInvalidTaskID           = errors.New("invalid task id")
+	ErrInvalidRoleKeys         = errors.New("invalid role keys")
+	ErrInvalidPassword         = errors.New("密码必须为 8-64 位，且同时包含字母、数字和特殊字符，不能包含空白字符")
+	ErrInvalidBadge            = errors.New("invalid badge")
+	ErrInvalidForbiddenWord    = errors.New("invalid forbidden word")
+	ErrInvalidLevel            = errors.New("invalid level")
+	ErrInvalidLink             = errors.New("invalid link")
+	ErrInvalidAd               = errors.New("invalid ad")
+	ErrInvalidSetting          = errors.New("invalid setting")
+	ErrInvalidAnnouncement     = errors.New("invalid announcement")
+	ErrInvalidAnnouncementID   = errors.New("invalid announcement id")
+	ErrAnnouncementsManaged    = errors.New("site announcements are managed by the announcement API")
+	ErrAnnouncementDialogLimit = errors.New("too many active dialog announcements")
+	ErrInvalidTask             = errors.New("invalid task")
+	ErrInvalidStatus           = errors.New("invalid status")
+	ErrTaskDefinitionsManaged  = errors.New("task definitions are managed by the system")
+	ErrInvalidCategory         = errors.New("invalid category")
+	ErrInvalidCredentials      = errors.New("invalid admin credentials")
+	ErrTooManyLoginAttempts    = errors.New("登录失败次数过多，请 15 分钟后再试")
+	ErrInvalidAdminProfile     = errors.New("invalid admin profile")
+	ErrAdminDisabled           = errors.New("admin account disabled")
+	ErrInvalidToken            = errors.New("invalid admin token")
+	ErrAdminUserExists         = errors.New("用户名、邮箱或手机号已存在")
 )
 
 type Actor struct {
@@ -483,6 +491,84 @@ type UpsertSettingCommand struct {
 	Status        int32
 	PreserveValue bool
 	ClearValue    bool
+}
+
+type Announcement struct {
+	ID                     string
+	Title                  string
+	Text                   string
+	ImageURL               string
+	Icon                   string
+	Display                string
+	ForExistingUsers       bool
+	ForRoles               []string
+	Silence                bool
+	NeedConfirmationToRead bool
+	Confetti               bool
+	UserID                 int64
+	Active                 bool
+	StartsAt               int64
+	EndsAt                 int64
+	CreatedAt              int64
+	UpdatedAt              int64
+	Reads                  int64
+	ForYou                 bool
+	IsRead                 bool
+}
+
+type AnnouncementList struct {
+	Items []Announcement
+	Total int64
+}
+
+type AnnouncementListFilter struct {
+	Limit   int32
+	SinceID string
+	UntilID string
+	UserID  int64
+	Status  string
+}
+
+type PublicAnnouncementListFilter struct {
+	Limit   int32
+	SinceID string
+	UntilID string
+	Active  *bool
+}
+
+type CreateAnnouncementCommand struct {
+	Title                  string
+	Text                   string
+	ImageURL               string
+	Icon                   string
+	Display                string
+	ForExistingUsers       bool
+	ForRoles               []string
+	Silence                bool
+	NeedConfirmationToRead bool
+	Confetti               bool
+	UserID                 int64
+	Active                 bool
+	StartsAt               int64
+	EndsAt                 int64
+}
+
+type UpdateAnnouncementCommand struct {
+	ID                     string
+	Title                  *string
+	Text                   *string
+	ImageURL               *string
+	Icon                   *string
+	Display                *string
+	ForExistingUsers       *bool
+	ForRoles               []string
+	ForRolesSet            bool
+	Silence                *bool
+	NeedConfirmationToRead *bool
+	Confetti               *bool
+	Active                 *bool
+	StartsAt               *int64
+	EndsAt                 *int64
 }
 
 type EmailLog struct {

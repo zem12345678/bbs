@@ -75,6 +75,13 @@ service AdminService {
   rpc ListAuthSettings(ListAuthSettingsRequest) returns (SettingListResponse);
   rpc ListPublicSettings(ListPublicSettingsRequest) returns (SettingListResponse);
   rpc UpdateSetting(UpsertSettingRequest) returns (SettingResponse);
+  rpc ListAnnouncements(ListAnnouncementsRequest) returns (AnnouncementListResponse);
+  rpc ListPublicAnnouncements(ListPublicAnnouncementsRequest) returns (AnnouncementListResponse);
+  rpc GetPublicAnnouncement(GetPublicAnnouncementRequest) returns (AnnouncementResponse);
+  rpc CreateAnnouncement(CreateAnnouncementRequest) returns (AnnouncementResponse);
+  rpc UpdateAnnouncement(UpdateAnnouncementRequest) returns (AnnouncementResponse);
+  rpc DeleteAnnouncement(AnnouncementIDRequest) returns (SimpleResponse);
+  rpc MarkAnnouncementRead(ReadAnnouncementRequest) returns (SimpleResponse);
   rpc ListEmailLogs(ListEmailLogsRequest) returns (EmailLogListResponse);
   rpc ListLoginLogs(ListLoginLogsRequest) returns (LoginLogListResponse);
   rpc ListOperationLogs(ListOperationLogsRequest) returns (OperationLogListResponse);
@@ -900,6 +907,114 @@ message SettingResponse {
   bool success = 1;
   string message = 2;
   SettingInfo setting = 3;
+}
+
+message AnnouncementInfo {
+  string id = 1;
+  int64 created_at = 2;
+  int64 updated_at = 3;
+  string title = 4;
+  string text = 5;
+  string image_url = 6;
+  string icon = 7;
+  string display = 8;
+  bool for_existing_users = 9;
+  repeated string for_roles = 10;
+  bool silence = 11;
+  bool need_confirmation_to_read = 12;
+  bool confetti = 13;
+  int64 user_id = 14;
+  bool active = 15;
+  int64 starts_at = 16;
+  int64 ends_at = 17;
+  int64 reads = 18;
+  bool for_you = 19;
+  bool is_read = 20;
+}
+
+message ListAnnouncementsRequest {
+  Actor actor = 1;
+  int32 limit = 2;
+  string since_id = 3;
+  string until_id = 4;
+  int64 user_id = 5;
+  string status = 6;
+}
+
+message ListPublicAnnouncementsRequest {
+  int64 user_id = 1;
+  int64 user_created_at = 2;
+  int32 limit = 3;
+  string since_id = 4;
+  string until_id = 5;
+  optional bool active = 6;
+}
+
+message GetPublicAnnouncementRequest {
+  int64 user_id = 1;
+  int64 user_created_at = 2;
+  string id = 3;
+}
+
+message AnnouncementListResponse {
+  repeated AnnouncementInfo items = 1;
+  int64 total = 2;
+}
+
+message CreateAnnouncementRequest {
+  Actor actor = 1;
+  string title = 2;
+  string text = 3;
+  string image_url = 4;
+  string icon = 5;
+  string display = 6;
+  bool for_existing_users = 7;
+  repeated string for_roles = 8;
+  bool silence = 9;
+  bool need_confirmation_to_read = 10;
+  bool confetti = 11;
+  int64 user_id = 12;
+  bool active = 13;
+  int64 starts_at = 14;
+  int64 ends_at = 15;
+}
+
+message StringListValue {
+  repeated string values = 1;
+}
+
+message UpdateAnnouncementRequest {
+  Actor actor = 1;
+  string id = 2;
+  optional string title = 3;
+  optional string text = 4;
+  optional string image_url = 5;
+  optional string icon = 6;
+  optional string display = 7;
+  optional bool for_existing_users = 8;
+  StringListValue for_roles = 9;
+  optional bool silence = 10;
+  optional bool need_confirmation_to_read = 11;
+  optional bool confetti = 12;
+  optional bool active = 13;
+  optional int64 starts_at = 14;
+  optional int64 ends_at = 15;
+}
+
+message AnnouncementIDRequest {
+  Actor actor = 1;
+  string id = 2;
+}
+
+message ReadAnnouncementRequest {
+  int64 user_id = 1;
+  string announcement_id = 2;
+}
+
+message AnnouncementResponse {
+  bool success = 1;
+  string message = 2;
+  AnnouncementInfo announcement = 3;
 }
 
 message EmailLogInfo {

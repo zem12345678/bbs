@@ -390,6 +390,59 @@ export type AdminAdPayload = {
   dayOfWeek: number;
 };
 
+export type AdminAnnouncementIcon =
+  | "info"
+  | "warning"
+  | "error"
+  | "success";
+
+export type AdminAnnouncementDisplay = "normal" | "banner" | "dialog";
+
+export type AdminAnnouncement = {
+  id: string;
+  createdAt: string;
+  updatedAt: string | null;
+  title: string;
+  text: string;
+  imageUrl: string | null;
+  icon: AdminAnnouncementIcon;
+  display: AdminAnnouncementDisplay;
+  forExistingUsers: boolean;
+  forRoles: string[];
+  silence: boolean;
+  needConfirmationToRead: boolean;
+  confetti: boolean;
+  userId: string | null;
+  isActive: boolean;
+  startsAt?: string;
+  endsAt?: string;
+  reads: number;
+};
+
+export type AdminAnnouncementListPayload = {
+  limit: number;
+  sinceId?: string;
+  untilId?: string;
+  userId?: string | null;
+  status?: "all" | "active" | "archived";
+};
+
+export type AdminAnnouncementPayload = {
+  title: string;
+  text: string;
+  imageUrl: string | null;
+  icon: AdminAnnouncementIcon;
+  display: AdminAnnouncementDisplay;
+  forExistingUsers: boolean;
+  silence: boolean;
+  needConfirmationToRead: boolean;
+  confetti: boolean;
+  userId?: string | null;
+  isActive: boolean;
+  startsAt: number;
+  endsAt: number;
+};
+
 export type AdminTask = {
   id: EntityId;
   key: string;
@@ -1649,6 +1702,39 @@ export const updateAdminAd = (id: EntityId, data: AdminAdPayload) => {
 
 export const deleteAdminAd = (id: EntityId) => {
   return http.request<void>("post", "/api/v1/admin/ad/delete", {
+    data: { id }
+  });
+};
+
+export const listAdminAnnouncements = (
+  data: AdminAnnouncementListPayload
+) => {
+  return http.request<AdminAnnouncement[]>(
+    "post",
+    "/api/v1/admin/announcements/list",
+    { data }
+  );
+};
+
+export const createAdminAnnouncement = (data: AdminAnnouncementPayload) => {
+  return http.request<AdminAnnouncement>(
+    "post",
+    "/api/v1/admin/announcements/create",
+    { data }
+  );
+};
+
+export const updateAdminAnnouncement = (
+  id: string,
+  data: AdminAnnouncementPayload
+) => {
+  return http.request<void>("post", "/api/v1/admin/announcements/update", {
+    data: { id, ...data }
+  });
+};
+
+export const deleteAdminAnnouncement = (id: string) => {
+  return http.request<void>("post", "/api/v1/admin/announcements/delete", {
     data: { id }
   });
 };

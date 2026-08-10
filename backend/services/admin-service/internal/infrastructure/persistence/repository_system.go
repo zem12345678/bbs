@@ -1586,6 +1586,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "governance.reports", Title: "举报管理", Icon: "ri/file-search-line", Path: "/governance/reports", Paths: "/governance/reports", Type: "C", Permission: governancePermission(domain.ActionListReports), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/reports/index", Sort: 1060, Remark: "bootstrap governance reports"},
 		{Name: "governance.forbidden-words", Title: "敏感词管理", Icon: "ri/forbid-2-line", Path: "/governance/forbidden-words", Paths: "/governance/forbidden-words", Type: "C", Permission: governancePermission(domain.ActionListForbiddenWords), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/forbidden-words/index", Sort: 1070, Remark: "bootstrap governance forbidden words"},
 		{Name: "governance.settings", Title: "站点设置", Icon: "ri/settings-4-line", Path: "/governance/settings", Paths: "/governance/settings", Type: "C", Permission: governancePermission(domain.ActionListSettings), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/settings/index", Sort: 1080, Remark: "bootstrap governance settings"},
+		{Name: "governance.announcements", Title: "公告管理", Icon: "ri/notification-3-line", Path: "/governance/announcements", Paths: "/governance/announcements", Type: "C", Permission: governancePermission(domain.ActionListAnnouncements), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/announcements/index", Sort: 1085, Remark: "bootstrap governance announcements"},
 		{Name: "governance.links", Title: "友情链接", Icon: "ri/links-line", Path: "/governance/links", Paths: "/governance/links", Type: "C", Permission: governancePermission(domain.ActionListLinks), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/links/index", Sort: 1090, Remark: "bootstrap governance links"},
 		{Name: "governance.ads", Title: "广告管理", Icon: "ri/advertisement-line", Path: "/governance/ads", Paths: "/governance/ads", Type: "C", Permission: governancePermission(domain.ActionListAds), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/ads/index", Sort: 1095, Remark: "bootstrap governance ads"},
 		{Name: "governance.tasks", Title: "任务管理", Icon: "ri/task-line", Path: "/governance/tasks", Paths: "/governance/tasks", Type: "C", Permission: governancePermission(domain.ActionListTasks), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/tasks/index", Sort: 1100, Remark: "bootstrap governance tasks"},
@@ -1658,6 +1659,12 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListSettings), SortOffset: 1},
 			{Name: "update", Title: "修改", Permission: governancePermission(domain.ActionUpdateSetting), SortOffset: 2},
 		},
+		"governance.announcements": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListAnnouncements), SortOffset: 1},
+			{Name: "create", Title: "新增", Permission: governancePermission(domain.ActionCreateAnnouncement), SortOffset: 2},
+			{Name: "update", Title: "修改", Permission: governancePermission(domain.ActionUpdateAnnouncement), SortOffset: 3},
+			{Name: "delete", Title: "删除", Permission: governancePermission(domain.ActionDeleteAnnouncement), SortOffset: 4},
+		},
 		"governance.links": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListLinks), SortOffset: 1},
 			{Name: "create", Title: "新增", Permission: governancePermission(domain.ActionCreateLink), SortOffset: 2},
@@ -1710,6 +1717,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		"governance.credits":         {},
 		"governance.forbidden-words": {},
 		"governance.settings":        {},
+		"governance.announcements":   {},
 		"governance.categories":      {},
 		"governance.links":           {},
 		"governance.ads":             {},

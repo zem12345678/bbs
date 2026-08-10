@@ -347,12 +347,37 @@ test("loads public announcements and individual announcement details", async () 
 
   await bbsApi.announcements({ limit: 20 });
   await bbsApi.announcement("launch");
+  await bbsApi.readAnnouncement("launch");
 
   const listURL = new URL(requests[0].url);
   assert.equal(listURL.pathname, "/api/v1/announcements");
   assert.equal(listURL.searchParams.get("limit"), "20");
   assert.equal(new URL(requests[1].url).pathname, "/api/v1/announcements/launch");
+	assert.equal(new URL(requests[2].url).pathname, "/api/v1/i/read-announcement");
+  assert.equal(requests[2].options.method, "POST");
+  assert.equal(requests[2].options.body, JSON.stringify({ announcementId: "launch" }));
   assert.equal(requests[0].options.headers.Authorization, undefined);
+  assert.equal(requests[2].options.headers.Authorization, undefined);
+});
+
+test("passes the access token for personalized announcements and read acknowledgements", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.announcements({ limit: 20 }, "access-token");
+  await bbsApi.readAnnouncement("launch", "access-token");
+
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.equal(requests[1].options.headers.Authorization, "Bearer access-token");
 });
 
 test("passes search keywords and pagination through query params", async () => {

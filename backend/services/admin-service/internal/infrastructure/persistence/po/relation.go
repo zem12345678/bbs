@@ -35,6 +35,17 @@ type MenuApiRule struct {
 	ApiID  int64 `json:"apiId" gorm:"column:api_id;primaryKey"`
 }
 
+type AnnouncementRead struct {
+	UserID                int64     `json:"userId" gorm:"column:user_id;primaryKey"`
+	AnnouncementID        string    `json:"announcementId" gorm:"column:announcement_id;type:varchar(64);primaryKey"`
+	AnnouncementUpdatedAt int64     `json:"announcementUpdatedAt" gorm:"column:announcement_updated_at;not null"`
+	ReadAt                time.Time `json:"readAt" gorm:"column:read_at;not null"`
+}
+
+func (AnnouncementRead) TableName() string {
+	return "admin_announcement_read"
+}
+
 func (MenuApiRule) TableName() string {
 	return "sys_menu_api_rule"
 }
@@ -68,5 +79,6 @@ func Models() []any {
 		&RoleDept{},
 		&Task{},
 		&MenuApiRule{},
+		&AnnouncementRead{},
 	}
 }

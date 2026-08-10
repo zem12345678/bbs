@@ -20,7 +20,12 @@ export function normalizeAnnouncement(item) {
     imageUrl: String(item.image_url ?? item.imageUrl ?? "").trim(),
     icon: normalizeAnnouncementIcon(item.icon),
     display: normalizeAnnouncementDisplay(item.display),
-    active: item.active !== false,
+    needConfirmationToRead: Boolean(item.need_confirmation_to_read ?? item.needConfirmationToRead),
+    silence: Boolean(item.silence),
+    confetti: Boolean(item.confetti),
+    forYou: Boolean(item.for_you ?? item.forYou),
+    isRead: Boolean(item.is_read ?? item.isRead),
+    active: (item.active ?? item.isActive) !== false,
     startsAt: toTimestamp(item.starts_at ?? item.startsAt),
     endsAt: toTimestamp(item.ends_at ?? item.endsAt),
     updatedAt: toTimestamp(item.updated_at ?? item.updatedAt),
@@ -54,5 +59,7 @@ function normalizeAnnouncementDisplay(value) {
 
 function toTimestamp(value) {
   const timestamp = Number(value);
-  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+  if (Number.isFinite(timestamp) && timestamp > 0) return timestamp;
+  const parsed = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }

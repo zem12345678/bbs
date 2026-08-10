@@ -89,6 +89,13 @@ const (
 	AdminService_ListAuthSettings_FullMethodName        = "/bbs.admin.v1.AdminService/ListAuthSettings"
 	AdminService_ListPublicSettings_FullMethodName      = "/bbs.admin.v1.AdminService/ListPublicSettings"
 	AdminService_UpdateSetting_FullMethodName           = "/bbs.admin.v1.AdminService/UpdateSetting"
+	AdminService_ListAnnouncements_FullMethodName       = "/bbs.admin.v1.AdminService/ListAnnouncements"
+	AdminService_ListPublicAnnouncements_FullMethodName = "/bbs.admin.v1.AdminService/ListPublicAnnouncements"
+	AdminService_GetPublicAnnouncement_FullMethodName   = "/bbs.admin.v1.AdminService/GetPublicAnnouncement"
+	AdminService_CreateAnnouncement_FullMethodName      = "/bbs.admin.v1.AdminService/CreateAnnouncement"
+	AdminService_UpdateAnnouncement_FullMethodName      = "/bbs.admin.v1.AdminService/UpdateAnnouncement"
+	AdminService_DeleteAnnouncement_FullMethodName      = "/bbs.admin.v1.AdminService/DeleteAnnouncement"
+	AdminService_MarkAnnouncementRead_FullMethodName    = "/bbs.admin.v1.AdminService/MarkAnnouncementRead"
 	AdminService_ListEmailLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListEmailLogs"
 	AdminService_ListLoginLogs_FullMethodName           = "/bbs.admin.v1.AdminService/ListLoginLogs"
 	AdminService_ListOperationLogs_FullMethodName       = "/bbs.admin.v1.AdminService/ListOperationLogs"
@@ -185,6 +192,13 @@ type AdminServiceClient interface {
 	ListAuthSettings(ctx context.Context, in *ListAuthSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
 	ListPublicSettings(ctx context.Context, in *ListPublicSettingsRequest, opts ...grpc.CallOption) (*SettingListResponse, error)
 	UpdateSetting(ctx context.Context, in *UpsertSettingRequest, opts ...grpc.CallOption) (*SettingResponse, error)
+	ListAnnouncements(ctx context.Context, in *ListAnnouncementsRequest, opts ...grpc.CallOption) (*AnnouncementListResponse, error)
+	ListPublicAnnouncements(ctx context.Context, in *ListPublicAnnouncementsRequest, opts ...grpc.CallOption) (*AnnouncementListResponse, error)
+	GetPublicAnnouncement(ctx context.Context, in *GetPublicAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error)
+	CreateAnnouncement(ctx context.Context, in *CreateAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error)
+	UpdateAnnouncement(ctx context.Context, in *UpdateAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error)
+	DeleteAnnouncement(ctx context.Context, in *AnnouncementIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	MarkAnnouncementRead(ctx context.Context, in *ReadAnnouncementRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListEmailLogs(ctx context.Context, in *ListEmailLogsRequest, opts ...grpc.CallOption) (*EmailLogListResponse, error)
 	ListLoginLogs(ctx context.Context, in *ListLoginLogsRequest, opts ...grpc.CallOption) (*LoginLogListResponse, error)
 	ListOperationLogs(ctx context.Context, in *ListOperationLogsRequest, opts ...grpc.CallOption) (*OperationLogListResponse, error)
@@ -915,6 +929,76 @@ func (c *adminServiceClient) UpdateSetting(ctx context.Context, in *UpsertSettin
 	return out, nil
 }
 
+func (c *adminServiceClient) ListAnnouncements(ctx context.Context, in *ListAnnouncementsRequest, opts ...grpc.CallOption) (*AnnouncementListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnouncementListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListAnnouncements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) ListPublicAnnouncements(ctx context.Context, in *ListPublicAnnouncementsRequest, opts ...grpc.CallOption) (*AnnouncementListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnouncementListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListPublicAnnouncements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) GetPublicAnnouncement(ctx context.Context, in *GetPublicAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnouncementResponse)
+	err := c.cc.Invoke(ctx, AdminService_GetPublicAnnouncement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) CreateAnnouncement(ctx context.Context, in *CreateAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnouncementResponse)
+	err := c.cc.Invoke(ctx, AdminService_CreateAnnouncement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) UpdateAnnouncement(ctx context.Context, in *UpdateAnnouncementRequest, opts ...grpc.CallOption) (*AnnouncementResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnnouncementResponse)
+	err := c.cc.Invoke(ctx, AdminService_UpdateAnnouncement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) DeleteAnnouncement(ctx context.Context, in *AnnouncementIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_DeleteAnnouncement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) MarkAnnouncementRead(ctx context.Context, in *ReadAnnouncementRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_MarkAnnouncementRead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) ListEmailLogs(ctx context.Context, in *ListEmailLogsRequest, opts ...grpc.CallOption) (*EmailLogListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EmailLogListResponse)
@@ -1189,6 +1273,13 @@ type AdminServiceServer interface {
 	ListAuthSettings(context.Context, *ListAuthSettingsRequest) (*SettingListResponse, error)
 	ListPublicSettings(context.Context, *ListPublicSettingsRequest) (*SettingListResponse, error)
 	UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error)
+	ListAnnouncements(context.Context, *ListAnnouncementsRequest) (*AnnouncementListResponse, error)
+	ListPublicAnnouncements(context.Context, *ListPublicAnnouncementsRequest) (*AnnouncementListResponse, error)
+	GetPublicAnnouncement(context.Context, *GetPublicAnnouncementRequest) (*AnnouncementResponse, error)
+	CreateAnnouncement(context.Context, *CreateAnnouncementRequest) (*AnnouncementResponse, error)
+	UpdateAnnouncement(context.Context, *UpdateAnnouncementRequest) (*AnnouncementResponse, error)
+	DeleteAnnouncement(context.Context, *AnnouncementIDRequest) (*SimpleResponse, error)
+	MarkAnnouncementRead(context.Context, *ReadAnnouncementRequest) (*SimpleResponse, error)
 	ListEmailLogs(context.Context, *ListEmailLogsRequest) (*EmailLogListResponse, error)
 	ListLoginLogs(context.Context, *ListLoginLogsRequest) (*LoginLogListResponse, error)
 	ListOperationLogs(context.Context, *ListOperationLogsRequest) (*OperationLogListResponse, error)
@@ -1428,6 +1519,27 @@ func (UnimplementedAdminServiceServer) ListPublicSettings(context.Context, *List
 }
 func (UnimplementedAdminServiceServer) UpdateSetting(context.Context, *UpsertSettingRequest) (*SettingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateSetting not implemented")
+}
+func (UnimplementedAdminServiceServer) ListAnnouncements(context.Context, *ListAnnouncementsRequest) (*AnnouncementListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAnnouncements not implemented")
+}
+func (UnimplementedAdminServiceServer) ListPublicAnnouncements(context.Context, *ListPublicAnnouncementsRequest) (*AnnouncementListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPublicAnnouncements not implemented")
+}
+func (UnimplementedAdminServiceServer) GetPublicAnnouncement(context.Context, *GetPublicAnnouncementRequest) (*AnnouncementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPublicAnnouncement not implemented")
+}
+func (UnimplementedAdminServiceServer) CreateAnnouncement(context.Context, *CreateAnnouncementRequest) (*AnnouncementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAnnouncement not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateAnnouncement(context.Context, *UpdateAnnouncementRequest) (*AnnouncementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAnnouncement not implemented")
+}
+func (UnimplementedAdminServiceServer) DeleteAnnouncement(context.Context, *AnnouncementIDRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAnnouncement not implemented")
+}
+func (UnimplementedAdminServiceServer) MarkAnnouncementRead(context.Context, *ReadAnnouncementRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MarkAnnouncementRead not implemented")
 }
 func (UnimplementedAdminServiceServer) ListEmailLogs(context.Context, *ListEmailLogsRequest) (*EmailLogListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListEmailLogs not implemented")
@@ -2770,6 +2882,132 @@ func _AdminService_UpdateSetting_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListAnnouncements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAnnouncementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListAnnouncements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListAnnouncements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListAnnouncements(ctx, req.(*ListAnnouncementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_ListPublicAnnouncements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPublicAnnouncementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListPublicAnnouncements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListPublicAnnouncements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListPublicAnnouncements(ctx, req.(*ListPublicAnnouncementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_GetPublicAnnouncement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPublicAnnouncementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GetPublicAnnouncement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_GetPublicAnnouncement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GetPublicAnnouncement(ctx, req.(*GetPublicAnnouncementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_CreateAnnouncement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAnnouncementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).CreateAnnouncement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_CreateAnnouncement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).CreateAnnouncement(ctx, req.(*CreateAnnouncementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_UpdateAnnouncement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAnnouncementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateAnnouncement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_UpdateAnnouncement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateAnnouncement(ctx, req.(*UpdateAnnouncementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_DeleteAnnouncement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnnouncementIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).DeleteAnnouncement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_DeleteAnnouncement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).DeleteAnnouncement(ctx, req.(*AnnouncementIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_MarkAnnouncementRead_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadAnnouncementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).MarkAnnouncementRead(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_MarkAnnouncementRead_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).MarkAnnouncementRead(ctx, req.(*ReadAnnouncementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_ListEmailLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListEmailLogsRequest)
 	if err := dec(in); err != nil {
@@ -3416,6 +3654,34 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSetting",
 			Handler:    _AdminService_UpdateSetting_Handler,
+		},
+		{
+			MethodName: "ListAnnouncements",
+			Handler:    _AdminService_ListAnnouncements_Handler,
+		},
+		{
+			MethodName: "ListPublicAnnouncements",
+			Handler:    _AdminService_ListPublicAnnouncements_Handler,
+		},
+		{
+			MethodName: "GetPublicAnnouncement",
+			Handler:    _AdminService_GetPublicAnnouncement_Handler,
+		},
+		{
+			MethodName: "CreateAnnouncement",
+			Handler:    _AdminService_CreateAnnouncement_Handler,
+		},
+		{
+			MethodName: "UpdateAnnouncement",
+			Handler:    _AdminService_UpdateAnnouncement_Handler,
+		},
+		{
+			MethodName: "DeleteAnnouncement",
+			Handler:    _AdminService_DeleteAnnouncement_Handler,
+		},
+		{
+			MethodName: "MarkAnnouncementRead",
+			Handler:    _AdminService_MarkAnnouncementRead_Handler,
 		},
 		{
 			MethodName: "ListEmailLogs",

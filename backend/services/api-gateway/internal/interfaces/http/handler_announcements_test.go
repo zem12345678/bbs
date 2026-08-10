@@ -1,17 +1,21 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"api-gateway/api/proto/adminpb"
 	"api-gateway/internal/clients"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 func TestListAnnouncementsReturnsConfiguredActiveItems(t *testing.T) {
@@ -56,7 +60,7 @@ func TestListAnnouncementsReturnsConfiguredActiveItems(t *testing.T) {
 	require.True(t, envelope.Data.Items[0].Active)
 }
 
-func TestListAnnouncementsNeverExposesInactiveItems(t *testing.T) {
+func TestListAnnouncementsSupportsInactiveCompatibilityFilter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := announcementsTestRouter(`[{
 		"id":"active",
@@ -75,15 +79,10 @@ func TestListAnnouncementsNeverExposesInactiveItems(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
-	var envelope struct {
-		Data struct {
-			Items []publicAnnouncement `json:"items"`
-			Total int                  `json:"total"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
-	require.Equal(t, 1, envelope.Data.Total)
-	require.Equal(t, "active", envelope.Data.Items[0].ID)
+	var items []publicAnnouncement
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &items))
+	require.Len(t, items, 1)
+	require.Equal(t, "inactive", items[0].ID)
 }
 
 func TestShowAnnouncementReturnsOnlyActiveConfiguredItem(t *testing.T) {
@@ -145,6 +144,34 @@ func TestParsePublicAnnouncementsRejectsInvalidJSONAndOutOfWindowItems(t *testin
 	require.False(t, items[1].Active)
 }
 
+func TestTypedAnnouncementCompatibilityReturnsCamelCaseReadState(t *testing.T) {
+	client := &typedAnnouncementAdminClient{listResponse: &adminpb.AnnouncementListResponse{Items: []*adminpb.AnnouncementInfo{{
+		Id: "targeted", CreatedAt: 1700000000000, UpdatedAt: 1700000001000, Title: "定向公告", Text: "正文",
+		Icon: "info", Display: "dialog", Active: false, UserId: 77, ForYou: true, IsRead: true,
+	}}}}
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	NewInitControllers(NewHandler(&clients.Clients{Admin: client}, "Authorization", "Bearer", testJWTSecret))(router)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/announcements", strings.NewReader(`{"limit":5,"isActive":false}`))
+	request.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "77", "username": "reader", "exp": time.Now().Add(time.Hour).Unix()}))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, int64(77), client.listRequest.GetUserId())
+	require.NotNil(t, client.listRequest.Active)
+	require.False(t, client.listRequest.GetActive())
+	var payload []map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload, 1)
+	require.Equal(t, "2023-11-14T22:13:20Z", payload[0]["createdAt"])
+	require.Equal(t, true, payload[0]["forYou"])
+	require.Equal(t, true, payload[0]["isRead"])
+	require.NotContains(t, payload[0], "created_at")
+}
+
 func announcementsTestRouter(rawAnnouncements string) *gin.Engine {
 	h := NewHandler(&clients.Clients{Admin: fakePublicSettingsAdminClient{items: []*adminpb.SettingInfo{
 		{Key: "site_announcements", Value: rawAnnouncements},
@@ -153,4 +180,15 @@ func announcementsTestRouter(rawAnnouncements string) *gin.Engine {
 	router := gin.New()
 	NewInitControllers(h)(router)
 	return router
+}
+
+type typedAnnouncementAdminClient struct {
+	adminpb.AdminServiceClient
+	listRequest  *adminpb.ListPublicAnnouncementsRequest
+	listResponse *adminpb.AnnouncementListResponse
+}
+
+func (client *typedAnnouncementAdminClient) ListPublicAnnouncements(_ context.Context, req *adminpb.ListPublicAnnouncementsRequest, _ ...grpc.CallOption) (*adminpb.AnnouncementListResponse, error) {
+	client.listRequest = req
+	return client.listResponse, nil
 }

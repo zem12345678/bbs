@@ -45,7 +45,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrSystemDeptHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasUsers),
 		errors.Is(err, domain.ErrSystemRoleHasUsers),
-		errors.Is(err, domain.ErrTaskDefinitionsManaged):
+		errors.Is(err, domain.ErrTaskDefinitionsManaged),
+		errors.Is(err, domain.ErrAnnouncementsManaged):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrInvalidActor),
 		errors.Is(err, domain.ErrSystemNotificationRecipientsNotFound),
@@ -53,6 +54,9 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidAdminUserID),
 		errors.Is(err, domain.ErrInvalidAd),
 		errors.Is(err, domain.ErrInvalidAdID),
+		errors.Is(err, domain.ErrInvalidAnnouncement),
+		errors.Is(err, domain.ErrInvalidAnnouncementID),
+		errors.Is(err, domain.ErrAnnouncementDialogLimit),
 		errors.Is(err, domain.ErrInvalidBadge),
 		errors.Is(err, domain.ErrInvalidBadgeID),
 		errors.Is(err, domain.ErrInvalidCategory),

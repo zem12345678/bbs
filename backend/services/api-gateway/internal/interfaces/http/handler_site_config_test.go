@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestSiteConfigReturnsOnlySupportedPublicFields(t *testing.T) {
@@ -62,4 +64,12 @@ type fakePublicSettingsAdminClient struct {
 
 func (f fakePublicSettingsAdminClient) ListPublicSettings(context.Context, *adminpb.ListPublicSettingsRequest, ...grpc.CallOption) (*adminpb.SettingListResponse, error) {
 	return &adminpb.SettingListResponse{Items: f.items, Total: int64(len(f.items))}, nil
+}
+
+func (f fakePublicSettingsAdminClient) ListPublicAnnouncements(context.Context, *adminpb.ListPublicAnnouncementsRequest, ...grpc.CallOption) (*adminpb.AnnouncementListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "typed announcements are not configured by this test double")
+}
+
+func (f fakePublicSettingsAdminClient) GetPublicAnnouncement(context.Context, *adminpb.GetPublicAnnouncementRequest, ...grpc.CallOption) (*adminpb.AnnouncementResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "typed announcements are not configured by this test double")
 }

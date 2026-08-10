@@ -301,6 +301,51 @@ test("advertising governance UI exposes the admin ad contract", () => {
   assert.match(viewSource, /expiresAt/);
 });
 
+test("announcement governance UI exposes the typed announcement contract", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const routeSource = read("vue-pure-admin/src/router/modules/governance.ts");
+  const viewSource = read(
+    "vue-pure-admin/src/views/governance/announcements/index.vue"
+  );
+
+  for (const [functionName, route] of [
+    ["listAdminAnnouncements", "/api/v1/admin/announcements/list"],
+    ["createAdminAnnouncement", "/api/v1/admin/announcements/create"],
+    ["updateAdminAnnouncement", "/api/v1/admin/announcements/update"],
+    ["deleteAdminAnnouncement", "/api/v1/admin/announcements/delete"]
+  ]) {
+    assert.match(apiSource, new RegExp(functionName));
+    assert.match(apiSource, new RegExp(route));
+  }
+
+  assert.match(routeSource, /path:\s*"\/governance\/announcements"/);
+  assert.match(routeSource, /name:\s*"GovernanceAnnouncements"/);
+  assert.match(viewSource, /governance:list_announcements/);
+  assert.match(viewSource, /governance:create_announcement/);
+  assert.match(viewSource, /governance:update_announcement/);
+  assert.match(viewSource, /governance:delete_announcement/);
+  assert.match(viewSource, /let listRequestVersion = 0/);
+  assert.match(viewSource, /requestVersion !== listRequestVersion/);
+  assert.match(viewSource, /status:\s*query\.status/);
+  assert.match(viewSource, /isActive:\s*form\.active/);
+  assert.match(viewSource, /startsAt:\s*form\.startsAt/);
+  assert.match(viewSource, /endsAt:\s*form\.endsAt/);
+  assert.match(viewSource, /forExistingUsers:\s*form\.forExistingUsers/);
+  assert.match(viewSource, /silence:\s*form\.silence/);
+  assert.match(
+    viewSource,
+    /needConfirmationToRead:\s*form\.needConfirmationToRead/
+  );
+  assert.match(viewSource, /confetti:\s*form\.confetti/);
+  assert.match(viewSource, /payload\.userId\s*=\s*form\.userId/);
+  assert.match(viewSource, /label="定向用户 ID"/);
+  assert.match(viewSource, /label="仅已有用户"/);
+  assert.match(viewSource, /label="确认已读"/);
+  assert.match(viewSource, /label="彩带效果"/);
+  assert.match(viewSource, /preview-src-list/);
+  assert.match(viewSource, /ElMessageBox\.confirm/);
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {
