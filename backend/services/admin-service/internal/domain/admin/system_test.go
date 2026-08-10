@@ -62,6 +62,14 @@ func TestResourceForActionMapsInviteCodeOperationsToGovernance(t *testing.T) {
 	}
 }
 
+func TestResourceForActionMapsAdOperationsToGovernance(t *testing.T) {
+	for _, action := range []Action{ActionListAds, ActionCreateAd, ActionUpdateAd, ActionDeleteAd} {
+		if got := ResourceForAction(action); got != ResourceGovernance {
+			t.Fatalf("ResourceForAction(%q) = %q, want %q", action, got, ResourceGovernance)
+		}
+	}
+}
+
 func allMallActions() []Action {
 	return []Action{
 		ActionListMallProductCategories,

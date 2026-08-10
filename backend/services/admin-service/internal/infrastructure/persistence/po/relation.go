@@ -41,6 +41,7 @@ func (MenuApiRule) TableName() string {
 
 func Models() []any {
 	return []any{
+		&Ad{},
 		&Api{},
 		&Badge{},
 		&CasbinRule{},

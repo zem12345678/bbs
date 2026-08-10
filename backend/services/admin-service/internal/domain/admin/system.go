@@ -130,7 +130,11 @@ func ResourceForAction(action Action) string {
 		return ResourceMall
 	case ActionListInviteCodes,
 		ActionCreateInviteCodes,
-		ActionRevokeInviteCode:
+		ActionRevokeInviteCode,
+		ActionListAds,
+		ActionCreateAd,
+		ActionUpdateAd,
+		ActionDeleteAd:
 		return ResourceGovernance
 	default:
 		return ResourceGovernance

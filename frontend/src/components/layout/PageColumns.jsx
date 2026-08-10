@@ -24,6 +24,7 @@ import {
   Wallet
 } from "lucide-react";
 import { bbsApi } from "../../api";
+import { selectSidebarAd } from "../../lib/ads";
 import { AppSessionContext } from "../../lib/appSession";
 import { listItems } from "../../lib/apiShapes";
 import { safeExternalURL } from "../../lib/externalLinks";
@@ -208,20 +209,24 @@ export function LeftColumn({ activeCategoryId = 0, activePage, categories = [], 
 }
 
 export function RightColumn({ categories = [], hotTags = [] }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = React.useState("");
   const [popular, setPopular] = React.useState({ chatRooms: [], resources: [] });
+  const [ads, setAds] = React.useState([]);
   const visibleCategories = categories.slice(0, 6);
   const visibleTags = hotTags.slice(0, 8);
+  const selectedAd = React.useMemo(() => selectSidebarAd(ads, { pathname: location.pathname }), [ads, location.pathname]);
 
   React.useEffect(() => {
     let alive = true;
-    Promise.allSettled([bbsApi.popularChatRooms({ limit: 5 }), bbsApi.popularResources({ limit: 5 })]).then(([chatResult, resourceResult]) => {
+    Promise.allSettled([bbsApi.popularChatRooms({ limit: 5 }), bbsApi.popularResources({ limit: 5 }), bbsApi.meta(false)]).then(([chatResult, resourceResult, metaResult]) => {
       if (!alive) return;
       setPopular({
         chatRooms: chatResult.status === "fulfilled" ? listItems(chatResult.value).map(normalizePopularChatRoom).filter((item) => item.roomNo || item.name) : [],
         resources: resourceResult.status === "fulfilled" ? listItems(resourceResult.value).map(normalizePopularResource).filter((item) => item.title) : []
       });
+      setAds(metaResult.status === "fulfilled" && Array.isArray(metaResult.value?.ads) ? metaResult.value.ads : []);
     });
     return () => {
       alive = false;
@@ -240,6 +245,7 @@ export function RightColumn({ categories = [], hotTags = [] }) {
         <Search size={17} aria-hidden="true" />
         <input aria-label="搜索社区内容" placeholder="搜一搜..." value={query} onChange={(event) => setQuery(event.target.value)} />
       </form>
+      {selectedAd && <SidebarAd ad={selectedAd} />}
       <section className="panel hot-topics-card">
         <h2>热门话题</h2>
         <ul>
@@ -310,5 +316,16 @@ export function RightColumn({ categories = [], hotTags = [] }) {
         </div>
       </section>
     </aside>
+  );
+}
+
+function SidebarAd({ ad }) {
+  return (
+    <section className="side-ad" aria-label="推广">
+      <span className="side-ad__label">推广</span>
+      <a className="side-ad__link" href={ad.url} target="_blank" rel="sponsored nofollow noopener noreferrer">
+        <img className="side-ad__image" alt="推广内容" src={ad.imageUrl} />
+      </a>
+    </section>
   );
 }

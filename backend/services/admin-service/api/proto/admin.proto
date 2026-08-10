@@ -83,6 +83,11 @@ service AdminService {
   rpc CreateLink(UpsertLinkRequest) returns (LinkResponse);
   rpc UpdateLink(UpsertLinkRequest) returns (LinkResponse);
   rpc DeleteLink(LinkIDRequest) returns (SimpleResponse);
+  rpc ListAds(ListAdsRequest) returns (AdListResponse);
+  rpc ListActiveAds(ListActiveAdsRequest) returns (ActiveAdListResponse);
+  rpc CreateAd(CreateAdRequest) returns (AdResponse);
+  rpc UpdateAd(UpdateAdRequest) returns (AdResponse);
+  rpc DeleteAd(AdIDRequest) returns (SimpleResponse);
   rpc ListTasks(ListTasksRequest) returns (TaskListResponse);
   rpc CreateTask(UpsertTaskRequest) returns (TaskResponse);
   rpc UpdateTask(UpsertTaskRequest) returns (TaskResponse);
@@ -1044,6 +1049,87 @@ message LinkResponse {
   bool success = 1;
   string message = 2;
   LinkInfo link = 3;
+}
+
+message AdInfo {
+  int64 id = 1;
+  string url = 2;
+  string memo = 3;
+  string place = 4;
+  string priority = 5;
+  int32 ratio = 6;
+  int64 starts_at = 7;
+  int64 expires_at = 8;
+  string image_url = 9;
+  int32 day_of_week = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+}
+
+message ActiveAdInfo {
+  int64 id = 1;
+  string url = 2;
+  string place = 3;
+  int32 ratio = 4;
+  string image_url = 5;
+  int32 day_of_week = 6;
+}
+
+message ListAdsRequest {
+  Actor actor = 1;
+  int32 limit = 2;
+  int64 since_id = 3;
+  int64 until_id = 4;
+  optional bool publishing = 5;
+}
+
+message AdListResponse {
+  repeated AdInfo items = 1;
+  int64 total = 2;
+}
+
+message ListActiveAdsRequest {}
+
+message ActiveAdListResponse {
+  repeated ActiveAdInfo items = 1;
+}
+
+message CreateAdRequest {
+  Actor actor = 1;
+  string url = 2;
+  string memo = 3;
+  string place = 4;
+  string priority = 5;
+  int32 ratio = 6;
+  int64 starts_at = 7;
+  int64 expires_at = 8;
+  string image_url = 9;
+  int32 day_of_week = 10;
+}
+
+message UpdateAdRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  optional string url = 3;
+  optional string memo = 4;
+  optional string place = 5;
+  optional string priority = 6;
+  optional int32 ratio = 7;
+  optional int64 starts_at = 8;
+  optional int64 expires_at = 9;
+  optional string image_url = 10;
+  optional int32 day_of_week = 11;
+}
+
+message AdIDRequest {
+  Actor actor = 1;
+  int64 id = 2;
+}
+
+message AdResponse {
+  bool success = 1;
+  string message = 2;
+  AdInfo ad = 3;
 }
 
 message TaskInfo {

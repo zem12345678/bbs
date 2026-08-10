@@ -1413,6 +1413,33 @@ a {
   border-radius: 0;
 }
 
+.side-ad {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.side-ad__label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.side-ad__link {
+  display: block;
+  overflow: hidden;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.side-ad__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: contain;
+}
+
 /* 品牌区 */
 .nav-brand-row {
   display: flex;

@@ -205,6 +205,9 @@ export const bbsApi = {
   siteConfig() {
     return request("/site-config");
   },
+  meta(detail = false) {
+    return request("/meta", { method: "POST", body: { detail: Boolean(detail) } });
+  },
   announcements(params = {}) {
     return request(`/announcements${buildQuery({ limit: 10, ...params })}`);
   },

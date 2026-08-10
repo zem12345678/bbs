@@ -18,6 +18,25 @@ func (Link) TableName() string {
 	return "admin_link"
 }
 
+type Ad struct {
+	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	URL       string    `json:"url" gorm:"column:url;type:varchar(512);not null"`
+	Memo      string    `json:"memo" gorm:"column:memo;type:varchar(512)"`
+	Place     string    `json:"place" gorm:"column:place;type:varchar(32);index;not null"`
+	Priority  string    `json:"priority" gorm:"column:priority;type:varchar(16);index;not null"`
+	Ratio     int32     `json:"ratio" gorm:"column:ratio;not null"`
+	StartsAt  time.Time `json:"startsAt" gorm:"column:starts_at;index;not null"`
+	ExpiresAt time.Time `json:"expiresAt" gorm:"column:expires_at;index;not null"`
+	ImageURL  string    `json:"imageUrl" gorm:"column:image_url;type:varchar(512);not null"`
+	DayOfWeek int32     `json:"dayOfWeek" gorm:"column:day_of_week;not null"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updated_at"`
+}
+
+func (Ad) TableName() string {
+	return "admin_ad"
+}
+
 type Task struct {
 	ID           int64     `json:"id" gorm:"primaryKey;autoIncrement"`
 	Key          string    `json:"key" gorm:"column:key;type:varchar(64);uniqueIndex;not null"`

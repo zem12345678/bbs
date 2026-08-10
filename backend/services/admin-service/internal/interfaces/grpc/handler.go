@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	pb "admin/api/proto/adminpb"
 	app "admin/internal/application/admin"
@@ -581,6 +582,74 @@ func (h *Handler) DeleteLink(ctx context.Context, req *pb.LinkIDRequest) (*pb.Si
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) ListAds(ctx context.Context, req *pb.ListAdsRequest) (*pb.AdListResponse, error) {
+	result, err := h.service.ListAds(ctx, toActor(req.GetActor()), req.GetLimit(), req.GetSinceId(), req.GetUntilId(), req.Publishing)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AdListResponse{Items: toPbAds(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) ListActiveAds(ctx context.Context, _ *pb.ListActiveAdsRequest) (*pb.ActiveAdListResponse, error) {
+	items, err := h.service.ListActiveAds(ctx)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ActiveAdListResponse{Items: toPbActiveAds(items)}, nil
+}
+
+func (h *Handler) CreateAd(ctx context.Context, req *pb.CreateAdRequest) (*pb.AdResponse, error) {
+	ad, err := h.service.CreateAd(ctx, toActor(req.GetActor()), domain.CreateAdCommand{
+		URL:       req.GetUrl(),
+		Memo:      req.GetMemo(),
+		Place:     req.GetPlace(),
+		Priority:  req.GetPriority(),
+		Ratio:     req.GetRatio(),
+		StartsAt:  time.UnixMilli(req.GetStartsAt()),
+		ExpiresAt: time.UnixMilli(req.GetExpiresAt()),
+		ImageURL:  req.GetImageUrl(),
+		DayOfWeek: req.GetDayOfWeek(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AdResponse{Success: true, Message: "ok", Ad: toPbAd(ad)}, nil
+}
+
+func (h *Handler) UpdateAd(ctx context.Context, req *pb.UpdateAdRequest) (*pb.AdResponse, error) {
+	ad, err := h.service.UpdateAd(ctx, toActor(req.GetActor()), domain.UpdateAdCommand{
+		ID:        req.GetId(),
+		URL:       req.Url,
+		Memo:      req.Memo,
+		Place:     req.Place,
+		Priority:  req.Priority,
+		Ratio:     req.Ratio,
+		StartsAt:  optionalUnixMilli(req.StartsAt),
+		ExpiresAt: optionalUnixMilli(req.ExpiresAt),
+		ImageURL:  req.ImageUrl,
+		DayOfWeek: req.DayOfWeek,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.AdResponse{Success: true, Message: "ok", Ad: toPbAd(ad)}, nil
+}
+
+func optionalUnixMilli(value *int64) *time.Time {
+	if value == nil {
+		return nil
+	}
+	converted := time.UnixMilli(*value)
+	return &converted
+}
+
+func (h *Handler) DeleteAd(ctx context.Context, req *pb.AdIDRequest) (*pb.SimpleResponse, error) {
+	if err := h.service.DeleteAd(ctx, toActor(req.GetActor()), req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) ListTasks(ctx context.Context, req *pb.ListTasksRequest) (*pb.TaskListResponse, error) {
 	result, err := h.service.ListTasks(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetLimit(), req.GetOffset())
 	if err != nil {
@@ -795,6 +864,29 @@ func toPbLinks(items []domain.Link) []*pb.LinkInfo {
 	out := make([]*pb.LinkInfo, 0, len(items))
 	for _, item := range items {
 		out = append(out, toPbLink(item))
+	}
+	return out
+}
+
+func toPbAds(items []domain.Ad) []*pb.AdInfo {
+	out := make([]*pb.AdInfo, 0, len(items))
+	for _, item := range items {
+		out = append(out, toPbAd(item))
+	}
+	return out
+}
+
+func toPbActiveAds(items []domain.Ad) []*pb.ActiveAdInfo {
+	out := make([]*pb.ActiveAdInfo, 0, len(items))
+	for _, item := range items {
+		out = append(out, &pb.ActiveAdInfo{
+			Id:        item.ID,
+			Url:       item.URL,
+			Place:     item.Place,
+			Ratio:     item.Ratio,
+			ImageUrl:  item.ImageURL,
+			DayOfWeek: item.DayOfWeek,
+		})
 	}
 	return out
 }
@@ -1030,6 +1122,23 @@ func toPbLink(link domain.Link) *pb.LinkInfo {
 		Sort:        link.Sort,
 		CreatedAt:   link.CreatedAt,
 		UpdatedAt:   link.UpdatedAt,
+	}
+}
+
+func toPbAd(ad domain.Ad) *pb.AdInfo {
+	return &pb.AdInfo{
+		Id:        ad.ID,
+		Url:       ad.URL,
+		Memo:      ad.Memo,
+		Place:     ad.Place,
+		Priority:  ad.Priority,
+		Ratio:     ad.Ratio,
+		StartsAt:  ad.StartsAt.UnixMilli(),
+		ExpiresAt: ad.ExpiresAt.UnixMilli(),
+		ImageUrl:  ad.ImageURL,
+		DayOfWeek: ad.DayOfWeek,
+		CreatedAt: ad.CreatedAt.UnixMilli(),
+		UpdatedAt: ad.UpdatedAt.UnixMilli(),
 	}
 }
 

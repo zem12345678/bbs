@@ -131,6 +131,12 @@ type OperationStore interface {
 	ListLinks(ctx context.Context, status int32, limit int32, offset int32) (domain.LinkList, error)
 	UpsertLink(ctx context.Context, command domain.UpsertLinkCommand) (domain.Link, error)
 	DeleteLink(ctx context.Context, id int64) error
+	ListAds(ctx context.Context, limit int32, sinceID int64, untilID int64, publishing *bool, now time.Time) (domain.AdList, error)
+	ListActiveAds(ctx context.Context, now time.Time) ([]domain.Ad, error)
+	GetAd(ctx context.Context, id int64) (domain.Ad, error)
+	CreateAd(ctx context.Context, command domain.CreateAdCommand) (domain.Ad, error)
+	UpdateAd(ctx context.Context, id int64, command domain.CreateAdCommand) (domain.Ad, error)
+	DeleteAd(ctx context.Context, id int64) error
 	ListTasks(ctx context.Context, status int32, limit int32, offset int32) (domain.TaskList, error)
 	UpsertTask(ctx context.Context, command domain.UpsertTaskCommand) (domain.Task, error)
 	DeleteTask(ctx context.Context, id int64) error
@@ -1187,6 +1193,164 @@ func (s *Service) DeleteLink(ctx context.Context, actor domain.Actor, id int64) 
 		return err
 	}
 	return s.ops.DeleteLink(ctx, id)
+}
+
+func (s *Service) ListAds(ctx context.Context, actor domain.Actor, limit int32, sinceID int64, untilID int64, publishing *bool) (domain.AdList, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.AdList{}, err
+	}
+	if sinceID < 0 || untilID < 0 {
+		return domain.AdList{}, domain.ErrInvalidAd
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionListAds); err != nil {
+		return domain.AdList{}, err
+	}
+	return s.ops.ListAds(ctx, limit, sinceID, untilID, publishing, time.Now())
+}
+
+func (s *Service) ListActiveAds(ctx context.Context) ([]domain.Ad, error) {
+	items, err := s.ops.ListActiveAds(ctx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return highestPriorityAds(items), nil
+}
+
+func highestPriorityAds(items []domain.Ad) []domain.Ad {
+	ranks := map[string]int{"low": 1, "middle": 2, "high": 3}
+	highest := 0
+	for _, item := range items {
+		if ranks[item.Priority] > highest {
+			highest = ranks[item.Priority]
+		}
+	}
+	if highest == 0 {
+		return []domain.Ad{}
+	}
+	selected := make([]domain.Ad, 0, len(items))
+	for _, item := range items {
+		if ranks[item.Priority] == highest {
+			selected = append(selected, item)
+		}
+	}
+	return selected
+}
+
+func (s *Service) CreateAd(ctx context.Context, actor domain.Actor, command domain.CreateAdCommand) (domain.Ad, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.Ad{}, err
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionCreateAd); err != nil {
+		return domain.Ad{}, err
+	}
+	command, err := normalizeAdCommand(command)
+	if err != nil {
+		return domain.Ad{}, err
+	}
+	return s.ops.CreateAd(ctx, command)
+}
+
+func (s *Service) UpdateAd(ctx context.Context, actor domain.Actor, command domain.UpdateAdCommand) (domain.Ad, error) {
+	if err := actor.Validate(); err != nil {
+		return domain.Ad{}, err
+	}
+	if command.ID <= 0 {
+		return domain.Ad{}, domain.ErrInvalidAdID
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionUpdateAd); err != nil {
+		return domain.Ad{}, err
+	}
+	existing, err := s.ops.GetAd(ctx, command.ID)
+	if err != nil {
+		return domain.Ad{}, err
+	}
+	merged := domain.CreateAdCommand{
+		URL:       existing.URL,
+		Memo:      existing.Memo,
+		Place:     existing.Place,
+		Priority:  existing.Priority,
+		Ratio:     existing.Ratio,
+		StartsAt:  existing.StartsAt,
+		ExpiresAt: existing.ExpiresAt,
+		ImageURL:  existing.ImageURL,
+		DayOfWeek: existing.DayOfWeek,
+	}
+	if command.URL != nil {
+		merged.URL = *command.URL
+	}
+	if command.Memo != nil {
+		merged.Memo = *command.Memo
+	}
+	if command.Place != nil {
+		merged.Place = *command.Place
+	}
+	if command.Priority != nil {
+		merged.Priority = *command.Priority
+	}
+	if command.Ratio != nil {
+		merged.Ratio = *command.Ratio
+	}
+	if command.StartsAt != nil {
+		merged.StartsAt = *command.StartsAt
+	}
+	if command.ExpiresAt != nil {
+		merged.ExpiresAt = *command.ExpiresAt
+	}
+	if command.ImageURL != nil {
+		merged.ImageURL = *command.ImageURL
+	}
+	if command.DayOfWeek != nil {
+		merged.DayOfWeek = *command.DayOfWeek
+	}
+	merged, err = normalizeAdCommand(merged)
+	if err != nil {
+		return domain.Ad{}, err
+	}
+	return s.ops.UpdateAd(ctx, command.ID, merged)
+}
+
+func normalizeAdCommand(command domain.CreateAdCommand) (domain.CreateAdCommand, error) {
+	command.URL = strings.TrimSpace(command.URL)
+	command.Memo = strings.TrimSpace(command.Memo)
+	command.Place = strings.TrimSpace(command.Place)
+	command.Priority = strings.TrimSpace(command.Priority)
+	command.ImageURL = strings.TrimSpace(command.ImageURL)
+	command.StartsAt = command.StartsAt.UTC()
+	command.ExpiresAt = command.ExpiresAt.UTC()
+
+	validPlaces := map[string]struct{}{"horizontal": {}, "horizontal-big": {}, "vertical": {}, "inline": {}}
+	validPriorities := map[string]struct{}{"high": {}, "middle": {}, "low": {}}
+	if _, ok := validPlaces[command.Place]; !ok {
+		return domain.CreateAdCommand{}, domain.ErrInvalidAd
+	}
+	if _, ok := validPriorities[command.Priority]; !ok {
+		return domain.CreateAdCommand{}, domain.ErrInvalidAd
+	}
+	if command.Ratio <= 0 || command.DayOfWeek < 1 || command.DayOfWeek > 127 || !command.StartsAt.Before(command.ExpiresAt) {
+		return domain.CreateAdCommand{}, domain.ErrInvalidAd
+	}
+	if !validHTTPURL(command.URL) || !validHTTPURL(command.ImageURL) {
+		return domain.CreateAdCommand{}, domain.ErrInvalidAd
+	}
+	return command, nil
+}
+
+func validHTTPURL(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && parsed.Hostname() != "" && parsed.User == nil && (strings.EqualFold(parsed.Scheme, "http") || strings.EqualFold(parsed.Scheme, "https"))
+}
+
+func (s *Service) DeleteAd(ctx context.Context, actor domain.Actor, id int64) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if id <= 0 {
+		return domain.ErrInvalidAdID
+	}
+	if err := s.auth.Authorize(ctx, actor, domain.ActionDeleteAd); err != nil {
+		return err
+	}
+	return s.ops.DeleteAd(ctx, id)
 }
 
 func (s *Service) ListTasks(ctx context.Context, actor domain.Actor, status int32, limit int32, offset int32) (domain.TaskList, error) {

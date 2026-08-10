@@ -51,6 +51,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrSystemNotificationRecipientsNotFound),
 		errors.Is(err, domain.ErrInvalidArticleID),
 		errors.Is(err, domain.ErrInvalidAdminUserID),
+		errors.Is(err, domain.ErrInvalidAd),
+		errors.Is(err, domain.ErrInvalidAdID),
 		errors.Is(err, domain.ErrInvalidBadge),
 		errors.Is(err, domain.ErrInvalidBadgeID),
 		errors.Is(err, domain.ErrInvalidCategory),

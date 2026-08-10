@@ -48,6 +48,7 @@ func (r *Repository) syncSystemSequences(ctx context.Context) error {
 		"sys_menu",
 		"sys_menu_param",
 		"sys_menu_button",
+		"admin_ad",
 		"admin_link",
 		"admin_task",
 		"admin_badge",
@@ -1105,6 +1106,129 @@ func (r *Repository) DeleteLink(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (r *Repository) ListAds(ctx context.Context, limit int32, sinceID int64, untilID int64, publishing *bool, now time.Time) (domain.AdList, error) {
+	limit, _ = normalizePage(limit, 0)
+	db := r.db.WithContext(ctx).Model(&po.Ad{})
+	if sinceID > 0 {
+		db = db.Where("id > ?", sinceID)
+	}
+	if untilID > 0 {
+		db = db.Where("id < ?", untilID)
+	}
+
+	if publishing == nil {
+		var total int64
+		if err := db.Count(&total).Error; err != nil {
+			return domain.AdList{}, err
+		}
+		var rows []po.Ad
+		if err := db.Order("id DESC").Limit(int(limit)).Find(&rows).Error; err != nil {
+			return domain.AdList{}, err
+		}
+		return domain.AdList{Items: toDomainAds(rows), Total: total}, nil
+	}
+
+	var rows []po.Ad
+	if err := db.Order("id DESC").Find(&rows).Error; err != nil {
+		return domain.AdList{}, err
+	}
+	items := make([]domain.Ad, 0, len(rows))
+	for _, row := range rows {
+		ad := toDomainAd(row)
+		if ad.PublishingAt(now) == *publishing {
+			items = append(items, ad)
+		}
+	}
+	total := int64(len(items))
+	if len(items) > int(limit) {
+		items = items[:limit]
+	}
+	return domain.AdList{Items: items, Total: total}, nil
+}
+
+func (r *Repository) ListActiveAds(ctx context.Context, now time.Time) ([]domain.Ad, error) {
+	var rows []po.Ad
+	if err := r.db.WithContext(ctx).
+		Where("starts_at <= ? AND expires_at > ?", now, now).
+		Order("id DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]domain.Ad, 0, len(rows))
+	for _, row := range rows {
+		ad := toDomainAd(row)
+		if ad.PublishingAt(now) {
+			items = append(items, ad)
+		}
+	}
+	return items, nil
+}
+
+func (r *Repository) GetAd(ctx context.Context, id int64) (domain.Ad, error) {
+	var row po.Ad
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.Ad{}, domain.ErrInvalidAdID
+		}
+		return domain.Ad{}, err
+	}
+	return toDomainAd(row), nil
+}
+
+func (r *Repository) CreateAd(ctx context.Context, command domain.CreateAdCommand) (domain.Ad, error) {
+	now := time.Now()
+	row := po.Ad{
+		URL:       command.URL,
+		Memo:      command.Memo,
+		Place:     command.Place,
+		Priority:  command.Priority,
+		Ratio:     command.Ratio,
+		StartsAt:  command.StartsAt,
+		ExpiresAt: command.ExpiresAt,
+		ImageURL:  command.ImageURL,
+		DayOfWeek: command.DayOfWeek,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return domain.Ad{}, err
+	}
+	return toDomainAd(row), nil
+}
+
+func (r *Repository) UpdateAd(ctx context.Context, id int64, command domain.CreateAdCommand) (domain.Ad, error) {
+	result := r.db.WithContext(ctx).Model(&po.Ad{}).Where("id = ?", id).Updates(map[string]any{
+		"url":         command.URL,
+		"memo":        command.Memo,
+		"place":       command.Place,
+		"priority":    command.Priority,
+		"ratio":       command.Ratio,
+		"starts_at":   command.StartsAt,
+		"expires_at":  command.ExpiresAt,
+		"image_url":   command.ImageURL,
+		"day_of_week": command.DayOfWeek,
+		"updated_at":  time.Now(),
+	})
+	if result.Error != nil {
+		return domain.Ad{}, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return domain.Ad{}, domain.ErrInvalidAdID
+	}
+	return r.GetAd(ctx, id)
+}
+
+func (r *Repository) DeleteAd(ctx context.Context, id int64) error {
+	result := r.db.WithContext(ctx).Where("id = ?", id).Delete(&po.Ad{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrInvalidAdID
+	}
+	return nil
+}
+
 func (r *Repository) ListTasks(ctx context.Context, status int32, limit int32, offset int32) (domain.TaskList, error) {
 	limit, offset = normalizePage(limit, offset)
 	db := r.db.WithContext(ctx).Model(&po.Task{})
@@ -1600,6 +1724,31 @@ func toDomainLink(link po.Link) domain.Link {
 	}
 }
 
+func toDomainAd(ad po.Ad) domain.Ad {
+	return domain.Ad{
+		ID:        ad.ID,
+		URL:       ad.URL,
+		Memo:      ad.Memo,
+		Place:     ad.Place,
+		Priority:  ad.Priority,
+		Ratio:     ad.Ratio,
+		StartsAt:  ad.StartsAt,
+		ExpiresAt: ad.ExpiresAt,
+		ImageURL:  ad.ImageURL,
+		DayOfWeek: ad.DayOfWeek,
+		CreatedAt: ad.CreatedAt,
+		UpdatedAt: ad.UpdatedAt,
+	}
+}
+
+func toDomainAds(rows []po.Ad) []domain.Ad {
+	items := make([]domain.Ad, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toDomainAd(row))
+	}
+	return items
+}
+
 func toDomainTask(task po.Task) domain.Task {
 	return domain.Task{
 		ID:           task.ID,
@@ -1847,6 +1996,10 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateLink)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateLink)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionDeleteLink)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionListAds)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateAd)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateAd)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionDeleteAd)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListTasks)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateTask)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateTask)),

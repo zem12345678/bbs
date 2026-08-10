@@ -36,15 +36,21 @@ func (h *Handler) instanceMeta(c *gin.Context) {
 	if !ok {
 		return
 	}
+	ads, ok := h.loadPublicAds(c)
+	if !ok {
+		return
+	}
 
 	payload := gin.H{
-		"name":         strings.TrimSpace(settings["site_name"]),
-		"shortName":    strings.TrimSpace(settings["site_name"]),
-		"uri":          h.publicURL(c, ""),
-		"description":  strings.TrimSpace(settings["site_description"]),
-		"version":      instanceSoftwareVersion,
-		"iconUrl":      strings.TrimSpace(settings["site_logo_url"]),
-		"logoImageUrl": strings.TrimSpace(settings["site_logo_url"]),
+		"name":          strings.TrimSpace(settings["site_name"]),
+		"shortName":     strings.TrimSpace(settings["site_name"]),
+		"uri":           h.publicURL(c, ""),
+		"description":   strings.TrimSpace(settings["site_description"]),
+		"version":       instanceSoftwareVersion,
+		"iconUrl":       strings.TrimSpace(settings["site_logo_url"]),
+		"logoImageUrl":  strings.TrimSpace(settings["site_logo_url"]),
+		"ads":           ads,
+		"notesPerOneAd": 0,
 	}
 	if detail {
 		payload["seoKeywords"] = strings.TrimSpace(settings["seo_keywords"])
@@ -60,6 +66,21 @@ func (h *Handler) instanceMeta(c *gin.Context) {
 		}
 	}
 	response.Success(c, payload)
+}
+
+func (h *Handler) loadPublicAds(c *gin.Context) ([]publicAdPayload, bool) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.ListActiveAds(ctx, &adminpb.ListActiveAdsRequest{})
+	if err != nil {
+		writeRPCError(c, err)
+		return nil, false
+	}
+	items := make([]publicAdPayload, 0, len(resp.GetItems()))
+	for _, item := range resp.GetItems() {
+		items = append(items, publicAdFromProto(item))
+	}
+	return items, true
 }
 
 func (h *Handler) instanceServerInfo(c *gin.Context) {

@@ -28,7 +28,10 @@ func TestInstanceMetaUsesPublicSettingsAndHonorsDetailFlag(t *testing.T) {
 		{Key: "site_logo_url", Value: "https://cdn.example.com/logo.png"},
 		{Key: "site_navigation", Value: `[{"key":"home","label":"首页"}]`},
 		{Key: "auth.github.client_secret", Value: "must-not-be-exposed"},
-	}}})
+	}, activeAds: []*adminpb.ActiveAdInfo{{
+		Id: 9007199254740993, Url: "https://example.com/ad", Place: "horizontal", Ratio: 2,
+		ImageUrl: "https://cdn.example.com/ad.png", DayOfWeek: 127,
+	}}}})
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(stdhttp.MethodPost, "/api/v1/meta", strings.NewReader(`{"detail":false}`))
@@ -42,6 +45,20 @@ func TestInstanceMetaUsesPublicSettingsAndHonorsDetailFlag(t *testing.T) {
 	require.Equal(t, "https://bbs.example.com", data["uri"])
 	require.Equal(t, "面向创作者的社区", data["description"])
 	require.Equal(t, "https://cdn.example.com/logo.png", data["iconUrl"])
+	ads := data["ads"].([]any)
+	require.Len(t, ads, 1)
+	ad := ads[0].(map[string]any)
+	require.Equal(t, "9007199254740993", ad["id"])
+	require.Equal(t, "https://example.com/ad", ad["url"])
+	require.Equal(t, "horizontal", ad["place"])
+	require.Equal(t, float64(2), ad["ratio"])
+	require.Equal(t, "https://cdn.example.com/ad.png", ad["imageUrl"])
+	require.Equal(t, float64(127), ad["dayOfWeek"])
+	require.Equal(t, float64(0), data["notesPerOneAd"])
+	require.NotContains(t, ad, "memo")
+	require.NotContains(t, ad, "priority")
+	require.NotContains(t, ad, "startsAt")
+	require.NotContains(t, ad, "expiresAt")
 	require.NotContains(t, data, "navigation")
 	require.NotContains(t, recorder.Body.String(), "must-not-be-exposed")
 
@@ -125,11 +142,16 @@ func decodeInstanceInfoData(t *testing.T, recorder *httptest.ResponseRecorder) m
 
 type instanceInfoAdminClient struct {
 	adminpb.AdminServiceClient
-	items []*adminpb.SettingInfo
+	items     []*adminpb.SettingInfo
+	activeAds []*adminpb.ActiveAdInfo
 }
 
 func (f instanceInfoAdminClient) ListPublicSettings(context.Context, *adminpb.ListPublicSettingsRequest, ...grpc.CallOption) (*adminpb.SettingListResponse, error) {
 	return &adminpb.SettingListResponse{Items: f.items, Total: int64(len(f.items))}, nil
+}
+
+func (f instanceInfoAdminClient) ListActiveAds(context.Context, *adminpb.ListActiveAdsRequest, ...grpc.CallOption) (*adminpb.ActiveAdListResponse, error) {
+	return &adminpb.ActiveAdListResponse{Items: f.activeAds}, nil
 }
 
 type instanceInfoUserClient struct {

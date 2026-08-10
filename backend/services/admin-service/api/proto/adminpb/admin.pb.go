@@ -9089,6 +9089,782 @@ func (x *LinkResponse) GetLink() *LinkInfo {
 	return nil
 }
 
+type AdInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Memo          string                 `protobuf:"bytes,3,opt,name=memo,proto3" json:"memo,omitempty"`
+	Place         string                 `protobuf:"bytes,4,opt,name=place,proto3" json:"place,omitempty"`
+	Priority      string                 `protobuf:"bytes,5,opt,name=priority,proto3" json:"priority,omitempty"`
+	Ratio         int32                  `protobuf:"varint,6,opt,name=ratio,proto3" json:"ratio,omitempty"`
+	StartsAt      int64                  `protobuf:"varint,7,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
+	ExpiresAt     int64                  `protobuf:"varint,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	ImageUrl      string                 `protobuf:"bytes,9,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	DayOfWeek     int32                  `protobuf:"varint,10,opt,name=day_of_week,json=dayOfWeek,proto3" json:"day_of_week,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdInfo) Reset() {
+	*x = AdInfo{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdInfo) ProtoMessage() {}
+
+func (x *AdInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdInfo.ProtoReflect.Descriptor instead.
+func (*AdInfo) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *AdInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *AdInfo) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *AdInfo) GetMemo() string {
+	if x != nil {
+		return x.Memo
+	}
+	return ""
+}
+
+func (x *AdInfo) GetPlace() string {
+	if x != nil {
+		return x.Place
+	}
+	return ""
+}
+
+func (x *AdInfo) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *AdInfo) GetRatio() int32 {
+	if x != nil {
+		return x.Ratio
+	}
+	return 0
+}
+
+func (x *AdInfo) GetStartsAt() int64 {
+	if x != nil {
+		return x.StartsAt
+	}
+	return 0
+}
+
+func (x *AdInfo) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *AdInfo) GetImageUrl() string {
+	if x != nil {
+		return x.ImageUrl
+	}
+	return ""
+}
+
+func (x *AdInfo) GetDayOfWeek() int32 {
+	if x != nil {
+		return x.DayOfWeek
+	}
+	return 0
+}
+
+func (x *AdInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *AdInfo) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+type ActiveAdInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Place         string                 `protobuf:"bytes,3,opt,name=place,proto3" json:"place,omitempty"`
+	Ratio         int32                  `protobuf:"varint,4,opt,name=ratio,proto3" json:"ratio,omitempty"`
+	ImageUrl      string                 `protobuf:"bytes,5,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	DayOfWeek     int32                  `protobuf:"varint,6,opt,name=day_of_week,json=dayOfWeek,proto3" json:"day_of_week,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveAdInfo) Reset() {
+	*x = ActiveAdInfo{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveAdInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveAdInfo) ProtoMessage() {}
+
+func (x *ActiveAdInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveAdInfo.ProtoReflect.Descriptor instead.
+func (*ActiveAdInfo) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *ActiveAdInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ActiveAdInfo) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *ActiveAdInfo) GetPlace() string {
+	if x != nil {
+		return x.Place
+	}
+	return ""
+}
+
+func (x *ActiveAdInfo) GetRatio() int32 {
+	if x != nil {
+		return x.Ratio
+	}
+	return 0
+}
+
+func (x *ActiveAdInfo) GetImageUrl() string {
+	if x != nil {
+		return x.ImageUrl
+	}
+	return ""
+}
+
+func (x *ActiveAdInfo) GetDayOfWeek() int32 {
+	if x != nil {
+		return x.DayOfWeek
+	}
+	return 0
+}
+
+type ListAdsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	SinceId       int64                  `protobuf:"varint,3,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
+	UntilId       int64                  `protobuf:"varint,4,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
+	Publishing    *bool                  `protobuf:"varint,5,opt,name=publishing,proto3,oneof" json:"publishing,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAdsRequest) Reset() {
+	*x = ListAdsRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAdsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAdsRequest) ProtoMessage() {}
+
+func (x *ListAdsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAdsRequest.ProtoReflect.Descriptor instead.
+func (*ListAdsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *ListAdsRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ListAdsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAdsRequest) GetSinceId() int64 {
+	if x != nil {
+		return x.SinceId
+	}
+	return 0
+}
+
+func (x *ListAdsRequest) GetUntilId() int64 {
+	if x != nil {
+		return x.UntilId
+	}
+	return 0
+}
+
+func (x *ListAdsRequest) GetPublishing() bool {
+	if x != nil && x.Publishing != nil {
+		return *x.Publishing
+	}
+	return false
+}
+
+type AdListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*AdInfo              `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdListResponse) Reset() {
+	*x = AdListResponse{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[122]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdListResponse) ProtoMessage() {}
+
+func (x *AdListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[122]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdListResponse.ProtoReflect.Descriptor instead.
+func (*AdListResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{122}
+}
+
+func (x *AdListResponse) GetItems() []*AdInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *AdListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type ListActiveAdsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListActiveAdsRequest) Reset() {
+	*x = ListActiveAdsRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListActiveAdsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListActiveAdsRequest) ProtoMessage() {}
+
+func (x *ListActiveAdsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListActiveAdsRequest.ProtoReflect.Descriptor instead.
+func (*ListActiveAdsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{123}
+}
+
+type ActiveAdListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ActiveAdInfo        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActiveAdListResponse) Reset() {
+	*x = ActiveAdListResponse{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActiveAdListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActiveAdListResponse) ProtoMessage() {}
+
+func (x *ActiveAdListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActiveAdListResponse.ProtoReflect.Descriptor instead.
+func (*ActiveAdListResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *ActiveAdListResponse) GetItems() []*ActiveAdInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type CreateAdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Memo          string                 `protobuf:"bytes,3,opt,name=memo,proto3" json:"memo,omitempty"`
+	Place         string                 `protobuf:"bytes,4,opt,name=place,proto3" json:"place,omitempty"`
+	Priority      string                 `protobuf:"bytes,5,opt,name=priority,proto3" json:"priority,omitempty"`
+	Ratio         int32                  `protobuf:"varint,6,opt,name=ratio,proto3" json:"ratio,omitempty"`
+	StartsAt      int64                  `protobuf:"varint,7,opt,name=starts_at,json=startsAt,proto3" json:"starts_at,omitempty"`
+	ExpiresAt     int64                  `protobuf:"varint,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	ImageUrl      string                 `protobuf:"bytes,9,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	DayOfWeek     int32                  `protobuf:"varint,10,opt,name=day_of_week,json=dayOfWeek,proto3" json:"day_of_week,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAdRequest) Reset() {
+	*x = CreateAdRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[125]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAdRequest) ProtoMessage() {}
+
+func (x *CreateAdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[125]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAdRequest.ProtoReflect.Descriptor instead.
+func (*CreateAdRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *CreateAdRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *CreateAdRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *CreateAdRequest) GetMemo() string {
+	if x != nil {
+		return x.Memo
+	}
+	return ""
+}
+
+func (x *CreateAdRequest) GetPlace() string {
+	if x != nil {
+		return x.Place
+	}
+	return ""
+}
+
+func (x *CreateAdRequest) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *CreateAdRequest) GetRatio() int32 {
+	if x != nil {
+		return x.Ratio
+	}
+	return 0
+}
+
+func (x *CreateAdRequest) GetStartsAt() int64 {
+	if x != nil {
+		return x.StartsAt
+	}
+	return 0
+}
+
+func (x *CreateAdRequest) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *CreateAdRequest) GetImageUrl() string {
+	if x != nil {
+		return x.ImageUrl
+	}
+	return ""
+}
+
+func (x *CreateAdRequest) GetDayOfWeek() int32 {
+	if x != nil {
+		return x.DayOfWeek
+	}
+	return 0
+}
+
+type UpdateAdRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Id            int64                  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	Url           *string                `protobuf:"bytes,3,opt,name=url,proto3,oneof" json:"url,omitempty"`
+	Memo          *string                `protobuf:"bytes,4,opt,name=memo,proto3,oneof" json:"memo,omitempty"`
+	Place         *string                `protobuf:"bytes,5,opt,name=place,proto3,oneof" json:"place,omitempty"`
+	Priority      *string                `protobuf:"bytes,6,opt,name=priority,proto3,oneof" json:"priority,omitempty"`
+	Ratio         *int32                 `protobuf:"varint,7,opt,name=ratio,proto3,oneof" json:"ratio,omitempty"`
+	StartsAt      *int64                 `protobuf:"varint,8,opt,name=starts_at,json=startsAt,proto3,oneof" json:"starts_at,omitempty"`
+	ExpiresAt     *int64                 `protobuf:"varint,9,opt,name=expires_at,json=expiresAt,proto3,oneof" json:"expires_at,omitempty"`
+	ImageUrl      *string                `protobuf:"bytes,10,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
+	DayOfWeek     *int32                 `protobuf:"varint,11,opt,name=day_of_week,json=dayOfWeek,proto3,oneof" json:"day_of_week,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateAdRequest) Reset() {
+	*x = UpdateAdRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[126]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateAdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAdRequest) ProtoMessage() {}
+
+func (x *UpdateAdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[126]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAdRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAdRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *UpdateAdRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *UpdateAdRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UpdateAdRequest) GetUrl() string {
+	if x != nil && x.Url != nil {
+		return *x.Url
+	}
+	return ""
+}
+
+func (x *UpdateAdRequest) GetMemo() string {
+	if x != nil && x.Memo != nil {
+		return *x.Memo
+	}
+	return ""
+}
+
+func (x *UpdateAdRequest) GetPlace() string {
+	if x != nil && x.Place != nil {
+		return *x.Place
+	}
+	return ""
+}
+
+func (x *UpdateAdRequest) GetPriority() string {
+	if x != nil && x.Priority != nil {
+		return *x.Priority
+	}
+	return ""
+}
+
+func (x *UpdateAdRequest) GetRatio() int32 {
+	if x != nil && x.Ratio != nil {
+		return *x.Ratio
+	}
+	return 0
+}
+
+func (x *UpdateAdRequest) GetStartsAt() int64 {
+	if x != nil && x.StartsAt != nil {
+		return *x.StartsAt
+	}
+	return 0
+}
+
+func (x *UpdateAdRequest) GetExpiresAt() int64 {
+	if x != nil && x.ExpiresAt != nil {
+		return *x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *UpdateAdRequest) GetImageUrl() string {
+	if x != nil && x.ImageUrl != nil {
+		return *x.ImageUrl
+	}
+	return ""
+}
+
+func (x *UpdateAdRequest) GetDayOfWeek() int32 {
+	if x != nil && x.DayOfWeek != nil {
+		return *x.DayOfWeek
+	}
+	return 0
+}
+
+type AdIDRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Id            int64                  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdIDRequest) Reset() {
+	*x = AdIDRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[127]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdIDRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdIDRequest) ProtoMessage() {}
+
+func (x *AdIDRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[127]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdIDRequest.ProtoReflect.Descriptor instead.
+func (*AdIDRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{127}
+}
+
+func (x *AdIDRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *AdIDRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type AdResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Ad            *AdInfo                `protobuf:"bytes,3,opt,name=ad,proto3" json:"ad,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdResponse) Reset() {
+	*x = AdResponse{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[128]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdResponse) ProtoMessage() {}
+
+func (x *AdResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[128]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdResponse.ProtoReflect.Descriptor instead.
+func (*AdResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{128}
+}
+
+func (x *AdResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AdResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *AdResponse) GetAd() *AdInfo {
+	if x != nil {
+		return x.Ad
+	}
+	return nil
+}
+
 type TaskInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -9106,7 +9882,7 @@ type TaskInfo struct {
 
 func (x *TaskInfo) Reset() {
 	*x = TaskInfo{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[119]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9118,7 +9894,7 @@ func (x *TaskInfo) String() string {
 func (*TaskInfo) ProtoMessage() {}
 
 func (x *TaskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[119]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9131,7 +9907,7 @@ func (x *TaskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskInfo.ProtoReflect.Descriptor instead.
 func (*TaskInfo) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{119}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *TaskInfo) GetId() int64 {
@@ -9209,7 +9985,7 @@ type ListTasksRequest struct {
 
 func (x *ListTasksRequest) Reset() {
 	*x = ListTasksRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[120]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9221,7 +9997,7 @@ func (x *ListTasksRequest) String() string {
 func (*ListTasksRequest) ProtoMessage() {}
 
 func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[120]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9234,7 +10010,7 @@ func (x *ListTasksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTasksRequest.ProtoReflect.Descriptor instead.
 func (*ListTasksRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{120}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *ListTasksRequest) GetActor() *Actor {
@@ -9275,7 +10051,7 @@ type TaskListResponse struct {
 
 func (x *TaskListResponse) Reset() {
 	*x = TaskListResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[121]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9287,7 +10063,7 @@ func (x *TaskListResponse) String() string {
 func (*TaskListResponse) ProtoMessage() {}
 
 func (x *TaskListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[121]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9300,7 +10076,7 @@ func (x *TaskListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskListResponse.ProtoReflect.Descriptor instead.
 func (*TaskListResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{121}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *TaskListResponse) GetItems() []*TaskInfo {
@@ -9333,7 +10109,7 @@ type UpsertTaskRequest struct {
 
 func (x *UpsertTaskRequest) Reset() {
 	*x = UpsertTaskRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[122]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9345,7 +10121,7 @@ func (x *UpsertTaskRequest) String() string {
 func (*UpsertTaskRequest) ProtoMessage() {}
 
 func (x *UpsertTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[122]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9358,7 +10134,7 @@ func (x *UpsertTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertTaskRequest.ProtoReflect.Descriptor instead.
 func (*UpsertTaskRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{122}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *UpsertTaskRequest) GetActor() *Actor {
@@ -9427,7 +10203,7 @@ type TaskIDRequest struct {
 
 func (x *TaskIDRequest) Reset() {
 	*x = TaskIDRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[123]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9439,7 +10215,7 @@ func (x *TaskIDRequest) String() string {
 func (*TaskIDRequest) ProtoMessage() {}
 
 func (x *TaskIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[123]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9452,7 +10228,7 @@ func (x *TaskIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskIDRequest.ProtoReflect.Descriptor instead.
 func (*TaskIDRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{123}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *TaskIDRequest) GetActor() *Actor {
@@ -9480,7 +10256,7 @@ type TaskResponse struct {
 
 func (x *TaskResponse) Reset() {
 	*x = TaskResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[124]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9492,7 +10268,7 @@ func (x *TaskResponse) String() string {
 func (*TaskResponse) ProtoMessage() {}
 
 func (x *TaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[124]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9505,7 +10281,7 @@ func (x *TaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskResponse.ProtoReflect.Descriptor instead.
 func (*TaskResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{124}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *TaskResponse) GetSuccess() bool {
@@ -9542,7 +10318,7 @@ type SendSystemNotificationRequest struct {
 
 func (x *SendSystemNotificationRequest) Reset() {
 	*x = SendSystemNotificationRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[125]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9554,7 +10330,7 @@ func (x *SendSystemNotificationRequest) String() string {
 func (*SendSystemNotificationRequest) ProtoMessage() {}
 
 func (x *SendSystemNotificationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[125]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9567,7 +10343,7 @@ func (x *SendSystemNotificationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSystemNotificationRequest.ProtoReflect.Descriptor instead.
 func (*SendSystemNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{125}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *SendSystemNotificationRequest) GetActor() *Actor {
@@ -9616,7 +10392,7 @@ type SendSystemNotificationResponse struct {
 
 func (x *SendSystemNotificationResponse) Reset() {
 	*x = SendSystemNotificationResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[126]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9628,7 +10404,7 @@ func (x *SendSystemNotificationResponse) String() string {
 func (*SendSystemNotificationResponse) ProtoMessage() {}
 
 func (x *SendSystemNotificationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[126]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9641,7 +10417,7 @@ func (x *SendSystemNotificationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSystemNotificationResponse.ProtoReflect.Descriptor instead.
 func (*SendSystemNotificationResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{126}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *SendSystemNotificationResponse) GetSuccess() bool {
@@ -9674,7 +10450,7 @@ type SearchRebuildRequest struct {
 
 func (x *SearchRebuildRequest) Reset() {
 	*x = SearchRebuildRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[127]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9686,7 +10462,7 @@ func (x *SearchRebuildRequest) String() string {
 func (*SearchRebuildRequest) ProtoMessage() {}
 
 func (x *SearchRebuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[127]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9699,7 +10475,7 @@ func (x *SearchRebuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRebuildRequest.ProtoReflect.Descriptor instead.
 func (*SearchRebuildRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{127}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *SearchRebuildRequest) GetActor() *Actor {
@@ -9718,7 +10494,7 @@ type SearchRebuildStatusRequest struct {
 
 func (x *SearchRebuildStatusRequest) Reset() {
 	*x = SearchRebuildStatusRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[128]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9730,7 +10506,7 @@ func (x *SearchRebuildStatusRequest) String() string {
 func (*SearchRebuildStatusRequest) ProtoMessage() {}
 
 func (x *SearchRebuildStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[128]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9743,7 +10519,7 @@ func (x *SearchRebuildStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRebuildStatusRequest.ProtoReflect.Descriptor instead.
 func (*SearchRebuildStatusRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{128}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *SearchRebuildStatusRequest) GetActor() *Actor {
@@ -9774,7 +10550,7 @@ type SearchRebuildStatus struct {
 
 func (x *SearchRebuildStatus) Reset() {
 	*x = SearchRebuildStatus{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[129]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9786,7 +10562,7 @@ func (x *SearchRebuildStatus) String() string {
 func (*SearchRebuildStatus) ProtoMessage() {}
 
 func (x *SearchRebuildStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[129]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9799,7 +10575,7 @@ func (x *SearchRebuildStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRebuildStatus.ProtoReflect.Descriptor instead.
 func (*SearchRebuildStatus) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{129}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *SearchRebuildStatus) GetJobId() string {
@@ -9904,7 +10680,7 @@ type SearchRebuildStatusResponse struct {
 
 func (x *SearchRebuildStatusResponse) Reset() {
 	*x = SearchRebuildStatusResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[130]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9916,7 +10692,7 @@ func (x *SearchRebuildStatusResponse) String() string {
 func (*SearchRebuildStatusResponse) ProtoMessage() {}
 
 func (x *SearchRebuildStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[130]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9929,7 +10705,7 @@ func (x *SearchRebuildStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchRebuildStatusResponse.ProtoReflect.Descriptor instead.
 func (*SearchRebuildStatusResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{130}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *SearchRebuildStatusResponse) GetSuccess() bool {
@@ -9974,7 +10750,7 @@ type ChannelInfo struct {
 
 func (x *ChannelInfo) Reset() {
 	*x = ChannelInfo{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9986,7 +10762,7 @@ func (x *ChannelInfo) String() string {
 func (*ChannelInfo) ProtoMessage() {}
 
 func (x *ChannelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9999,7 +10775,7 @@ func (x *ChannelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelInfo.ProtoReflect.Descriptor instead.
 func (*ChannelInfo) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{131}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *ChannelInfo) GetId() int64 {
@@ -10107,7 +10883,7 @@ type ListChannelsRequest struct {
 
 func (x *ListChannelsRequest) Reset() {
 	*x = ListChannelsRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10119,7 +10895,7 @@ func (x *ListChannelsRequest) String() string {
 func (*ListChannelsRequest) ProtoMessage() {}
 
 func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10132,7 +10908,7 @@ func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
 func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{132}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *ListChannelsRequest) GetActor() *Actor {
@@ -10187,7 +10963,7 @@ type ChannelListResponse struct {
 
 func (x *ChannelListResponse) Reset() {
 	*x = ChannelListResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10199,7 +10975,7 @@ func (x *ChannelListResponse) String() string {
 func (*ChannelListResponse) ProtoMessage() {}
 
 func (x *ChannelListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10212,7 +10988,7 @@ func (x *ChannelListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelListResponse.ProtoReflect.Descriptor instead.
 func (*ChannelListResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{133}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *ChannelListResponse) GetItems() []*ChannelInfo {
@@ -10240,7 +11016,7 @@ type ChannelFeaturedRequest struct {
 
 func (x *ChannelFeaturedRequest) Reset() {
 	*x = ChannelFeaturedRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10252,7 +11028,7 @@ func (x *ChannelFeaturedRequest) String() string {
 func (*ChannelFeaturedRequest) ProtoMessage() {}
 
 func (x *ChannelFeaturedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10265,7 +11041,7 @@ func (x *ChannelFeaturedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelFeaturedRequest.ProtoReflect.Descriptor instead.
 func (*ChannelFeaturedRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{134}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *ChannelFeaturedRequest) GetActor() *Actor {
@@ -10300,7 +11076,7 @@ type ChannelArchivedRequest struct {
 
 func (x *ChannelArchivedRequest) Reset() {
 	*x = ChannelArchivedRequest{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10312,7 +11088,7 @@ func (x *ChannelArchivedRequest) String() string {
 func (*ChannelArchivedRequest) ProtoMessage() {}
 
 func (x *ChannelArchivedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10325,7 +11101,7 @@ func (x *ChannelArchivedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelArchivedRequest.ProtoReflect.Descriptor instead.
 func (*ChannelArchivedRequest) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{135}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *ChannelArchivedRequest) GetActor() *Actor {
@@ -10360,7 +11136,7 @@ type ChannelResponse struct {
 
 func (x *ChannelResponse) Reset() {
 	*x = ChannelResponse{}
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10372,7 +11148,7 @@ func (x *ChannelResponse) String() string {
 func (*ChannelResponse) ProtoMessage() {}
 
 func (x *ChannelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10385,7 +11161,7 @@ func (x *ChannelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChannelResponse.ProtoReflect.Descriptor instead.
 func (*ChannelResponse) Descriptor() ([]byte, []int) {
-	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{136}
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *ChannelResponse) GetSuccess() bool {
@@ -11214,7 +11990,92 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\fLinkResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12*\n" +
-	"\x04link\x18\x03 \x01(\v2\x16.bbs.admin.v1.LinkInfoR\x04link\"\xf3\x01\n" +
+	"\x04link\x18\x03 \x01(\v2\x16.bbs.admin.v1.LinkInfoR\x04link\"\xbd\x02\n" +
+	"\x06AdInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04memo\x18\x03 \x01(\tR\x04memo\x12\x14\n" +
+	"\x05place\x18\x04 \x01(\tR\x05place\x12\x1a\n" +
+	"\bpriority\x18\x05 \x01(\tR\bpriority\x12\x14\n" +
+	"\x05ratio\x18\x06 \x01(\x05R\x05ratio\x12\x1b\n" +
+	"\tstarts_at\x18\a \x01(\x03R\bstartsAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\b \x01(\x03R\texpiresAt\x12\x1b\n" +
+	"\timage_url\x18\t \x01(\tR\bimageUrl\x12\x1e\n" +
+	"\vday_of_week\x18\n" +
+	" \x01(\x05R\tdayOfWeek\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\x03R\tupdatedAt\"\x99\x01\n" +
+	"\fActiveAdInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x14\n" +
+	"\x05place\x18\x03 \x01(\tR\x05place\x12\x14\n" +
+	"\x05ratio\x18\x04 \x01(\x05R\x05ratio\x12\x1b\n" +
+	"\timage_url\x18\x05 \x01(\tR\bimageUrl\x12\x1e\n" +
+	"\vday_of_week\x18\x06 \x01(\x05R\tdayOfWeek\"\xbb\x01\n" +
+	"\x0eListAdsRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x19\n" +
+	"\bsince_id\x18\x03 \x01(\x03R\asinceId\x12\x19\n" +
+	"\buntil_id\x18\x04 \x01(\x03R\auntilId\x12#\n" +
+	"\n" +
+	"publishing\x18\x05 \x01(\bH\x00R\n" +
+	"publishing\x88\x01\x01B\r\n" +
+	"\v_publishing\"R\n" +
+	"\x0eAdListResponse\x12*\n" +
+	"\x05items\x18\x01 \x03(\v2\x14.bbs.admin.v1.AdInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\x16\n" +
+	"\x14ListActiveAdsRequest\"H\n" +
+	"\x14ActiveAdListResponse\x120\n" +
+	"\x05items\x18\x01 \x03(\v2\x1a.bbs.admin.v1.ActiveAdInfoR\x05items\"\xa3\x02\n" +
+	"\x0fCreateAdRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04memo\x18\x03 \x01(\tR\x04memo\x12\x14\n" +
+	"\x05place\x18\x04 \x01(\tR\x05place\x12\x1a\n" +
+	"\bpriority\x18\x05 \x01(\tR\bpriority\x12\x14\n" +
+	"\x05ratio\x18\x06 \x01(\x05R\x05ratio\x12\x1b\n" +
+	"\tstarts_at\x18\a \x01(\x03R\bstartsAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\b \x01(\x03R\texpiresAt\x12\x1b\n" +
+	"\timage_url\x18\t \x01(\tR\bimageUrl\x12\x1e\n" +
+	"\vday_of_week\x18\n" +
+	" \x01(\x05R\tdayOfWeek\"\xcd\x03\n" +
+	"\x0fUpdateAdRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\x03R\x02id\x12\x15\n" +
+	"\x03url\x18\x03 \x01(\tH\x00R\x03url\x88\x01\x01\x12\x17\n" +
+	"\x04memo\x18\x04 \x01(\tH\x01R\x04memo\x88\x01\x01\x12\x19\n" +
+	"\x05place\x18\x05 \x01(\tH\x02R\x05place\x88\x01\x01\x12\x1f\n" +
+	"\bpriority\x18\x06 \x01(\tH\x03R\bpriority\x88\x01\x01\x12\x19\n" +
+	"\x05ratio\x18\a \x01(\x05H\x04R\x05ratio\x88\x01\x01\x12 \n" +
+	"\tstarts_at\x18\b \x01(\x03H\x05R\bstartsAt\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"expires_at\x18\t \x01(\x03H\x06R\texpiresAt\x88\x01\x01\x12 \n" +
+	"\timage_url\x18\n" +
+	" \x01(\tH\aR\bimageUrl\x88\x01\x01\x12#\n" +
+	"\vday_of_week\x18\v \x01(\x05H\bR\tdayOfWeek\x88\x01\x01B\x06\n" +
+	"\x04_urlB\a\n" +
+	"\x05_memoB\b\n" +
+	"\x06_placeB\v\n" +
+	"\t_priorityB\b\n" +
+	"\x06_ratioB\f\n" +
+	"\n" +
+	"_starts_atB\r\n" +
+	"\v_expires_atB\f\n" +
+	"\n" +
+	"_image_urlB\x0e\n" +
+	"\f_day_of_week\"H\n" +
+	"\vAdIDRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\x03R\x02id\"f\n" +
+	"\n" +
+	"AdResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12$\n" +
+	"\x02ad\x18\x03 \x01(\v2\x14.bbs.admin.v1.AdInfoR\x02ad\"\xf3\x01\n" +
 	"\bTaskInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
@@ -11330,7 +12191,7 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\x0fChannelResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
-	"\achannel\x18\x03 \x01(\v2\x19.bbs.admin.v1.ChannelInfoR\achannel2\xc49\n" +
+	"\achannel\x18\x03 \x01(\v2\x19.bbs.admin.v1.ChannelInfoR\achannel2\xb3<\n" +
 	"\fAdminService\x12?\n" +
 	"\x05Login\x12\x1a.bbs.admin.v1.LoginRequest\x1a\x1a.bbs.admin.v1.AuthResponse\x12H\n" +
 	"\aRefresh\x12!.bbs.admin.v1.RefreshTokenRequest\x1a\x1a.bbs.admin.v1.AuthResponse\x12C\n" +
@@ -11417,7 +12278,12 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\n" +
 	"UpdateLink\x12\x1f.bbs.admin.v1.UpsertLinkRequest\x1a\x1a.bbs.admin.v1.LinkResponse\x12G\n" +
 	"\n" +
-	"DeleteLink\x12\x1b.bbs.admin.v1.LinkIDRequest\x1a\x1c.bbs.admin.v1.SimpleResponse\x12K\n" +
+	"DeleteLink\x12\x1b.bbs.admin.v1.LinkIDRequest\x1a\x1c.bbs.admin.v1.SimpleResponse\x12E\n" +
+	"\aListAds\x12\x1c.bbs.admin.v1.ListAdsRequest\x1a\x1c.bbs.admin.v1.AdListResponse\x12W\n" +
+	"\rListActiveAds\x12\".bbs.admin.v1.ListActiveAdsRequest\x1a\".bbs.admin.v1.ActiveAdListResponse\x12C\n" +
+	"\bCreateAd\x12\x1d.bbs.admin.v1.CreateAdRequest\x1a\x18.bbs.admin.v1.AdResponse\x12C\n" +
+	"\bUpdateAd\x12\x1d.bbs.admin.v1.UpdateAdRequest\x1a\x18.bbs.admin.v1.AdResponse\x12C\n" +
+	"\bDeleteAd\x12\x19.bbs.admin.v1.AdIDRequest\x1a\x1c.bbs.admin.v1.SimpleResponse\x12K\n" +
 	"\tListTasks\x12\x1e.bbs.admin.v1.ListTasksRequest\x1a\x1e.bbs.admin.v1.TaskListResponse\x12I\n" +
 	"\n" +
 	"CreateTask\x12\x1f.bbs.admin.v1.UpsertTaskRequest\x1a\x1a.bbs.admin.v1.TaskResponse\x12I\n" +
@@ -11441,7 +12307,7 @@ func file_admin_service_api_proto_admin_proto_rawDescGZIP() []byte {
 	return file_admin_service_api_proto_admin_proto_rawDescData
 }
 
-var file_admin_service_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
+var file_admin_service_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 147)
 var file_admin_service_api_proto_admin_proto_goTypes = []any{
 	(*Actor)(nil),                          // 0: bbs.admin.v1.Actor
 	(*EntityRef)(nil),                      // 1: bbs.admin.v1.EntityRef
@@ -11562,24 +12428,34 @@ var file_admin_service_api_proto_admin_proto_goTypes = []any{
 	(*UpsertLinkRequest)(nil),              // 116: bbs.admin.v1.UpsertLinkRequest
 	(*LinkIDRequest)(nil),                  // 117: bbs.admin.v1.LinkIDRequest
 	(*LinkResponse)(nil),                   // 118: bbs.admin.v1.LinkResponse
-	(*TaskInfo)(nil),                       // 119: bbs.admin.v1.TaskInfo
-	(*ListTasksRequest)(nil),               // 120: bbs.admin.v1.ListTasksRequest
-	(*TaskListResponse)(nil),               // 121: bbs.admin.v1.TaskListResponse
-	(*UpsertTaskRequest)(nil),              // 122: bbs.admin.v1.UpsertTaskRequest
-	(*TaskIDRequest)(nil),                  // 123: bbs.admin.v1.TaskIDRequest
-	(*TaskResponse)(nil),                   // 124: bbs.admin.v1.TaskResponse
-	(*SendSystemNotificationRequest)(nil),  // 125: bbs.admin.v1.SendSystemNotificationRequest
-	(*SendSystemNotificationResponse)(nil), // 126: bbs.admin.v1.SendSystemNotificationResponse
-	(*SearchRebuildRequest)(nil),           // 127: bbs.admin.v1.SearchRebuildRequest
-	(*SearchRebuildStatusRequest)(nil),     // 128: bbs.admin.v1.SearchRebuildStatusRequest
-	(*SearchRebuildStatus)(nil),            // 129: bbs.admin.v1.SearchRebuildStatus
-	(*SearchRebuildStatusResponse)(nil),    // 130: bbs.admin.v1.SearchRebuildStatusResponse
-	(*ChannelInfo)(nil),                    // 131: bbs.admin.v1.ChannelInfo
-	(*ListChannelsRequest)(nil),            // 132: bbs.admin.v1.ListChannelsRequest
-	(*ChannelListResponse)(nil),            // 133: bbs.admin.v1.ChannelListResponse
-	(*ChannelFeaturedRequest)(nil),         // 134: bbs.admin.v1.ChannelFeaturedRequest
-	(*ChannelArchivedRequest)(nil),         // 135: bbs.admin.v1.ChannelArchivedRequest
-	(*ChannelResponse)(nil),                // 136: bbs.admin.v1.ChannelResponse
+	(*AdInfo)(nil),                         // 119: bbs.admin.v1.AdInfo
+	(*ActiveAdInfo)(nil),                   // 120: bbs.admin.v1.ActiveAdInfo
+	(*ListAdsRequest)(nil),                 // 121: bbs.admin.v1.ListAdsRequest
+	(*AdListResponse)(nil),                 // 122: bbs.admin.v1.AdListResponse
+	(*ListActiveAdsRequest)(nil),           // 123: bbs.admin.v1.ListActiveAdsRequest
+	(*ActiveAdListResponse)(nil),           // 124: bbs.admin.v1.ActiveAdListResponse
+	(*CreateAdRequest)(nil),                // 125: bbs.admin.v1.CreateAdRequest
+	(*UpdateAdRequest)(nil),                // 126: bbs.admin.v1.UpdateAdRequest
+	(*AdIDRequest)(nil),                    // 127: bbs.admin.v1.AdIDRequest
+	(*AdResponse)(nil),                     // 128: bbs.admin.v1.AdResponse
+	(*TaskInfo)(nil),                       // 129: bbs.admin.v1.TaskInfo
+	(*ListTasksRequest)(nil),               // 130: bbs.admin.v1.ListTasksRequest
+	(*TaskListResponse)(nil),               // 131: bbs.admin.v1.TaskListResponse
+	(*UpsertTaskRequest)(nil),              // 132: bbs.admin.v1.UpsertTaskRequest
+	(*TaskIDRequest)(nil),                  // 133: bbs.admin.v1.TaskIDRequest
+	(*TaskResponse)(nil),                   // 134: bbs.admin.v1.TaskResponse
+	(*SendSystemNotificationRequest)(nil),  // 135: bbs.admin.v1.SendSystemNotificationRequest
+	(*SendSystemNotificationResponse)(nil), // 136: bbs.admin.v1.SendSystemNotificationResponse
+	(*SearchRebuildRequest)(nil),           // 137: bbs.admin.v1.SearchRebuildRequest
+	(*SearchRebuildStatusRequest)(nil),     // 138: bbs.admin.v1.SearchRebuildStatusRequest
+	(*SearchRebuildStatus)(nil),            // 139: bbs.admin.v1.SearchRebuildStatus
+	(*SearchRebuildStatusResponse)(nil),    // 140: bbs.admin.v1.SearchRebuildStatusResponse
+	(*ChannelInfo)(nil),                    // 141: bbs.admin.v1.ChannelInfo
+	(*ListChannelsRequest)(nil),            // 142: bbs.admin.v1.ListChannelsRequest
+	(*ChannelListResponse)(nil),            // 143: bbs.admin.v1.ChannelListResponse
+	(*ChannelFeaturedRequest)(nil),         // 144: bbs.admin.v1.ChannelFeaturedRequest
+	(*ChannelArchivedRequest)(nil),         // 145: bbs.admin.v1.ChannelArchivedRequest
+	(*ChannelResponse)(nil),                // 146: bbs.admin.v1.ChannelResponse
 }
 var file_admin_service_api_proto_admin_proto_depIdxs = []int32{
 	1,   // 0: bbs.admin.v1.ReportInfo.entity:type_name -> bbs.admin.v1.EntityRef
@@ -11673,195 +12549,212 @@ var file_admin_service_api_proto_admin_proto_depIdxs = []int32{
 	0,   // 88: bbs.admin.v1.UpsertLinkRequest.actor:type_name -> bbs.admin.v1.Actor
 	0,   // 89: bbs.admin.v1.LinkIDRequest.actor:type_name -> bbs.admin.v1.Actor
 	113, // 90: bbs.admin.v1.LinkResponse.link:type_name -> bbs.admin.v1.LinkInfo
-	0,   // 91: bbs.admin.v1.ListTasksRequest.actor:type_name -> bbs.admin.v1.Actor
-	119, // 92: bbs.admin.v1.TaskListResponse.items:type_name -> bbs.admin.v1.TaskInfo
-	0,   // 93: bbs.admin.v1.UpsertTaskRequest.actor:type_name -> bbs.admin.v1.Actor
-	0,   // 94: bbs.admin.v1.TaskIDRequest.actor:type_name -> bbs.admin.v1.Actor
-	119, // 95: bbs.admin.v1.TaskResponse.task:type_name -> bbs.admin.v1.TaskInfo
-	0,   // 96: bbs.admin.v1.SendSystemNotificationRequest.actor:type_name -> bbs.admin.v1.Actor
-	0,   // 97: bbs.admin.v1.SearchRebuildRequest.actor:type_name -> bbs.admin.v1.Actor
-	0,   // 98: bbs.admin.v1.SearchRebuildStatusRequest.actor:type_name -> bbs.admin.v1.Actor
-	129, // 99: bbs.admin.v1.SearchRebuildStatusResponse.status:type_name -> bbs.admin.v1.SearchRebuildStatus
-	0,   // 100: bbs.admin.v1.ListChannelsRequest.actor:type_name -> bbs.admin.v1.Actor
-	131, // 101: bbs.admin.v1.ChannelListResponse.items:type_name -> bbs.admin.v1.ChannelInfo
-	0,   // 102: bbs.admin.v1.ChannelFeaturedRequest.actor:type_name -> bbs.admin.v1.Actor
-	0,   // 103: bbs.admin.v1.ChannelArchivedRequest.actor:type_name -> bbs.admin.v1.Actor
-	131, // 104: bbs.admin.v1.ChannelResponse.channel:type_name -> bbs.admin.v1.ChannelInfo
-	9,   // 105: bbs.admin.v1.AdminService.Login:input_type -> bbs.admin.v1.LoginRequest
-	10,  // 106: bbs.admin.v1.AdminService.Refresh:input_type -> bbs.admin.v1.RefreshTokenRequest
-	11,  // 107: bbs.admin.v1.AdminService.Logout:input_type -> bbs.admin.v1.LogoutRequest
-	13,  // 108: bbs.admin.v1.AdminService.GetProfile:input_type -> bbs.admin.v1.ProfileRequest
-	15,  // 109: bbs.admin.v1.AdminService.UpdateProfile:input_type -> bbs.admin.v1.UpdateProfileRequest
-	16,  // 110: bbs.admin.v1.AdminService.ChangePassword:input_type -> bbs.admin.v1.ChangePasswordRequest
-	17,  // 111: bbs.admin.v1.AdminService.ListReports:input_type -> bbs.admin.v1.ListReportsRequest
-	19,  // 112: bbs.admin.v1.AdminService.AuditReport:input_type -> bbs.admin.v1.AuditReportRequest
-	22,  // 113: bbs.admin.v1.AdminService.ListUsers:input_type -> bbs.admin.v1.ListUsersRequest
-	21,  // 114: bbs.admin.v1.AdminService.MuteUser:input_type -> bbs.admin.v1.UserStatusRequest
-	21,  // 115: bbs.admin.v1.AdminService.UnmuteUser:input_type -> bbs.admin.v1.UserStatusRequest
-	25,  // 116: bbs.admin.v1.AdminService.ListArticles:input_type -> bbs.admin.v1.ListArticlesRequest
-	27,  // 117: bbs.admin.v1.AdminService.PublishArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	27,  // 118: bbs.admin.v1.AdminService.HideArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	27,  // 119: bbs.admin.v1.AdminService.ArchiveArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	29,  // 120: bbs.admin.v1.AdminService.ListTopics:input_type -> bbs.admin.v1.ListTopicsRequest
-	31,  // 121: bbs.admin.v1.AdminService.PublishTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	31,  // 122: bbs.admin.v1.AdminService.HideTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	31,  // 123: bbs.admin.v1.AdminService.ArchiveTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	132, // 124: bbs.admin.v1.AdminService.ListChannels:input_type -> bbs.admin.v1.ListChannelsRequest
-	134, // 125: bbs.admin.v1.AdminService.SetChannelFeatured:input_type -> bbs.admin.v1.ChannelFeaturedRequest
-	135, // 126: bbs.admin.v1.AdminService.SetChannelArchived:input_type -> bbs.admin.v1.ChannelArchivedRequest
-	34,  // 127: bbs.admin.v1.AdminService.ListCategories:input_type -> bbs.admin.v1.ListCategoriesRequest
-	36,  // 128: bbs.admin.v1.AdminService.CreateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
-	36,  // 129: bbs.admin.v1.AdminService.UpdateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
-	37,  // 130: bbs.admin.v1.AdminService.DeleteCategory:input_type -> bbs.admin.v1.CategoryIDRequest
-	39,  // 131: bbs.admin.v1.AdminService.ListComments:input_type -> bbs.admin.v1.ListCommentsRequest
-	41,  // 132: bbs.admin.v1.AdminService.HideComment:input_type -> bbs.admin.v1.CommentStatusRequest
-	41,  // 133: bbs.admin.v1.AdminService.RestoreComment:input_type -> bbs.admin.v1.CommentStatusRequest
-	43,  // 134: bbs.admin.v1.AdminService.ListAdminUsers:input_type -> bbs.admin.v1.ListAdminUsersRequest
-	45,  // 135: bbs.admin.v1.AdminService.CreateAdminUser:input_type -> bbs.admin.v1.CreateAdminUserRequest
-	46,  // 136: bbs.admin.v1.AdminService.ListRoles:input_type -> bbs.admin.v1.ListRolesRequest
-	48,  // 137: bbs.admin.v1.AdminService.AssignRoles:input_type -> bbs.admin.v1.AssignRolesRequest
-	51,  // 138: bbs.admin.v1.AdminService.ListSystemUsers:input_type -> bbs.admin.v1.ListSystemUsersRequest
-	52,  // 139: bbs.admin.v1.AdminService.CreateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
-	52,  // 140: bbs.admin.v1.AdminService.UpdateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
-	53,  // 141: bbs.admin.v1.AdminService.DeleteSystemUser:input_type -> bbs.admin.v1.SystemUserIDRequest
-	54,  // 142: bbs.admin.v1.AdminService.ResetSystemUserPassword:input_type -> bbs.admin.v1.ResetSystemUserPasswordRequest
-	55,  // 143: bbs.admin.v1.AdminService.AssignSystemUserRoles:input_type -> bbs.admin.v1.AssignSystemUserRolesRequest
-	59,  // 144: bbs.admin.v1.AdminService.ListSystemRoles:input_type -> bbs.admin.v1.ListSystemRolesRequest
-	61,  // 145: bbs.admin.v1.AdminService.GetSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
-	60,  // 146: bbs.admin.v1.AdminService.CreateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
-	60,  // 147: bbs.admin.v1.AdminService.UpdateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
-	61,  // 148: bbs.admin.v1.AdminService.DeleteSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
-	62,  // 149: bbs.admin.v1.AdminService.AssignSystemRoleMenus:input_type -> bbs.admin.v1.AssignSystemRoleMenusRequest
-	66,  // 150: bbs.admin.v1.AdminService.ListSystemMenus:input_type -> bbs.admin.v1.ListSystemMenusRequest
-	67,  // 151: bbs.admin.v1.AdminService.ListCurrentSystemMenus:input_type -> bbs.admin.v1.CurrentSystemMenusRequest
-	68,  // 152: bbs.admin.v1.AdminService.CreateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
-	68,  // 153: bbs.admin.v1.AdminService.UpdateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
-	69,  // 154: bbs.admin.v1.AdminService.DeleteSystemMenu:input_type -> bbs.admin.v1.SystemMenuIDRequest
-	73,  // 155: bbs.admin.v1.AdminService.ListSystemDepts:input_type -> bbs.admin.v1.ListSystemDeptsRequest
-	74,  // 156: bbs.admin.v1.AdminService.CreateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
-	74,  // 157: bbs.admin.v1.AdminService.UpdateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
-	75,  // 158: bbs.admin.v1.AdminService.DeleteSystemDept:input_type -> bbs.admin.v1.SystemDeptIDRequest
-	79,  // 159: bbs.admin.v1.AdminService.ListBadges:input_type -> bbs.admin.v1.ListBadgesRequest
-	81,  // 160: bbs.admin.v1.AdminService.CreateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
-	81,  // 161: bbs.admin.v1.AdminService.UpdateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
-	82,  // 162: bbs.admin.v1.AdminService.DeleteBadge:input_type -> bbs.admin.v1.BadgeIDRequest
-	85,  // 163: bbs.admin.v1.AdminService.ListLevels:input_type -> bbs.admin.v1.ListLevelsRequest
-	87,  // 164: bbs.admin.v1.AdminService.CreateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
-	87,  // 165: bbs.admin.v1.AdminService.UpdateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
-	88,  // 166: bbs.admin.v1.AdminService.DeleteLevel:input_type -> bbs.admin.v1.LevelIDRequest
-	91,  // 167: bbs.admin.v1.AdminService.ListForbiddenWords:input_type -> bbs.admin.v1.ListForbiddenWordsRequest
-	93,  // 168: bbs.admin.v1.AdminService.CreateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
-	93,  // 169: bbs.admin.v1.AdminService.UpdateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
-	94,  // 170: bbs.admin.v1.AdminService.DeleteForbiddenWord:input_type -> bbs.admin.v1.ForbiddenWordIDRequest
-	97,  // 171: bbs.admin.v1.AdminService.ListSettings:input_type -> bbs.admin.v1.ListSettingsRequest
-	98,  // 172: bbs.admin.v1.AdminService.ListAuthSettings:input_type -> bbs.admin.v1.ListAuthSettingsRequest
-	99,  // 173: bbs.admin.v1.AdminService.ListPublicSettings:input_type -> bbs.admin.v1.ListPublicSettingsRequest
-	101, // 174: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
-	104, // 175: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
-	107, // 176: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
-	110, // 177: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
-	112, // 178: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
-	114, // 179: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
-	116, // 180: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	116, // 181: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	117, // 182: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
-	120, // 183: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
-	122, // 184: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	122, // 185: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	123, // 186: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
-	125, // 187: bbs.admin.v1.AdminService.SendSystemNotification:input_type -> bbs.admin.v1.SendSystemNotificationRequest
-	127, // 188: bbs.admin.v1.AdminService.StartSearchRebuild:input_type -> bbs.admin.v1.SearchRebuildRequest
-	128, // 189: bbs.admin.v1.AdminService.GetSearchRebuildStatus:input_type -> bbs.admin.v1.SearchRebuildStatusRequest
-	12,  // 190: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
-	12,  // 191: bbs.admin.v1.AdminService.Refresh:output_type -> bbs.admin.v1.AuthResponse
-	42,  // 192: bbs.admin.v1.AdminService.Logout:output_type -> bbs.admin.v1.SimpleResponse
-	14,  // 193: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
-	14,  // 194: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
-	14,  // 195: bbs.admin.v1.AdminService.ChangePassword:output_type -> bbs.admin.v1.ProfileResponse
-	18,  // 196: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
-	20,  // 197: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
-	24,  // 198: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
-	23,  // 199: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
-	23,  // 200: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
-	26,  // 201: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
-	28,  // 202: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
-	28,  // 203: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
-	28,  // 204: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
-	30,  // 205: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
-	32,  // 206: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
-	32,  // 207: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
-	32,  // 208: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
-	133, // 209: bbs.admin.v1.AdminService.ListChannels:output_type -> bbs.admin.v1.ChannelListResponse
-	136, // 210: bbs.admin.v1.AdminService.SetChannelFeatured:output_type -> bbs.admin.v1.ChannelResponse
-	136, // 211: bbs.admin.v1.AdminService.SetChannelArchived:output_type -> bbs.admin.v1.ChannelResponse
-	35,  // 212: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
-	38,  // 213: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	38,  // 214: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	42,  // 215: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
-	40,  // 216: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
-	42,  // 217: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
-	42,  // 218: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
-	44,  // 219: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
-	49,  // 220: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
-	47,  // 221: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
-	49,  // 222: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
-	57,  // 223: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
-	56,  // 224: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	56,  // 225: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	42,  // 226: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
-	56,  // 227: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
-	56,  // 228: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
-	64,  // 229: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
-	63,  // 230: bbs.admin.v1.AdminService.GetSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	63,  // 231: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	63,  // 232: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	42,  // 233: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
-	63,  // 234: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
-	71,  // 235: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	71,  // 236: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	70,  // 237: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	70,  // 238: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	42,  // 239: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
-	77,  // 240: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
-	76,  // 241: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	76,  // 242: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	42,  // 243: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
-	80,  // 244: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
-	83,  // 245: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	83,  // 246: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	42,  // 247: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
-	86,  // 248: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
-	89,  // 249: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
-	89,  // 250: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
-	42,  // 251: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
-	92,  // 252: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
-	95,  // 253: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	95,  // 254: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	42,  // 255: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
-	100, // 256: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
-	100, // 257: bbs.admin.v1.AdminService.ListAuthSettings:output_type -> bbs.admin.v1.SettingListResponse
-	100, // 258: bbs.admin.v1.AdminService.ListPublicSettings:output_type -> bbs.admin.v1.SettingListResponse
-	102, // 259: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
-	105, // 260: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
-	108, // 261: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
-	111, // 262: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
-	42,  // 263: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
-	115, // 264: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
-	118, // 265: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
-	118, // 266: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
-	42,  // 267: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
-	121, // 268: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
-	124, // 269: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
-	124, // 270: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
-	42,  // 271: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
-	126, // 272: bbs.admin.v1.AdminService.SendSystemNotification:output_type -> bbs.admin.v1.SendSystemNotificationResponse
-	130, // 273: bbs.admin.v1.AdminService.StartSearchRebuild:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
-	130, // 274: bbs.admin.v1.AdminService.GetSearchRebuildStatus:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
-	190, // [190:275] is the sub-list for method output_type
-	105, // [105:190] is the sub-list for method input_type
-	105, // [105:105] is the sub-list for extension type_name
-	105, // [105:105] is the sub-list for extension extendee
-	0,   // [0:105] is the sub-list for field type_name
+	0,   // 91: bbs.admin.v1.ListAdsRequest.actor:type_name -> bbs.admin.v1.Actor
+	119, // 92: bbs.admin.v1.AdListResponse.items:type_name -> bbs.admin.v1.AdInfo
+	120, // 93: bbs.admin.v1.ActiveAdListResponse.items:type_name -> bbs.admin.v1.ActiveAdInfo
+	0,   // 94: bbs.admin.v1.CreateAdRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 95: bbs.admin.v1.UpdateAdRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 96: bbs.admin.v1.AdIDRequest.actor:type_name -> bbs.admin.v1.Actor
+	119, // 97: bbs.admin.v1.AdResponse.ad:type_name -> bbs.admin.v1.AdInfo
+	0,   // 98: bbs.admin.v1.ListTasksRequest.actor:type_name -> bbs.admin.v1.Actor
+	129, // 99: bbs.admin.v1.TaskListResponse.items:type_name -> bbs.admin.v1.TaskInfo
+	0,   // 100: bbs.admin.v1.UpsertTaskRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 101: bbs.admin.v1.TaskIDRequest.actor:type_name -> bbs.admin.v1.Actor
+	129, // 102: bbs.admin.v1.TaskResponse.task:type_name -> bbs.admin.v1.TaskInfo
+	0,   // 103: bbs.admin.v1.SendSystemNotificationRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 104: bbs.admin.v1.SearchRebuildRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 105: bbs.admin.v1.SearchRebuildStatusRequest.actor:type_name -> bbs.admin.v1.Actor
+	139, // 106: bbs.admin.v1.SearchRebuildStatusResponse.status:type_name -> bbs.admin.v1.SearchRebuildStatus
+	0,   // 107: bbs.admin.v1.ListChannelsRequest.actor:type_name -> bbs.admin.v1.Actor
+	141, // 108: bbs.admin.v1.ChannelListResponse.items:type_name -> bbs.admin.v1.ChannelInfo
+	0,   // 109: bbs.admin.v1.ChannelFeaturedRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 110: bbs.admin.v1.ChannelArchivedRequest.actor:type_name -> bbs.admin.v1.Actor
+	141, // 111: bbs.admin.v1.ChannelResponse.channel:type_name -> bbs.admin.v1.ChannelInfo
+	9,   // 112: bbs.admin.v1.AdminService.Login:input_type -> bbs.admin.v1.LoginRequest
+	10,  // 113: bbs.admin.v1.AdminService.Refresh:input_type -> bbs.admin.v1.RefreshTokenRequest
+	11,  // 114: bbs.admin.v1.AdminService.Logout:input_type -> bbs.admin.v1.LogoutRequest
+	13,  // 115: bbs.admin.v1.AdminService.GetProfile:input_type -> bbs.admin.v1.ProfileRequest
+	15,  // 116: bbs.admin.v1.AdminService.UpdateProfile:input_type -> bbs.admin.v1.UpdateProfileRequest
+	16,  // 117: bbs.admin.v1.AdminService.ChangePassword:input_type -> bbs.admin.v1.ChangePasswordRequest
+	17,  // 118: bbs.admin.v1.AdminService.ListReports:input_type -> bbs.admin.v1.ListReportsRequest
+	19,  // 119: bbs.admin.v1.AdminService.AuditReport:input_type -> bbs.admin.v1.AuditReportRequest
+	22,  // 120: bbs.admin.v1.AdminService.ListUsers:input_type -> bbs.admin.v1.ListUsersRequest
+	21,  // 121: bbs.admin.v1.AdminService.MuteUser:input_type -> bbs.admin.v1.UserStatusRequest
+	21,  // 122: bbs.admin.v1.AdminService.UnmuteUser:input_type -> bbs.admin.v1.UserStatusRequest
+	25,  // 123: bbs.admin.v1.AdminService.ListArticles:input_type -> bbs.admin.v1.ListArticlesRequest
+	27,  // 124: bbs.admin.v1.AdminService.PublishArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	27,  // 125: bbs.admin.v1.AdminService.HideArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	27,  // 126: bbs.admin.v1.AdminService.ArchiveArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	29,  // 127: bbs.admin.v1.AdminService.ListTopics:input_type -> bbs.admin.v1.ListTopicsRequest
+	31,  // 128: bbs.admin.v1.AdminService.PublishTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	31,  // 129: bbs.admin.v1.AdminService.HideTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	31,  // 130: bbs.admin.v1.AdminService.ArchiveTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	142, // 131: bbs.admin.v1.AdminService.ListChannels:input_type -> bbs.admin.v1.ListChannelsRequest
+	144, // 132: bbs.admin.v1.AdminService.SetChannelFeatured:input_type -> bbs.admin.v1.ChannelFeaturedRequest
+	145, // 133: bbs.admin.v1.AdminService.SetChannelArchived:input_type -> bbs.admin.v1.ChannelArchivedRequest
+	34,  // 134: bbs.admin.v1.AdminService.ListCategories:input_type -> bbs.admin.v1.ListCategoriesRequest
+	36,  // 135: bbs.admin.v1.AdminService.CreateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
+	36,  // 136: bbs.admin.v1.AdminService.UpdateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
+	37,  // 137: bbs.admin.v1.AdminService.DeleteCategory:input_type -> bbs.admin.v1.CategoryIDRequest
+	39,  // 138: bbs.admin.v1.AdminService.ListComments:input_type -> bbs.admin.v1.ListCommentsRequest
+	41,  // 139: bbs.admin.v1.AdminService.HideComment:input_type -> bbs.admin.v1.CommentStatusRequest
+	41,  // 140: bbs.admin.v1.AdminService.RestoreComment:input_type -> bbs.admin.v1.CommentStatusRequest
+	43,  // 141: bbs.admin.v1.AdminService.ListAdminUsers:input_type -> bbs.admin.v1.ListAdminUsersRequest
+	45,  // 142: bbs.admin.v1.AdminService.CreateAdminUser:input_type -> bbs.admin.v1.CreateAdminUserRequest
+	46,  // 143: bbs.admin.v1.AdminService.ListRoles:input_type -> bbs.admin.v1.ListRolesRequest
+	48,  // 144: bbs.admin.v1.AdminService.AssignRoles:input_type -> bbs.admin.v1.AssignRolesRequest
+	51,  // 145: bbs.admin.v1.AdminService.ListSystemUsers:input_type -> bbs.admin.v1.ListSystemUsersRequest
+	52,  // 146: bbs.admin.v1.AdminService.CreateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
+	52,  // 147: bbs.admin.v1.AdminService.UpdateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
+	53,  // 148: bbs.admin.v1.AdminService.DeleteSystemUser:input_type -> bbs.admin.v1.SystemUserIDRequest
+	54,  // 149: bbs.admin.v1.AdminService.ResetSystemUserPassword:input_type -> bbs.admin.v1.ResetSystemUserPasswordRequest
+	55,  // 150: bbs.admin.v1.AdminService.AssignSystemUserRoles:input_type -> bbs.admin.v1.AssignSystemUserRolesRequest
+	59,  // 151: bbs.admin.v1.AdminService.ListSystemRoles:input_type -> bbs.admin.v1.ListSystemRolesRequest
+	61,  // 152: bbs.admin.v1.AdminService.GetSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
+	60,  // 153: bbs.admin.v1.AdminService.CreateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
+	60,  // 154: bbs.admin.v1.AdminService.UpdateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
+	61,  // 155: bbs.admin.v1.AdminService.DeleteSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
+	62,  // 156: bbs.admin.v1.AdminService.AssignSystemRoleMenus:input_type -> bbs.admin.v1.AssignSystemRoleMenusRequest
+	66,  // 157: bbs.admin.v1.AdminService.ListSystemMenus:input_type -> bbs.admin.v1.ListSystemMenusRequest
+	67,  // 158: bbs.admin.v1.AdminService.ListCurrentSystemMenus:input_type -> bbs.admin.v1.CurrentSystemMenusRequest
+	68,  // 159: bbs.admin.v1.AdminService.CreateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
+	68,  // 160: bbs.admin.v1.AdminService.UpdateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
+	69,  // 161: bbs.admin.v1.AdminService.DeleteSystemMenu:input_type -> bbs.admin.v1.SystemMenuIDRequest
+	73,  // 162: bbs.admin.v1.AdminService.ListSystemDepts:input_type -> bbs.admin.v1.ListSystemDeptsRequest
+	74,  // 163: bbs.admin.v1.AdminService.CreateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
+	74,  // 164: bbs.admin.v1.AdminService.UpdateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
+	75,  // 165: bbs.admin.v1.AdminService.DeleteSystemDept:input_type -> bbs.admin.v1.SystemDeptIDRequest
+	79,  // 166: bbs.admin.v1.AdminService.ListBadges:input_type -> bbs.admin.v1.ListBadgesRequest
+	81,  // 167: bbs.admin.v1.AdminService.CreateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
+	81,  // 168: bbs.admin.v1.AdminService.UpdateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
+	82,  // 169: bbs.admin.v1.AdminService.DeleteBadge:input_type -> bbs.admin.v1.BadgeIDRequest
+	85,  // 170: bbs.admin.v1.AdminService.ListLevels:input_type -> bbs.admin.v1.ListLevelsRequest
+	87,  // 171: bbs.admin.v1.AdminService.CreateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
+	87,  // 172: bbs.admin.v1.AdminService.UpdateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
+	88,  // 173: bbs.admin.v1.AdminService.DeleteLevel:input_type -> bbs.admin.v1.LevelIDRequest
+	91,  // 174: bbs.admin.v1.AdminService.ListForbiddenWords:input_type -> bbs.admin.v1.ListForbiddenWordsRequest
+	93,  // 175: bbs.admin.v1.AdminService.CreateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
+	93,  // 176: bbs.admin.v1.AdminService.UpdateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
+	94,  // 177: bbs.admin.v1.AdminService.DeleteForbiddenWord:input_type -> bbs.admin.v1.ForbiddenWordIDRequest
+	97,  // 178: bbs.admin.v1.AdminService.ListSettings:input_type -> bbs.admin.v1.ListSettingsRequest
+	98,  // 179: bbs.admin.v1.AdminService.ListAuthSettings:input_type -> bbs.admin.v1.ListAuthSettingsRequest
+	99,  // 180: bbs.admin.v1.AdminService.ListPublicSettings:input_type -> bbs.admin.v1.ListPublicSettingsRequest
+	101, // 181: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
+	104, // 182: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
+	107, // 183: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
+	110, // 184: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
+	112, // 185: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
+	114, // 186: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
+	116, // 187: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	116, // 188: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	117, // 189: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
+	121, // 190: bbs.admin.v1.AdminService.ListAds:input_type -> bbs.admin.v1.ListAdsRequest
+	123, // 191: bbs.admin.v1.AdminService.ListActiveAds:input_type -> bbs.admin.v1.ListActiveAdsRequest
+	125, // 192: bbs.admin.v1.AdminService.CreateAd:input_type -> bbs.admin.v1.CreateAdRequest
+	126, // 193: bbs.admin.v1.AdminService.UpdateAd:input_type -> bbs.admin.v1.UpdateAdRequest
+	127, // 194: bbs.admin.v1.AdminService.DeleteAd:input_type -> bbs.admin.v1.AdIDRequest
+	130, // 195: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
+	132, // 196: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	132, // 197: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	133, // 198: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
+	135, // 199: bbs.admin.v1.AdminService.SendSystemNotification:input_type -> bbs.admin.v1.SendSystemNotificationRequest
+	137, // 200: bbs.admin.v1.AdminService.StartSearchRebuild:input_type -> bbs.admin.v1.SearchRebuildRequest
+	138, // 201: bbs.admin.v1.AdminService.GetSearchRebuildStatus:input_type -> bbs.admin.v1.SearchRebuildStatusRequest
+	12,  // 202: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
+	12,  // 203: bbs.admin.v1.AdminService.Refresh:output_type -> bbs.admin.v1.AuthResponse
+	42,  // 204: bbs.admin.v1.AdminService.Logout:output_type -> bbs.admin.v1.SimpleResponse
+	14,  // 205: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
+	14,  // 206: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
+	14,  // 207: bbs.admin.v1.AdminService.ChangePassword:output_type -> bbs.admin.v1.ProfileResponse
+	18,  // 208: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
+	20,  // 209: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
+	24,  // 210: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
+	23,  // 211: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
+	23,  // 212: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
+	26,  // 213: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
+	28,  // 214: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
+	28,  // 215: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
+	28,  // 216: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
+	30,  // 217: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
+	32,  // 218: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
+	32,  // 219: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
+	32,  // 220: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
+	143, // 221: bbs.admin.v1.AdminService.ListChannels:output_type -> bbs.admin.v1.ChannelListResponse
+	146, // 222: bbs.admin.v1.AdminService.SetChannelFeatured:output_type -> bbs.admin.v1.ChannelResponse
+	146, // 223: bbs.admin.v1.AdminService.SetChannelArchived:output_type -> bbs.admin.v1.ChannelResponse
+	35,  // 224: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
+	38,  // 225: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	38,  // 226: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	42,  // 227: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
+	40,  // 228: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
+	42,  // 229: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
+	42,  // 230: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
+	44,  // 231: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
+	49,  // 232: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
+	47,  // 233: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
+	49,  // 234: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
+	57,  // 235: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
+	56,  // 236: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	56,  // 237: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	42,  // 238: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
+	56,  // 239: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
+	56,  // 240: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
+	64,  // 241: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
+	63,  // 242: bbs.admin.v1.AdminService.GetSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	63,  // 243: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	63,  // 244: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	42,  // 245: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
+	63,  // 246: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
+	71,  // 247: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	71,  // 248: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	70,  // 249: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	70,  // 250: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	42,  // 251: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
+	77,  // 252: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
+	76,  // 253: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	76,  // 254: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	42,  // 255: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
+	80,  // 256: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
+	83,  // 257: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	83,  // 258: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	42,  // 259: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
+	86,  // 260: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
+	89,  // 261: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
+	89,  // 262: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
+	42,  // 263: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
+	92,  // 264: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
+	95,  // 265: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	95,  // 266: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	42,  // 267: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
+	100, // 268: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
+	100, // 269: bbs.admin.v1.AdminService.ListAuthSettings:output_type -> bbs.admin.v1.SettingListResponse
+	100, // 270: bbs.admin.v1.AdminService.ListPublicSettings:output_type -> bbs.admin.v1.SettingListResponse
+	102, // 271: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
+	105, // 272: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
+	108, // 273: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
+	111, // 274: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
+	42,  // 275: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
+	115, // 276: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
+	118, // 277: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
+	118, // 278: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
+	42,  // 279: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
+	122, // 280: bbs.admin.v1.AdminService.ListAds:output_type -> bbs.admin.v1.AdListResponse
+	124, // 281: bbs.admin.v1.AdminService.ListActiveAds:output_type -> bbs.admin.v1.ActiveAdListResponse
+	128, // 282: bbs.admin.v1.AdminService.CreateAd:output_type -> bbs.admin.v1.AdResponse
+	128, // 283: bbs.admin.v1.AdminService.UpdateAd:output_type -> bbs.admin.v1.AdResponse
+	42,  // 284: bbs.admin.v1.AdminService.DeleteAd:output_type -> bbs.admin.v1.SimpleResponse
+	131, // 285: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
+	134, // 286: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
+	134, // 287: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
+	42,  // 288: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
+	136, // 289: bbs.admin.v1.AdminService.SendSystemNotification:output_type -> bbs.admin.v1.SendSystemNotificationResponse
+	140, // 290: bbs.admin.v1.AdminService.StartSearchRebuild:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
+	140, // 291: bbs.admin.v1.AdminService.GetSearchRebuildStatus:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
+	202, // [202:292] is the sub-list for method output_type
+	112, // [112:202] is the sub-list for method input_type
+	112, // [112:112] is the sub-list for extension type_name
+	112, // [112:112] is the sub-list for extension extendee
+	0,   // [0:112] is the sub-list for field type_name
 }
 
 func init() { file_admin_service_api_proto_admin_proto_init() }
@@ -11869,13 +12762,15 @@ func file_admin_service_api_proto_admin_proto_init() {
 	if File_admin_service_api_proto_admin_proto != nil {
 		return
 	}
+	file_admin_service_api_proto_admin_proto_msgTypes[121].OneofWrappers = []any{}
+	file_admin_service_api_proto_admin_proto_msgTypes[126].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_service_api_proto_admin_proto_rawDesc), len(file_admin_service_api_proto_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   137,
+			NumMessages:   147,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -108,6 +108,15 @@ export default {
       }
     },
     {
+      path: "/governance/ads",
+      name: "GovernanceAds",
+      component: () => import("@/views/governance/ads/index.vue"),
+      meta: {
+        title: "广告管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/governance/tasks",
       name: "GovernanceTasks",
       component: () => import("@/views/governance/tasks/index.vue"),

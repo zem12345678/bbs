@@ -257,6 +257,50 @@ test("governance user file capacity UI uses the admin capacity contract", () => 
   assert.match(viewSource, /:before-close="closeFileCapacityDialog"/);
 });
 
+test("advertising governance UI exposes the admin ad contract", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const routeSource = read("vue-pure-admin/src/router/modules/governance.ts");
+  const viewSource = read("vue-pure-admin/src/views/governance/ads/index.vue");
+
+  for (const [functionName, route] of [
+    ["listAdminAds", "/api/v1/admin/ad/list"],
+    ["createAdminAd", "/api/v1/admin/ad/create"],
+    ["updateAdminAd", "/api/v1/admin/ad/update"],
+    ["deleteAdminAd", "/api/v1/admin/ad/delete"]
+  ]) {
+    assert.match(apiSource, new RegExp(functionName));
+    assert.match(apiSource, new RegExp(route));
+  }
+
+  assert.match(routeSource, /path:\s*"\/governance\/ads"/);
+  assert.match(routeSource, /name:\s*"GovernanceAds"/);
+  assert.match(
+    apiSource,
+    /http\.request<AdminAd\[\]>\("post",\s*"\/api\/v1\/admin\/ad\/list"/
+  );
+  assert.match(
+    apiSource,
+    /http\.request<AdminAd>\("post",\s*"\/api\/v1\/admin\/ad\/create"/
+  );
+  assert.match(
+    apiSource,
+    /http\.request<void>\("post",\s*"\/api\/v1\/admin\/ad\/update"/
+  );
+  assert.match(
+    apiSource,
+    /http\.request<void>\("post",\s*"\/api\/v1\/admin\/ad\/delete"/
+  );
+  assert.match(viewSource, /governance:list_ads/);
+  assert.match(viewSource, /governance:create_ad/);
+  assert.match(viewSource, /governance:update_ad/);
+  assert.match(viewSource, /governance:delete_ad/);
+  assert.match(viewSource, /publishing:\s*publishingValue/);
+  assert.match(viewSource, /1\s*<<\s*index/);
+  assert.match(viewSource, /preview-src-list/);
+  assert.match(viewSource, /startsAt/);
+  assert.match(viewSource, /expiresAt/);
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

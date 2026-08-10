@@ -358,6 +358,38 @@ export type AdminLinkPayload = {
   sort: number;
 };
 
+export type AdminAd = {
+  id: EntityId;
+  expiresAt: string;
+  startsAt: string;
+  place: string;
+  priority: string;
+  ratio: number;
+  url: string;
+  imageUrl: string;
+  memo: string;
+  dayOfWeek: number;
+};
+
+export type AdminAdListPayload = {
+  limit: number;
+  sinceId?: EntityId;
+  untilId?: EntityId;
+  publishing?: boolean | null;
+};
+
+export type AdminAdPayload = {
+  url: string;
+  memo: string;
+  place: string;
+  priority: string;
+  ratio: number;
+  expiresAt: number;
+  startsAt: number;
+  imageUrl: string;
+  dayOfWeek: number;
+};
+
 export type AdminTask = {
   id: EntityId;
   key: string;
@@ -1599,6 +1631,26 @@ export const deleteAdminLink = (id: EntityId) => {
     "delete",
     `/api/v1/admin/links/${id}`
   );
+};
+
+export const listAdminAds = (data: AdminAdListPayload) => {
+  return http.request<AdminAd[]>("post", "/api/v1/admin/ad/list", { data });
+};
+
+export const createAdminAd = (data: AdminAdPayload) => {
+  return http.request<AdminAd>("post", "/api/v1/admin/ad/create", { data });
+};
+
+export const updateAdminAd = (id: EntityId, data: AdminAdPayload) => {
+  return http.request<void>("post", "/api/v1/admin/ad/update", {
+    data: { id, ...data }
+  });
+};
+
+export const deleteAdminAd = (id: EntityId) => {
+  return http.request<void>("post", "/api/v1/admin/ad/delete", {
+    data: { id }
+  });
 };
 
 export const listAdminTasks = (params: {

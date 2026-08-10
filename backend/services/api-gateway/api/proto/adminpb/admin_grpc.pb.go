@@ -97,6 +97,11 @@ const (
 	AdminService_CreateLink_FullMethodName              = "/bbs.admin.v1.AdminService/CreateLink"
 	AdminService_UpdateLink_FullMethodName              = "/bbs.admin.v1.AdminService/UpdateLink"
 	AdminService_DeleteLink_FullMethodName              = "/bbs.admin.v1.AdminService/DeleteLink"
+	AdminService_ListAds_FullMethodName                 = "/bbs.admin.v1.AdminService/ListAds"
+	AdminService_ListActiveAds_FullMethodName           = "/bbs.admin.v1.AdminService/ListActiveAds"
+	AdminService_CreateAd_FullMethodName                = "/bbs.admin.v1.AdminService/CreateAd"
+	AdminService_UpdateAd_FullMethodName                = "/bbs.admin.v1.AdminService/UpdateAd"
+	AdminService_DeleteAd_FullMethodName                = "/bbs.admin.v1.AdminService/DeleteAd"
 	AdminService_ListTasks_FullMethodName               = "/bbs.admin.v1.AdminService/ListTasks"
 	AdminService_CreateTask_FullMethodName              = "/bbs.admin.v1.AdminService/CreateTask"
 	AdminService_UpdateTask_FullMethodName              = "/bbs.admin.v1.AdminService/UpdateTask"
@@ -188,6 +193,11 @@ type AdminServiceClient interface {
 	CreateLink(ctx context.Context, in *UpsertLinkRequest, opts ...grpc.CallOption) (*LinkResponse, error)
 	UpdateLink(ctx context.Context, in *UpsertLinkRequest, opts ...grpc.CallOption) (*LinkResponse, error)
 	DeleteLink(ctx context.Context, in *LinkIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ListAds(ctx context.Context, in *ListAdsRequest, opts ...grpc.CallOption) (*AdListResponse, error)
+	ListActiveAds(ctx context.Context, in *ListActiveAdsRequest, opts ...grpc.CallOption) (*ActiveAdListResponse, error)
+	CreateAd(ctx context.Context, in *CreateAdRequest, opts ...grpc.CallOption) (*AdResponse, error)
+	UpdateAd(ctx context.Context, in *UpdateAdRequest, opts ...grpc.CallOption) (*AdResponse, error)
+	DeleteAd(ctx context.Context, in *AdIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListTasks(ctx context.Context, in *ListTasksRequest, opts ...grpc.CallOption) (*TaskListResponse, error)
 	CreateTask(ctx context.Context, in *UpsertTaskRequest, opts ...grpc.CallOption) (*TaskResponse, error)
 	UpdateTask(ctx context.Context, in *UpsertTaskRequest, opts ...grpc.CallOption) (*TaskResponse, error)
@@ -985,6 +995,56 @@ func (c *adminServiceClient) DeleteLink(ctx context.Context, in *LinkIDRequest, 
 	return out, nil
 }
 
+func (c *adminServiceClient) ListAds(ctx context.Context, in *ListAdsRequest, opts ...grpc.CallOption) (*AdListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListAds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) ListActiveAds(ctx context.Context, in *ListActiveAdsRequest, opts ...grpc.CallOption) (*ActiveAdListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActiveAdListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListActiveAds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) CreateAd(ctx context.Context, in *CreateAdRequest, opts ...grpc.CallOption) (*AdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdResponse)
+	err := c.cc.Invoke(ctx, AdminService_CreateAd_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) UpdateAd(ctx context.Context, in *UpdateAdRequest, opts ...grpc.CallOption) (*AdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdResponse)
+	err := c.cc.Invoke(ctx, AdminService_UpdateAd_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) DeleteAd(ctx context.Context, in *AdIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_DeleteAd_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) ListTasks(ctx context.Context, in *ListTasksRequest, opts ...grpc.CallOption) (*TaskListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TaskListResponse)
@@ -1137,6 +1197,11 @@ type AdminServiceServer interface {
 	CreateLink(context.Context, *UpsertLinkRequest) (*LinkResponse, error)
 	UpdateLink(context.Context, *UpsertLinkRequest) (*LinkResponse, error)
 	DeleteLink(context.Context, *LinkIDRequest) (*SimpleResponse, error)
+	ListAds(context.Context, *ListAdsRequest) (*AdListResponse, error)
+	ListActiveAds(context.Context, *ListActiveAdsRequest) (*ActiveAdListResponse, error)
+	CreateAd(context.Context, *CreateAdRequest) (*AdResponse, error)
+	UpdateAd(context.Context, *UpdateAdRequest) (*AdResponse, error)
+	DeleteAd(context.Context, *AdIDRequest) (*SimpleResponse, error)
 	ListTasks(context.Context, *ListTasksRequest) (*TaskListResponse, error)
 	CreateTask(context.Context, *UpsertTaskRequest) (*TaskResponse, error)
 	UpdateTask(context.Context, *UpsertTaskRequest) (*TaskResponse, error)
@@ -1387,6 +1452,21 @@ func (UnimplementedAdminServiceServer) UpdateLink(context.Context, *UpsertLinkRe
 }
 func (UnimplementedAdminServiceServer) DeleteLink(context.Context, *LinkIDRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteLink not implemented")
+}
+func (UnimplementedAdminServiceServer) ListAds(context.Context, *ListAdsRequest) (*AdListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAds not implemented")
+}
+func (UnimplementedAdminServiceServer) ListActiveAds(context.Context, *ListActiveAdsRequest) (*ActiveAdListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListActiveAds not implemented")
+}
+func (UnimplementedAdminServiceServer) CreateAd(context.Context, *CreateAdRequest) (*AdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAd not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateAd(context.Context, *UpdateAdRequest) (*AdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAd not implemented")
+}
+func (UnimplementedAdminServiceServer) DeleteAd(context.Context, *AdIDRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAd not implemented")
 }
 func (UnimplementedAdminServiceServer) ListTasks(context.Context, *ListTasksRequest) (*TaskListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTasks not implemented")
@@ -2834,6 +2914,96 @@ func _AdminService_DeleteLink_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListAds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAdsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListAds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListAds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListAds(ctx, req.(*ListAdsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_ListActiveAds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListActiveAdsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListActiveAds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListActiveAds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListActiveAds(ctx, req.(*ListActiveAdsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_CreateAd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).CreateAd(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_CreateAd_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).CreateAd(ctx, req.(*CreateAdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_UpdateAd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateAd(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_UpdateAd_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateAd(ctx, req.(*UpdateAdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_DeleteAd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).DeleteAd(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_DeleteAd_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).DeleteAd(ctx, req.(*AdIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_ListTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTasksRequest)
 	if err := dec(in); err != nil {
@@ -3278,6 +3448,26 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteLink",
 			Handler:    _AdminService_DeleteLink_Handler,
+		},
+		{
+			MethodName: "ListAds",
+			Handler:    _AdminService_ListAds_Handler,
+		},
+		{
+			MethodName: "ListActiveAds",
+			Handler:    _AdminService_ListActiveAds_Handler,
+		},
+		{
+			MethodName: "CreateAd",
+			Handler:    _AdminService_CreateAd_Handler,
+		},
+		{
+			MethodName: "UpdateAd",
+			Handler:    _AdminService_UpdateAd_Handler,
+		},
+		{
+			MethodName: "DeleteAd",
+			Handler:    _AdminService_DeleteAd_Handler,
 		},
 		{
 			MethodName: "ListTasks",

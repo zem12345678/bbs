@@ -1,6 +1,9 @@
 package admin
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 type Action string
 
@@ -59,6 +62,10 @@ const (
 	ActionCreateLink                   Action = "create_link"
 	ActionUpdateLink                   Action = "update_link"
 	ActionDeleteLink                   Action = "delete_link"
+	ActionListAds                      Action = "list_ads"
+	ActionCreateAd                     Action = "create_ad"
+	ActionUpdateAd                     Action = "update_ad"
+	ActionDeleteAd                     Action = "delete_ad"
 	ActionListTasks                    Action = "list_tasks"
 	ActionCreateTask                   Action = "create_task"
 	ActionUpdateTask                   Action = "update_task"
@@ -114,6 +121,7 @@ var (
 	ErrInvalidForbiddenWordID = errors.New("invalid forbidden word id")
 	ErrInvalidLevelID         = errors.New("invalid level id")
 	ErrInvalidLinkID          = errors.New("invalid link id")
+	ErrInvalidAdID            = errors.New("invalid ad id")
 	ErrInvalidSettingID       = errors.New("invalid setting id")
 	ErrInvalidTaskID          = errors.New("invalid task id")
 	ErrInvalidRoleKeys        = errors.New("invalid role keys")
@@ -122,6 +130,7 @@ var (
 	ErrInvalidForbiddenWord   = errors.New("invalid forbidden word")
 	ErrInvalidLevel           = errors.New("invalid level")
 	ErrInvalidLink            = errors.New("invalid link")
+	ErrInvalidAd              = errors.New("invalid ad")
 	ErrInvalidSetting         = errors.New("invalid setting")
 	ErrInvalidTask            = errors.New("invalid task")
 	ErrInvalidStatus          = errors.New("invalid status")
@@ -589,6 +598,56 @@ type UpsertLinkCommand struct {
 	Description string
 	Status      int32
 	Sort        int32
+}
+
+type Ad struct {
+	ID        int64
+	URL       string
+	Memo      string
+	Place     string
+	Priority  string
+	Ratio     int32
+	StartsAt  time.Time
+	ExpiresAt time.Time
+	ImageURL  string
+	DayOfWeek int32
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (a Ad) PublishingAt(now time.Time) bool {
+	now = now.UTC()
+	return !now.Before(a.StartsAt) && now.Before(a.ExpiresAt) && a.DayOfWeek&(1<<uint(now.Weekday())) != 0
+}
+
+type AdList struct {
+	Items []Ad
+	Total int64
+}
+
+type CreateAdCommand struct {
+	URL       string
+	Memo      string
+	Place     string
+	Priority  string
+	Ratio     int32
+	StartsAt  time.Time
+	ExpiresAt time.Time
+	ImageURL  string
+	DayOfWeek int32
+}
+
+type UpdateAdCommand struct {
+	ID        int64
+	URL       *string
+	Memo      *string
+	Place     *string
+	Priority  *string
+	Ratio     *int32
+	StartsAt  *time.Time
+	ExpiresAt *time.Time
+	ImageURL  *string
+	DayOfWeek *int32
 }
 
 type Task struct {

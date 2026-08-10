@@ -37,6 +37,28 @@ test("unwraps successful API envelopes and preserves large integer ids", async (
   assert.deepEqual(data, { id: "9223372036854775807", name: "demo" });
 });
 
+test("loads public metadata without authentication", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { ads: [], notesPerOneAd: 0 }
+    });
+  };
+
+  const data = await bbsApi.meta(false);
+
+  assert.equal(captured.url, "http://127.0.0.1:18080/api/v1/meta");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(captured.options.body), { detail: false });
+  assert.deepEqual(data, { ads: [], notesPerOneAd: 0 });
+});
+
 test("keeps int64 mall ids quoted in mutation payloads", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {
