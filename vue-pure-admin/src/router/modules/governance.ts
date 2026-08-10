@@ -45,6 +45,15 @@ export default {
       }
     },
     {
+      path: "/governance/channels",
+      name: "GovernanceChannels",
+      component: () => import("@/views/governance/channels/index.vue"),
+      meta: {
+        title: "圈子治理",
+        roles: ["admin", "moderator", "superadmin"]
+      }
+    },
+    {
       path: "/governance/categories",
       name: "GovernanceCategories",
       component: () => import("@/views/governance/categories/index.vue"),

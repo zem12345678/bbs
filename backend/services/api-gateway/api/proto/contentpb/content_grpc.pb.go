@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: content.proto
+// source: api-gateway/api/proto/content.proto
 
 package contentpb
 
@@ -32,6 +32,8 @@ const (
 	ContentService_CreateChannel_FullMethodName         = "/bbs.content.v1.ContentService/CreateChannel"
 	ContentService_UpdateChannel_FullMethodName         = "/bbs.content.v1.ContentService/UpdateChannel"
 	ContentService_ArchiveChannel_FullMethodName        = "/bbs.content.v1.ContentService/ArchiveChannel"
+	ContentService_SetChannelFeatured_FullMethodName    = "/bbs.content.v1.ContentService/SetChannelFeatured"
+	ContentService_SetChannelArchived_FullMethodName    = "/bbs.content.v1.ContentService/SetChannelArchived"
 	ContentService_GetChannel_FullMethodName            = "/bbs.content.v1.ContentService/GetChannel"
 	ContentService_ListChannels_FullMethodName          = "/bbs.content.v1.ContentService/ListChannels"
 	ContentService_FollowChannel_FullMethodName         = "/bbs.content.v1.ContentService/FollowChannel"
@@ -76,6 +78,8 @@ type ContentServiceClient interface {
 	CreateChannel(ctx context.Context, in *CreateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	UpdateChannel(ctx context.Context, in *UpdateChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	ArchiveChannel(ctx context.Context, in *ArchiveChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	SetChannelFeatured(ctx context.Context, in *SetChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	SetChannelArchived(ctx context.Context, in *SetChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error)
 	FollowChannel(ctx context.Context, in *ChannelUserRequest, opts ...grpc.CallOption) (*ChannelActionResponse, error)
@@ -235,6 +239,26 @@ func (c *contentServiceClient) ArchiveChannel(ctx context.Context, in *ArchiveCh
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ChannelResponse)
 	err := c.cc.Invoke(ctx, ContentService_ArchiveChannel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) SetChannelFeatured(ctx context.Context, in *SetChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_SetChannelFeatured_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) SetChannelArchived(ctx context.Context, in *SetChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_SetChannelArchived_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -508,6 +532,8 @@ type ContentServiceServer interface {
 	CreateChannel(context.Context, *CreateChannelRequest) (*ChannelResponse, error)
 	UpdateChannel(context.Context, *UpdateChannelRequest) (*ChannelResponse, error)
 	ArchiveChannel(context.Context, *ArchiveChannelRequest) (*ChannelResponse, error)
+	SetChannelFeatured(context.Context, *SetChannelFeaturedRequest) (*ChannelResponse, error)
+	SetChannelArchived(context.Context, *SetChannelArchivedRequest) (*ChannelResponse, error)
 	GetChannel(context.Context, *GetChannelRequest) (*ChannelResponse, error)
 	ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error)
 	FollowChannel(context.Context, *ChannelUserRequest) (*ChannelActionResponse, error)
@@ -581,6 +607,12 @@ func (UnimplementedContentServiceServer) UpdateChannel(context.Context, *UpdateC
 }
 func (UnimplementedContentServiceServer) ArchiveChannel(context.Context, *ArchiveChannelRequest) (*ChannelResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveChannel not implemented")
+}
+func (UnimplementedContentServiceServer) SetChannelFeatured(context.Context, *SetChannelFeaturedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelFeatured not implemented")
+}
+func (UnimplementedContentServiceServer) SetChannelArchived(context.Context, *SetChannelArchivedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelArchived not implemented")
 }
 func (UnimplementedContentServiceServer) GetChannel(context.Context, *GetChannelRequest) (*ChannelResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetChannel not implemented")
@@ -908,6 +940,42 @@ func _ContentService_ArchiveChannel_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContentServiceServer).ArchiveChannel(ctx, req.(*ArchiveChannelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_SetChannelFeatured_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetChannelFeaturedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).SetChannelFeatured(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_SetChannelFeatured_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).SetChannelFeatured(ctx, req.(*SetChannelFeaturedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_SetChannelArchived_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetChannelArchivedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).SetChannelArchived(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_SetChannelArchived_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).SetChannelArchived(ctx, req.(*SetChannelArchivedRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1422,6 +1490,14 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ContentService_ArchiveChannel_Handler,
 		},
 		{
+			MethodName: "SetChannelFeatured",
+			Handler:    _ContentService_SetChannelFeatured_Handler,
+		},
+		{
+			MethodName: "SetChannelArchived",
+			Handler:    _ContentService_SetChannelArchived_Handler,
+		},
+		{
 			MethodName: "GetChannel",
 			Handler:    _ContentService_GetChannel_Handler,
 		},
@@ -1523,5 +1599,5 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "content.proto",
+	Metadata: "api-gateway/api/proto/content.proto",
 }

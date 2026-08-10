@@ -55,6 +55,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidBadgeID),
 		errors.Is(err, domain.ErrInvalidCategory),
 		errors.Is(err, domain.ErrInvalidCategoryID),
+		errors.Is(err, domain.ErrInvalidChannelID),
 		errors.Is(err, domain.ErrInvalidCommentID),
 		errors.Is(err, domain.ErrInvalidForbiddenWord),
 		errors.Is(err, domain.ErrInvalidForbiddenWordID),

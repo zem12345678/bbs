@@ -39,7 +39,7 @@ func TestChannelHandlerListsWithIndependentRelationAndViewerIDs(t *testing.T) {
 	repo := &handlerChannelRepo{
 		listed: []*channelDomain.Channel{{
 			ID: 7001, OwnerID: 42, Name: "Engineering", FollowersCount: 3, TopicsCount: 5,
-			LastPostedAt: &lastPostedAt, ViewerFollowing: true, ViewerFavorited: true,
+			LastPostedAt: &lastPostedAt, ViewerFollowing: true, ViewerFavorited: true, IsFeatured: true,
 		}},
 		total: 1,
 	}
@@ -48,19 +48,37 @@ func TestChannelHandlerListsWithIndependentRelationAndViewerIDs(t *testing.T) {
 	response, err := handler.ListChannels(context.Background(), &pb.ListChannelsRequest{
 		Query: "engine", CategoryId: 7, Uncategorized: true, OwnerId: 42,
 		FollowerUserId: 50, FavoritedUserId: 60, ViewerUserId: 70,
-		Featured: true, IncludeArchived: true, Limit: 8, Offset: 3,
+		Featured: true, IncludeArchived: true, ArchivedStatus: 2, Limit: 8, Offset: 3,
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, channelDomain.ListFilter{
 		Query: "engine", CategoryID: 7, Uncategorized: true, OwnerID: 42,
 		FollowerUserID: 50, FavoritedUserID: 60, ViewerID: 70,
-		Featured: true, IncludeArchived: true, Limit: 8, Offset: 3,
+		Featured: true, IncludeArchived: true, ArchivedStatus: channelDomain.ArchivedStatusArchived, Limit: 8, Offset: 3,
 	}, repo.filter)
 	require.EqualValues(t, 1, response.GetTotal())
 	require.EqualValues(t, lastPostedAt.UnixMilli(), response.GetItems()[0].GetLastPostedAt())
 	require.True(t, response.GetItems()[0].GetIsFollowing())
 	require.True(t, response.GetItems()[0].GetIsFavorited())
+	require.True(t, response.GetItems()[0].GetIsFeatured())
+}
+
+func TestChannelHandlerManagesFeaturedAndArchivedState(t *testing.T) {
+	repo := &handlerChannelRepo{found: &channelDomain.Channel{ID: 7001, OwnerID: 42, Name: "Engineering"}}
+	handler := channelTestHandler(repo)
+
+	response, err := handler.SetChannelFeatured(context.Background(), &pb.SetChannelFeaturedRequest{Id: 7001, Featured: true})
+	require.NoError(t, err)
+	require.True(t, response.GetChannel().GetIsFeatured())
+	require.NotNil(t, repo.managed)
+	require.True(t, repo.managed.IsFeatured)
+
+	repo.found = repo.managed
+	response, err = handler.SetChannelArchived(context.Background(), &pb.SetChannelArchivedRequest{Id: 7001, Archived: true})
+	require.NoError(t, err)
+	require.True(t, response.GetChannel().GetIsArchived())
+	require.False(t, response.GetChannel().GetIsFeatured())
 }
 
 func TestChannelHandlerMapsActionsAndArchivedError(t *testing.T) {
@@ -121,6 +139,8 @@ type handlerChannelRepo struct {
 	actionChannelID int64
 	actionUserID    int64
 	actionErr       error
+	found           *channelDomain.Channel
+	managed         *channelDomain.Channel
 }
 
 func (r *handlerChannelRepo) CreateChannel(_ context.Context, channel *channelDomain.Channel) error {
@@ -133,7 +153,23 @@ func (r *handlerChannelRepo) ArchiveChannel(context.Context, *channelDomain.Chan
 	return nil
 }
 
+func (r *handlerChannelRepo) SetChannelFeatured(_ context.Context, channel *channelDomain.Channel) error {
+	copy := *channel
+	r.managed = &copy
+	return nil
+}
+
+func (r *handlerChannelRepo) SetChannelArchived(_ context.Context, channel *channelDomain.Channel) error {
+	copy := *channel
+	r.managed = &copy
+	return nil
+}
+
 func (r *handlerChannelRepo) FindChannelByID(context.Context, int64, int64, bool) (*channelDomain.Channel, error) {
+	if r.found != nil {
+		copy := *r.found
+		return &copy, nil
+	}
 	return &channelDomain.Channel{ID: 7001, OwnerID: 42, Name: "Engineering"}, nil
 }
 

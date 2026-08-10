@@ -23,7 +23,7 @@ func TestChannelPostgresIntegration(t *testing.T) {
 	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	for _, filename := range []string{"0015_add_account_erasure.sql", "0016_create_channels.sql"} {
+	for _, filename := range []string{"0015_add_account_erasure.sql", "0016_create_channels.sql", "0017_add_channel_featured.sql"} {
 		migration, readErr := migrations.Files.ReadFile(filename)
 		require.NoError(t, readErr)
 		require.NoError(t, db.Exec(string(migration)).Error)
@@ -87,6 +87,44 @@ func TestChannelPostgresIntegration(t *testing.T) {
 	require.EqualValues(t, 1, total)
 	require.Len(t, uncategorizedList, 1)
 	require.Equal(t, uncategorizedID, uncategorizedList[0].ID)
+
+	require.NoError(t, channel.SetFeatured(true))
+	require.NoError(t, channels.SetChannelFeatured(ctx, channel))
+	featuredList, total, err := channels.ListChannels(ctx, channelDomain.ListFilter{
+		OwnerID: ownerID, Featured: true, IncludeArchived: true,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, featuredList, 1)
+	require.Equal(t, channelID, featuredList[0].ID)
+	require.True(t, featuredList[0].IsFeatured)
+
+	require.NoError(t, channel.SetArchived(true))
+	require.NoError(t, channels.SetChannelArchived(ctx, channel))
+	archivedList, total, err := channels.ListChannels(ctx, channelDomain.ListFilter{
+		OwnerID: ownerID, ArchivedStatus: channelDomain.ArchivedStatusArchived,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Len(t, archivedList, 1)
+	require.Equal(t, channelID, archivedList[0].ID)
+	require.False(t, archivedList[0].IsFeatured)
+
+	staleFeatured := *channel
+	staleFeatured.IsFeatured = true
+	require.ErrorIs(t, channels.SetChannelFeatured(ctx, &staleFeatured), channelDomain.ErrArchived)
+
+	require.NoError(t, channel.SetArchived(false))
+	require.NoError(t, channels.SetChannelArchived(ctx, channel))
+	restored, err := channels.FindChannelByID(ctx, channelID, viewerID, false)
+	require.NoError(t, err)
+	require.False(t, restored.IsArchived)
+	require.False(t, restored.IsFeatured)
+	activeList, _, err := channels.ListChannels(ctx, channelDomain.ListFilter{ArchivedStatus: channelDomain.ArchivedStatusActive, IncludeArchived: true})
+	require.NoError(t, err)
+	for _, active := range activeList {
+		require.False(t, active.IsArchived)
+	}
 
 	filteredTopics, total, err := topics.ListTopics(ctx, topicDomain.StatusPublished, "", "", 0, 0, channelID, "", 20, 0)
 	require.NoError(t, err)

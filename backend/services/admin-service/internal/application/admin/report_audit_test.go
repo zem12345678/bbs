@@ -154,6 +154,18 @@ func (f *fakeAuditContentGateway) ArchiveTopic(context.Context, int64) (domain.T
 	return domain.Topic{}, nil
 }
 
+func (f *fakeAuditContentGateway) ListChannels(context.Context, string, int64, int32, int32, int32) (domain.ChannelList, error) {
+	return domain.ChannelList{}, nil
+}
+
+func (f *fakeAuditContentGateway) SetChannelFeatured(context.Context, int64, bool) (domain.Channel, error) {
+	return domain.Channel{}, nil
+}
+
+func (f *fakeAuditContentGateway) SetChannelArchived(context.Context, int64, bool) (domain.Channel, error) {
+	return domain.Channel{}, nil
+}
+
 func (f *fakeAuditContentGateway) ListCategories(context.Context, int32, int32, int32) (domain.CategoryList, error) {
 	return domain.CategoryList{}, nil
 }

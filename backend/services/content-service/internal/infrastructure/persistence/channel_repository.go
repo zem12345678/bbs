@@ -22,6 +22,7 @@ type channelPO struct {
 	Description string `gorm:"type:text;not null;default:''"`
 	Color       string `gorm:"size:16;not null;default:'#3b82f6'"`
 	IsArchived  bool   `gorm:"not null;default:false;index"`
+	IsFeatured  bool   `gorm:"not null;default:false;index"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -36,6 +37,7 @@ type channelViewPO struct {
 	Description     string
 	Color           string
 	IsArchived      bool
+	IsFeatured      bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	FollowersCount  int64      `gorm:"column:followers_count"`
@@ -99,7 +101,39 @@ func (r *ChannelRepo) UpdateChannel(ctx context.Context, channel *channelDomain.
 func (r *ChannelRepo) ArchiveChannel(ctx context.Context, channel *channelDomain.Channel) error {
 	res := r.db.WithContext(ctx).Model(&channelPO{}).
 		Where("id = ? AND is_archived = FALSE", channel.ID).
-		Updates(map[string]any{"is_archived": true, "updated_at": channel.UpdatedAt})
+		Updates(map[string]any{"is_archived": true, "is_featured": false, "updated_at": channel.UpdatedAt})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return r.channelStateError(ctx, channel.ID)
+	}
+	return nil
+}
+
+func (r *ChannelRepo) SetChannelFeatured(ctx context.Context, channel *channelDomain.Channel) error {
+	q := r.db.WithContext(ctx).Model(&channelPO{}).Where("id = ?", channel.ID)
+	if channel.IsFeatured {
+		q = q.Where("is_archived = FALSE")
+	}
+	res := q.Updates(map[string]any{"is_featured": channel.IsFeatured, "updated_at": channel.UpdatedAt})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return r.channelStateError(ctx, channel.ID)
+	}
+	return nil
+}
+
+func (r *ChannelRepo) SetChannelArchived(ctx context.Context, channel *channelDomain.Channel) error {
+	res := r.db.WithContext(ctx).Model(&channelPO{}).
+		Where("id = ?", channel.ID).
+		Updates(map[string]any{
+			"is_archived": channel.IsArchived,
+			"is_featured": channel.IsFeatured,
+			"updated_at":  channel.UpdatedAt,
+		})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -127,8 +161,15 @@ func (r *ChannelRepo) FindChannelByID(ctx context.Context, id, viewerID int64, i
 func (r *ChannelRepo) ListChannels(ctx context.Context, filter channelDomain.ListFilter) ([]*channelDomain.Channel, int64, error) {
 	q := r.channelQuery(ctx, filter.ViewerID).
 		Joins("LEFT JOIN categories AS channel_category ON channel_category.id = channels.category_id")
-	if !filter.IncludeArchived {
+	switch filter.ArchivedStatus {
+	case channelDomain.ArchivedStatusActive:
 		q = q.Where("channels.is_archived = FALSE")
+	case channelDomain.ArchivedStatusArchived:
+		q = q.Where("channels.is_archived = TRUE")
+	default:
+		if !filter.IncludeArchived {
+			q = q.Where("channels.is_archived = FALSE")
+		}
 	}
 	if query := strings.TrimSpace(filter.Query); query != "" {
 		pattern := "%" + query + "%"
@@ -155,6 +196,7 @@ func (r *ChannelRepo) ListChannels(ctx context.Context, filter channelDomain.Lis
 
 	order := "last_posted_at DESC NULLS LAST, channels.updated_at DESC, channels.id DESC"
 	if filter.Featured {
+		q = q.Where("channels.is_featured = TRUE")
 		order = "followers_count DESC, topics_count DESC, last_posted_at DESC NULLS LAST, channels.id DESC"
 	}
 	var rows []channelViewPO
@@ -295,6 +337,7 @@ func channelToPO(channel *channelDomain.Channel) channelPO {
 		Description: channel.Description,
 		Color:       channel.Color,
 		IsArchived:  channel.IsArchived,
+		IsFeatured:  channel.IsFeatured,
 		CreatedAt:   channel.CreatedAt,
 		UpdatedAt:   channel.UpdatedAt,
 	}
@@ -313,6 +356,7 @@ func channelToEntity(row *channelViewPO) *channelDomain.Channel {
 		Description:     row.Description,
 		Color:           row.Color,
 		IsArchived:      row.IsArchived,
+		IsFeatured:      row.IsFeatured,
 		FollowersCount:  row.FollowersCount,
 		TopicsCount:     row.TopicsCount,
 		LastPostedAt:    row.LastPostedAt,

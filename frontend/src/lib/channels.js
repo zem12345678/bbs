@@ -23,6 +23,7 @@ export function normalizeChannel(item) {
     followers_count: toNumber(item.followers_count),
     topics_count: toNumber(item.topics_count),
     is_archived: Boolean(item.is_archived),
+    is_featured: Boolean(item.is_featured),
     is_following: Boolean(item.is_following),
     is_favorited: Boolean(item.is_favorited)
   };

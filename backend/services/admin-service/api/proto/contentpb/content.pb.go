@@ -1981,6 +1981,510 @@ func (x *AutocompleteTagsRequest) GetLimit() int32 {
 	return 0
 }
 
+type ChannelInfo struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	OwnerId        int64                  `protobuf:"varint,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CategoryId     int64                  `protobuf:"varint,3,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	Name           string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Description    string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	Color          string                 `protobuf:"bytes,6,opt,name=color,proto3" json:"color,omitempty"`
+	IsArchived     bool                   `protobuf:"varint,7,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
+	FollowersCount int64                  `protobuf:"varint,8,opt,name=followers_count,json=followersCount,proto3" json:"followers_count,omitempty"`
+	TopicsCount    int64                  `protobuf:"varint,9,opt,name=topics_count,json=topicsCount,proto3" json:"topics_count,omitempty"`
+	LastPostedAt   int64                  `protobuf:"varint,10,opt,name=last_posted_at,json=lastPostedAt,proto3" json:"last_posted_at,omitempty"`
+	CreatedAt      int64                  `protobuf:"varint,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      int64                  `protobuf:"varint,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	IsFollowing    bool                   `protobuf:"varint,13,opt,name=is_following,json=isFollowing,proto3" json:"is_following,omitempty"`
+	IsFavorited    bool                   `protobuf:"varint,14,opt,name=is_favorited,json=isFavorited,proto3" json:"is_favorited,omitempty"`
+	IsFeatured     bool                   `protobuf:"varint,15,opt,name=is_featured,json=isFeatured,proto3" json:"is_featured,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ChannelInfo) Reset() {
+	*x = ChannelInfo{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelInfo) ProtoMessage() {}
+
+func (x *ChannelInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelInfo.ProtoReflect.Descriptor instead.
+func (*ChannelInfo) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ChannelInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetColor() string {
+	if x != nil {
+		return x.Color
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetIsArchived() bool {
+	if x != nil {
+		return x.IsArchived
+	}
+	return false
+}
+
+func (x *ChannelInfo) GetFollowersCount() int64 {
+	if x != nil {
+		return x.FollowersCount
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetTopicsCount() int64 {
+	if x != nil {
+		return x.TopicsCount
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetLastPostedAt() int64 {
+	if x != nil {
+		return x.LastPostedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetIsFollowing() bool {
+	if x != nil {
+		return x.IsFollowing
+	}
+	return false
+}
+
+func (x *ChannelInfo) GetIsFavorited() bool {
+	if x != nil {
+		return x.IsFavorited
+	}
+	return false
+}
+
+func (x *ChannelInfo) GetIsFeatured() bool {
+	if x != nil {
+		return x.IsFeatured
+	}
+	return false
+}
+
+type ChannelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Channel       *ChannelInfo           `protobuf:"bytes,3,opt,name=channel,proto3" json:"channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelResponse) Reset() {
+	*x = ChannelResponse{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelResponse) ProtoMessage() {}
+
+func (x *ChannelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelResponse.ProtoReflect.Descriptor instead.
+func (*ChannelResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ChannelResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ChannelResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ChannelResponse) GetChannel() *ChannelInfo {
+	if x != nil {
+		return x.Channel
+	}
+	return nil
+}
+
+type ChannelListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ChannelInfo         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelListResponse) Reset() {
+	*x = ChannelListResponse{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelListResponse) ProtoMessage() {}
+
+func (x *ChannelListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelListResponse.ProtoReflect.Descriptor instead.
+func (*ChannelListResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ChannelListResponse) GetItems() []*ChannelInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ChannelListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type ListChannelsRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Query           string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	CategoryId      int64                  `protobuf:"varint,2,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	Uncategorized   bool                   `protobuf:"varint,3,opt,name=uncategorized,proto3" json:"uncategorized,omitempty"`
+	OwnerId         int64                  `protobuf:"varint,4,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	FollowerUserId  int64                  `protobuf:"varint,5,opt,name=follower_user_id,json=followerUserId,proto3" json:"follower_user_id,omitempty"`
+	FavoritedUserId int64                  `protobuf:"varint,6,opt,name=favorited_user_id,json=favoritedUserId,proto3" json:"favorited_user_id,omitempty"`
+	ViewerUserId    int64                  `protobuf:"varint,7,opt,name=viewer_user_id,json=viewerUserId,proto3" json:"viewer_user_id,omitempty"`
+	Featured        bool                   `protobuf:"varint,8,opt,name=featured,proto3" json:"featured,omitempty"`
+	IncludeArchived bool                   `protobuf:"varint,9,opt,name=include_archived,json=includeArchived,proto3" json:"include_archived,omitempty"`
+	Limit           int32                  `protobuf:"varint,10,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset          int32                  `protobuf:"varint,11,opt,name=offset,proto3" json:"offset,omitempty"`
+	ArchivedStatus  int32                  `protobuf:"varint,12,opt,name=archived_status,json=archivedStatus,proto3" json:"archived_status,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ListChannelsRequest) Reset() {
+	*x = ListChannelsRequest{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsRequest) ProtoMessage() {}
+
+func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
+func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ListChannelsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListChannelsRequest) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetUncategorized() bool {
+	if x != nil {
+		return x.Uncategorized
+	}
+	return false
+}
+
+func (x *ListChannelsRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetFollowerUserId() int64 {
+	if x != nil {
+		return x.FollowerUserId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetFavoritedUserId() int64 {
+	if x != nil {
+		return x.FavoritedUserId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetViewerUserId() int64 {
+	if x != nil {
+		return x.ViewerUserId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetFeatured() bool {
+	if x != nil {
+		return x.Featured
+	}
+	return false
+}
+
+func (x *ListChannelsRequest) GetIncludeArchived() bool {
+	if x != nil {
+		return x.IncludeArchived
+	}
+	return false
+}
+
+func (x *ListChannelsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetArchivedStatus() int32 {
+	if x != nil {
+		return x.ArchivedStatus
+	}
+	return 0
+}
+
+type SetChannelFeaturedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Featured      bool                   `protobuf:"varint,2,opt,name=featured,proto3" json:"featured,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetChannelFeaturedRequest) Reset() {
+	*x = SetChannelFeaturedRequest{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetChannelFeaturedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetChannelFeaturedRequest) ProtoMessage() {}
+
+func (x *SetChannelFeaturedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetChannelFeaturedRequest.ProtoReflect.Descriptor instead.
+func (*SetChannelFeaturedRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *SetChannelFeaturedRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *SetChannelFeaturedRequest) GetFeatured() bool {
+	if x != nil {
+		return x.Featured
+	}
+	return false
+}
+
+type SetChannelArchivedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Archived      bool                   `protobuf:"varint,2,opt,name=archived,proto3" json:"archived,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetChannelArchivedRequest) Reset() {
+	*x = SetChannelArchivedRequest{}
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetChannelArchivedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetChannelArchivedRequest) ProtoMessage() {}
+
+func (x *SetChannelArchivedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_content_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetChannelArchivedRequest.ProtoReflect.Descriptor instead.
+func (*SetChannelArchivedRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_content_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SetChannelArchivedRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *SetChannelArchivedRequest) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
+}
+
 var File_admin_service_api_proto_content_proto protoreflect.FileDescriptor
 
 const file_admin_service_api_proto_content_proto_rawDesc = "" +
@@ -2147,7 +2651,57 @@ const file_admin_service_api_proto_content_proto_rawDesc = "" +
 	"\x06status\x18\x03 \x01(\x05R\x06status\"E\n" +
 	"\x17AutocompleteTagsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit2\xe8\x0e\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\xdd\x03\n" +
+	"\vChannelInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12\x1f\n" +
+	"\vcategory_id\x18\x03 \x01(\x03R\n" +
+	"categoryId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x14\n" +
+	"\x05color\x18\x06 \x01(\tR\x05color\x12\x1f\n" +
+	"\vis_archived\x18\a \x01(\bR\n" +
+	"isArchived\x12'\n" +
+	"\x0ffollowers_count\x18\b \x01(\x03R\x0efollowersCount\x12!\n" +
+	"\ftopics_count\x18\t \x01(\x03R\vtopicsCount\x12$\n" +
+	"\x0elast_posted_at\x18\n" +
+	" \x01(\x03R\flastPostedAt\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\x03R\tupdatedAt\x12!\n" +
+	"\fis_following\x18\r \x01(\bR\visFollowing\x12!\n" +
+	"\fis_favorited\x18\x0e \x01(\bR\visFavorited\x12\x1f\n" +
+	"\vis_featured\x18\x0f \x01(\bR\n" +
+	"isFeatured\"|\n" +
+	"\x0fChannelResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x125\n" +
+	"\achannel\x18\x03 \x01(\v2\x1b.bbs.content.v1.ChannelInfoR\achannel\"^\n" +
+	"\x13ChannelListResponse\x121\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.bbs.content.v1.ChannelInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\xa7\x03\n" +
+	"\x13ListChannelsRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1f\n" +
+	"\vcategory_id\x18\x02 \x01(\x03R\n" +
+	"categoryId\x12$\n" +
+	"\runcategorized\x18\x03 \x01(\bR\runcategorized\x12\x19\n" +
+	"\bowner_id\x18\x04 \x01(\x03R\aownerId\x12(\n" +
+	"\x10follower_user_id\x18\x05 \x01(\x03R\x0efollowerUserId\x12*\n" +
+	"\x11favorited_user_id\x18\x06 \x01(\x03R\x0ffavoritedUserId\x12$\n" +
+	"\x0eviewer_user_id\x18\a \x01(\x03R\fviewerUserId\x12\x1a\n" +
+	"\bfeatured\x18\b \x01(\bR\bfeatured\x12)\n" +
+	"\x10include_archived\x18\t \x01(\bR\x0fincludeArchived\x12\x14\n" +
+	"\x05limit\x18\n" +
+	" \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\v \x01(\x05R\x06offset\x12'\n" +
+	"\x0farchived_status\x18\f \x01(\x05R\x0earchivedStatus\"G\n" +
+	"\x19SetChannelFeaturedRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
+	"\bfeatured\x18\x02 \x01(\bR\bfeatured\"G\n" +
+	"\x19SetChannelArchivedRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
+	"\barchived\x18\x02 \x01(\bR\barchived2\x86\x11\n" +
 	"\x0eContentService\x12P\n" +
 	"\vCreateTopic\x12\".bbs.content.v1.CreateTopicRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12P\n" +
 	"\vUpdateTopic\x12\".bbs.content.v1.UpdateTopicRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12M\n" +
@@ -2156,7 +2710,10 @@ const file_admin_service_api_proto_content_proto_rawDesc = "" +
 	"\fArchiveTopic\x12\x1e.bbs.content.v1.TopicIDRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12J\n" +
 	"\bGetTopic\x12\x1f.bbs.content.v1.GetTopicRequest\x1a\x1d.bbs.content.v1.TopicResponse\x12R\n" +
 	"\n" +
-	"ListTopics\x12!.bbs.content.v1.ListTopicsRequest\x1a!.bbs.content.v1.TopicListResponse\x12V\n" +
+	"ListTopics\x12!.bbs.content.v1.ListTopicsRequest\x1a!.bbs.content.v1.TopicListResponse\x12X\n" +
+	"\fListChannels\x12#.bbs.content.v1.ListChannelsRequest\x1a#.bbs.content.v1.ChannelListResponse\x12`\n" +
+	"\x12SetChannelFeatured\x12).bbs.content.v1.SetChannelFeaturedRequest\x1a\x1f.bbs.content.v1.ChannelResponse\x12`\n" +
+	"\x12SetChannelArchived\x12).bbs.content.v1.SetChannelArchivedRequest\x1a\x1f.bbs.content.v1.ChannelResponse\x12V\n" +
 	"\rCreateArticle\x12$.bbs.content.v1.CreateArticleRequest\x1a\x1f.bbs.content.v1.ArticleResponse\x12V\n" +
 	"\rUpdateArticle\x12$.bbs.content.v1.UpdateArticleRequest\x1a\x1f.bbs.content.v1.ArticleResponse\x12S\n" +
 	"\x0ePublishArticle\x12 .bbs.content.v1.ArticleIDRequest\x1a\x1f.bbs.content.v1.ArticleResponse\x12P\n" +
@@ -2186,7 +2743,7 @@ func file_admin_service_api_proto_content_proto_rawDescGZIP() []byte {
 	return file_admin_service_api_proto_content_proto_rawDescData
 }
 
-var file_admin_service_api_proto_content_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_admin_service_api_proto_content_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_admin_service_api_proto_content_proto_goTypes = []any{
 	(*TopicInfo)(nil),                 // 0: bbs.content.v1.TopicInfo
 	(*ArticleInfo)(nil),               // 1: bbs.content.v1.ArticleInfo
@@ -2215,6 +2772,12 @@ var file_admin_service_api_proto_content_proto_goTypes = []any{
 	(*UpsertCategoryRequest)(nil),     // 24: bbs.content.v1.UpsertCategoryRequest
 	(*ListTagsRequest)(nil),           // 25: bbs.content.v1.ListTagsRequest
 	(*AutocompleteTagsRequest)(nil),   // 26: bbs.content.v1.AutocompleteTagsRequest
+	(*ChannelInfo)(nil),               // 27: bbs.content.v1.ChannelInfo
+	(*ChannelResponse)(nil),           // 28: bbs.content.v1.ChannelResponse
+	(*ChannelListResponse)(nil),       // 29: bbs.content.v1.ChannelListResponse
+	(*ListChannelsRequest)(nil),       // 30: bbs.content.v1.ListChannelsRequest
+	(*SetChannelFeaturedRequest)(nil), // 31: bbs.content.v1.SetChannelFeaturedRequest
+	(*SetChannelArchivedRequest)(nil), // 32: bbs.content.v1.SetChannelArchivedRequest
 }
 var file_admin_service_api_proto_content_proto_depIdxs = []int32{
 	0,  // 0: bbs.content.v1.TopicResponse.topic:type_name -> bbs.content.v1.TopicInfo
@@ -2224,55 +2787,63 @@ var file_admin_service_api_proto_content_proto_depIdxs = []int32{
 	6,  // 4: bbs.content.v1.TagListResponse.items:type_name -> bbs.content.v1.TagInfo
 	8,  // 5: bbs.content.v1.CategoryResponse.category:type_name -> bbs.content.v1.CategoryInfo
 	8,  // 6: bbs.content.v1.CategoryListResponse.items:type_name -> bbs.content.v1.CategoryInfo
-	11, // 7: bbs.content.v1.ContentService.CreateTopic:input_type -> bbs.content.v1.CreateTopicRequest
-	12, // 8: bbs.content.v1.ContentService.UpdateTopic:input_type -> bbs.content.v1.UpdateTopicRequest
-	13, // 9: bbs.content.v1.ContentService.PublishTopic:input_type -> bbs.content.v1.TopicIDRequest
-	13, // 10: bbs.content.v1.ContentService.HideTopic:input_type -> bbs.content.v1.TopicIDRequest
-	13, // 11: bbs.content.v1.ContentService.ArchiveTopic:input_type -> bbs.content.v1.TopicIDRequest
-	14, // 12: bbs.content.v1.ContentService.GetTopic:input_type -> bbs.content.v1.GetTopicRequest
-	15, // 13: bbs.content.v1.ContentService.ListTopics:input_type -> bbs.content.v1.ListTopicsRequest
-	16, // 14: bbs.content.v1.ContentService.CreateArticle:input_type -> bbs.content.v1.CreateArticleRequest
-	17, // 15: bbs.content.v1.ContentService.UpdateArticle:input_type -> bbs.content.v1.UpdateArticleRequest
-	18, // 16: bbs.content.v1.ContentService.PublishArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	18, // 17: bbs.content.v1.ContentService.HideArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	18, // 18: bbs.content.v1.ContentService.ArchiveArticle:input_type -> bbs.content.v1.ArticleIDRequest
-	19, // 19: bbs.content.v1.ContentService.GetArticle:input_type -> bbs.content.v1.GetArticleRequest
-	20, // 20: bbs.content.v1.ContentService.ListArticles:input_type -> bbs.content.v1.ListArticlesRequest
-	21, // 21: bbs.content.v1.ContentService.FeedArticlesByTime:input_type -> bbs.content.v1.FeedArticlesByTimeRequest
-	22, // 22: bbs.content.v1.ContentService.ListCategories:input_type -> bbs.content.v1.ListCategoriesRequest
-	23, // 23: bbs.content.v1.ContentService.GetCategory:input_type -> bbs.content.v1.CategoryIDRequest
-	24, // 24: bbs.content.v1.ContentService.CreateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
-	24, // 25: bbs.content.v1.ContentService.UpdateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
-	23, // 26: bbs.content.v1.ContentService.DeleteCategory:input_type -> bbs.content.v1.CategoryIDRequest
-	25, // 27: bbs.content.v1.ContentService.ListTags:input_type -> bbs.content.v1.ListTagsRequest
-	26, // 28: bbs.content.v1.ContentService.AutocompleteTags:input_type -> bbs.content.v1.AutocompleteTagsRequest
-	2,  // 29: bbs.content.v1.ContentService.CreateTopic:output_type -> bbs.content.v1.TopicResponse
-	2,  // 30: bbs.content.v1.ContentService.UpdateTopic:output_type -> bbs.content.v1.TopicResponse
-	2,  // 31: bbs.content.v1.ContentService.PublishTopic:output_type -> bbs.content.v1.TopicResponse
-	2,  // 32: bbs.content.v1.ContentService.HideTopic:output_type -> bbs.content.v1.TopicResponse
-	2,  // 33: bbs.content.v1.ContentService.ArchiveTopic:output_type -> bbs.content.v1.TopicResponse
-	2,  // 34: bbs.content.v1.ContentService.GetTopic:output_type -> bbs.content.v1.TopicResponse
-	3,  // 35: bbs.content.v1.ContentService.ListTopics:output_type -> bbs.content.v1.TopicListResponse
-	4,  // 36: bbs.content.v1.ContentService.CreateArticle:output_type -> bbs.content.v1.ArticleResponse
-	4,  // 37: bbs.content.v1.ContentService.UpdateArticle:output_type -> bbs.content.v1.ArticleResponse
-	4,  // 38: bbs.content.v1.ContentService.PublishArticle:output_type -> bbs.content.v1.ArticleResponse
-	4,  // 39: bbs.content.v1.ContentService.HideArticle:output_type -> bbs.content.v1.ArticleResponse
-	4,  // 40: bbs.content.v1.ContentService.ArchiveArticle:output_type -> bbs.content.v1.ArticleResponse
-	4,  // 41: bbs.content.v1.ContentService.GetArticle:output_type -> bbs.content.v1.ArticleResponse
-	5,  // 42: bbs.content.v1.ContentService.ListArticles:output_type -> bbs.content.v1.ArticleListResponse
-	5,  // 43: bbs.content.v1.ContentService.FeedArticlesByTime:output_type -> bbs.content.v1.ArticleListResponse
-	10, // 44: bbs.content.v1.ContentService.ListCategories:output_type -> bbs.content.v1.CategoryListResponse
-	9,  // 45: bbs.content.v1.ContentService.GetCategory:output_type -> bbs.content.v1.CategoryResponse
-	9,  // 46: bbs.content.v1.ContentService.CreateCategory:output_type -> bbs.content.v1.CategoryResponse
-	9,  // 47: bbs.content.v1.ContentService.UpdateCategory:output_type -> bbs.content.v1.CategoryResponse
-	9,  // 48: bbs.content.v1.ContentService.DeleteCategory:output_type -> bbs.content.v1.CategoryResponse
-	7,  // 49: bbs.content.v1.ContentService.ListTags:output_type -> bbs.content.v1.TagListResponse
-	7,  // 50: bbs.content.v1.ContentService.AutocompleteTags:output_type -> bbs.content.v1.TagListResponse
-	29, // [29:51] is the sub-list for method output_type
-	7,  // [7:29] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	27, // 7: bbs.content.v1.ChannelResponse.channel:type_name -> bbs.content.v1.ChannelInfo
+	27, // 8: bbs.content.v1.ChannelListResponse.items:type_name -> bbs.content.v1.ChannelInfo
+	11, // 9: bbs.content.v1.ContentService.CreateTopic:input_type -> bbs.content.v1.CreateTopicRequest
+	12, // 10: bbs.content.v1.ContentService.UpdateTopic:input_type -> bbs.content.v1.UpdateTopicRequest
+	13, // 11: bbs.content.v1.ContentService.PublishTopic:input_type -> bbs.content.v1.TopicIDRequest
+	13, // 12: bbs.content.v1.ContentService.HideTopic:input_type -> bbs.content.v1.TopicIDRequest
+	13, // 13: bbs.content.v1.ContentService.ArchiveTopic:input_type -> bbs.content.v1.TopicIDRequest
+	14, // 14: bbs.content.v1.ContentService.GetTopic:input_type -> bbs.content.v1.GetTopicRequest
+	15, // 15: bbs.content.v1.ContentService.ListTopics:input_type -> bbs.content.v1.ListTopicsRequest
+	30, // 16: bbs.content.v1.ContentService.ListChannels:input_type -> bbs.content.v1.ListChannelsRequest
+	31, // 17: bbs.content.v1.ContentService.SetChannelFeatured:input_type -> bbs.content.v1.SetChannelFeaturedRequest
+	32, // 18: bbs.content.v1.ContentService.SetChannelArchived:input_type -> bbs.content.v1.SetChannelArchivedRequest
+	16, // 19: bbs.content.v1.ContentService.CreateArticle:input_type -> bbs.content.v1.CreateArticleRequest
+	17, // 20: bbs.content.v1.ContentService.UpdateArticle:input_type -> bbs.content.v1.UpdateArticleRequest
+	18, // 21: bbs.content.v1.ContentService.PublishArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	18, // 22: bbs.content.v1.ContentService.HideArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	18, // 23: bbs.content.v1.ContentService.ArchiveArticle:input_type -> bbs.content.v1.ArticleIDRequest
+	19, // 24: bbs.content.v1.ContentService.GetArticle:input_type -> bbs.content.v1.GetArticleRequest
+	20, // 25: bbs.content.v1.ContentService.ListArticles:input_type -> bbs.content.v1.ListArticlesRequest
+	21, // 26: bbs.content.v1.ContentService.FeedArticlesByTime:input_type -> bbs.content.v1.FeedArticlesByTimeRequest
+	22, // 27: bbs.content.v1.ContentService.ListCategories:input_type -> bbs.content.v1.ListCategoriesRequest
+	23, // 28: bbs.content.v1.ContentService.GetCategory:input_type -> bbs.content.v1.CategoryIDRequest
+	24, // 29: bbs.content.v1.ContentService.CreateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
+	24, // 30: bbs.content.v1.ContentService.UpdateCategory:input_type -> bbs.content.v1.UpsertCategoryRequest
+	23, // 31: bbs.content.v1.ContentService.DeleteCategory:input_type -> bbs.content.v1.CategoryIDRequest
+	25, // 32: bbs.content.v1.ContentService.ListTags:input_type -> bbs.content.v1.ListTagsRequest
+	26, // 33: bbs.content.v1.ContentService.AutocompleteTags:input_type -> bbs.content.v1.AutocompleteTagsRequest
+	2,  // 34: bbs.content.v1.ContentService.CreateTopic:output_type -> bbs.content.v1.TopicResponse
+	2,  // 35: bbs.content.v1.ContentService.UpdateTopic:output_type -> bbs.content.v1.TopicResponse
+	2,  // 36: bbs.content.v1.ContentService.PublishTopic:output_type -> bbs.content.v1.TopicResponse
+	2,  // 37: bbs.content.v1.ContentService.HideTopic:output_type -> bbs.content.v1.TopicResponse
+	2,  // 38: bbs.content.v1.ContentService.ArchiveTopic:output_type -> bbs.content.v1.TopicResponse
+	2,  // 39: bbs.content.v1.ContentService.GetTopic:output_type -> bbs.content.v1.TopicResponse
+	3,  // 40: bbs.content.v1.ContentService.ListTopics:output_type -> bbs.content.v1.TopicListResponse
+	29, // 41: bbs.content.v1.ContentService.ListChannels:output_type -> bbs.content.v1.ChannelListResponse
+	28, // 42: bbs.content.v1.ContentService.SetChannelFeatured:output_type -> bbs.content.v1.ChannelResponse
+	28, // 43: bbs.content.v1.ContentService.SetChannelArchived:output_type -> bbs.content.v1.ChannelResponse
+	4,  // 44: bbs.content.v1.ContentService.CreateArticle:output_type -> bbs.content.v1.ArticleResponse
+	4,  // 45: bbs.content.v1.ContentService.UpdateArticle:output_type -> bbs.content.v1.ArticleResponse
+	4,  // 46: bbs.content.v1.ContentService.PublishArticle:output_type -> bbs.content.v1.ArticleResponse
+	4,  // 47: bbs.content.v1.ContentService.HideArticle:output_type -> bbs.content.v1.ArticleResponse
+	4,  // 48: bbs.content.v1.ContentService.ArchiveArticle:output_type -> bbs.content.v1.ArticleResponse
+	4,  // 49: bbs.content.v1.ContentService.GetArticle:output_type -> bbs.content.v1.ArticleResponse
+	5,  // 50: bbs.content.v1.ContentService.ListArticles:output_type -> bbs.content.v1.ArticleListResponse
+	5,  // 51: bbs.content.v1.ContentService.FeedArticlesByTime:output_type -> bbs.content.v1.ArticleListResponse
+	10, // 52: bbs.content.v1.ContentService.ListCategories:output_type -> bbs.content.v1.CategoryListResponse
+	9,  // 53: bbs.content.v1.ContentService.GetCategory:output_type -> bbs.content.v1.CategoryResponse
+	9,  // 54: bbs.content.v1.ContentService.CreateCategory:output_type -> bbs.content.v1.CategoryResponse
+	9,  // 55: bbs.content.v1.ContentService.UpdateCategory:output_type -> bbs.content.v1.CategoryResponse
+	9,  // 56: bbs.content.v1.ContentService.DeleteCategory:output_type -> bbs.content.v1.CategoryResponse
+	7,  // 57: bbs.content.v1.ContentService.ListTags:output_type -> bbs.content.v1.TagListResponse
+	7,  // 58: bbs.content.v1.ContentService.AutocompleteTags:output_type -> bbs.content.v1.TagListResponse
+	34, // [34:59] is the sub-list for method output_type
+	9,  // [9:34] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_admin_service_api_proto_content_proto_init() }
@@ -2294,7 +2865,7 @@ func file_admin_service_api_proto_content_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_service_api_proto_content_proto_rawDesc), len(file_admin_service_api_proto_content_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

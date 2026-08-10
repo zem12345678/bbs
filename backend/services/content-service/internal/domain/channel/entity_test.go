@@ -56,3 +56,59 @@ func TestArchivedChannelRejectsUpdate(t *testing.T) {
 		t.Fatalf("Update error = %v, want %v", err, ErrArchived)
 	}
 }
+
+func TestChannelFeaturedAndArchivedState(t *testing.T) {
+	channel, err := New(10, CreateCmd{OwnerID: 20, Name: "name"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := channel.SetFeatured(true); err != nil {
+		t.Fatalf("SetFeatured returned error: %v", err)
+	}
+	if !channel.IsFeatured {
+		t.Fatal("channel should be featured")
+	}
+	if err := channel.SetArchived(true); err != nil {
+		t.Fatalf("SetArchived(true) returned error: %v", err)
+	}
+	if !channel.IsArchived || channel.IsFeatured {
+		t.Fatalf("archived channel state = archived:%t featured:%t, want true/false", channel.IsArchived, channel.IsFeatured)
+	}
+	if err := channel.SetFeatured(true); !errors.Is(err, ErrArchived) {
+		t.Fatalf("SetFeatured on archived channel error = %v, want %v", err, ErrArchived)
+	}
+	if err := channel.SetArchived(false); err != nil {
+		t.Fatalf("SetArchived(false) returned error: %v", err)
+	}
+	if channel.IsArchived || channel.IsFeatured {
+		t.Fatalf("restored channel state = archived:%t featured:%t, want false/false", channel.IsArchived, channel.IsFeatured)
+	}
+}
+
+func TestArchiveClearsFeatured(t *testing.T) {
+	channel, err := New(10, CreateCmd{OwnerID: 20, Name: "name"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	channel.IsFeatured = true
+	if err := channel.Archive(); err != nil {
+		t.Fatalf("Archive returned error: %v", err)
+	}
+	if channel.IsFeatured {
+		t.Fatal("Archive must clear featured state")
+	}
+}
+
+func TestSettingActiveArchiveStateFalsePreservesFeatured(t *testing.T) {
+	channel, err := New(10, CreateCmd{OwnerID: 20, Name: "name"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	channel.IsFeatured = true
+	if err := channel.SetArchived(false); err != nil {
+		t.Fatalf("SetArchived(false) returned error: %v", err)
+	}
+	if !channel.IsFeatured {
+		t.Fatal("setting an active channel to active must preserve featured state")
+	}
+}

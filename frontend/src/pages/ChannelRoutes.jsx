@@ -369,6 +369,7 @@ export function ChannelDetailPage({ auth }) {
         <div>
           <div className="channel-detail-labels">
             <span className="eyebrow"><Hash size={18} aria-hidden="true" />圈子</span>
+            {channel.is_featured && !channel.is_archived && <span className="channel-state-badge"><Sparkles size={14} aria-hidden="true" />精选</span>}
             {channel.is_archived && <span className="channel-archive-badge"><Archive size={14} aria-hidden="true" />已归档</span>}
           </div>
           <h1>{channel.name}</h1>

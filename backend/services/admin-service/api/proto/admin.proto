@@ -24,6 +24,9 @@ service AdminService {
   rpc PublishTopic(TopicStatusRequest) returns (TopicResponse);
   rpc HideTopic(TopicStatusRequest) returns (TopicResponse);
   rpc ArchiveTopic(TopicStatusRequest) returns (TopicResponse);
+  rpc ListChannels(ListChannelsRequest) returns (ChannelListResponse);
+  rpc SetChannelFeatured(ChannelFeaturedRequest) returns (ChannelResponse);
+  rpc SetChannelArchived(ChannelArchivedRequest) returns (ChannelResponse);
   rpc ListCategories(ListCategoriesRequest) returns (CategoryListResponse);
   rpc CreateCategory(UpsertCategoryRequest) returns (CategoryResponse);
   rpc UpdateCategory(UpsertCategoryRequest) returns (CategoryResponse);
@@ -1131,4 +1134,52 @@ message SearchRebuildStatusResponse {
 	bool success = 1;
 	string message = 2;
 	SearchRebuildStatus status = 3;
+}
+
+message ChannelInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  int64 category_id = 3;
+  string name = 4;
+  string description = 5;
+  string color = 6;
+  bool is_archived = 7;
+  int64 followers_count = 8;
+  int64 topics_count = 9;
+  int64 last_posted_at = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  bool is_featured = 13;
+}
+
+message ListChannelsRequest {
+  Actor actor = 1;
+  string query = 2;
+  int64 category_id = 3;
+  int32 archived_status = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message ChannelListResponse {
+  repeated ChannelInfo items = 1;
+  int64 total = 2;
+}
+
+message ChannelFeaturedRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  bool featured = 3;
+}
+
+message ChannelArchivedRequest {
+  Actor actor = 1;
+  int64 id = 2;
+  bool archived = 3;
+}
+
+message ChannelResponse {
+  bool success = 1;
+  string message = 2;
+  ChannelInfo channel = 3;
 }

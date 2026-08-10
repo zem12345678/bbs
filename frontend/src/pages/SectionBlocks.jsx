@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Archive, ChevronDown, ExternalLink, Hash, Heart, MessageCircle, Star, UserCheck, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, ChevronDown, ExternalLink, Hash, Heart, MessageCircle, Sparkles, Star, UserCheck, UserPlus, Users, Zap } from "lucide-react";
 import { safeExternalURL } from "../lib/externalLinks.js";
 
 export function PageHero({ icon: Icon, eyebrow, title, description, image, stats }) {
@@ -69,6 +69,8 @@ export function CircleCard({ channel, pendingAction = "", onFavorite, onFollow }
           <h2><Link to={detailPath}>{channel.name || "未命名圈子"}</Link></h2>
           {channel.is_archived ? (
             <span className="channel-state-badge is-archived"><Archive size={13} aria-hidden="true" />已归档</span>
+          ) : channel.is_featured ? (
+            <span className="channel-state-badge"><Sparkles size={13} aria-hidden="true" />精选</span>
           ) : channel.is_following && <span className="channel-state-badge"><UserCheck size={13} aria-hidden="true" />已关注</span>}
         </div>
         <p>{channel.description || "这个圈子暂时还没有简介。"}</p>

@@ -18,6 +18,8 @@ service ContentService {
   rpc CreateChannel(CreateChannelRequest) returns (ChannelResponse);
   rpc UpdateChannel(UpdateChannelRequest) returns (ChannelResponse);
   rpc ArchiveChannel(ArchiveChannelRequest) returns (ChannelResponse);
+  rpc SetChannelFeatured(SetChannelFeaturedRequest) returns (ChannelResponse);
+  rpc SetChannelArchived(SetChannelArchivedRequest) returns (ChannelResponse);
   rpc GetChannel(GetChannelRequest) returns (ChannelResponse);
   rpc ListChannels(ListChannelsRequest) returns (ChannelListResponse);
   rpc FollowChannel(ChannelUserRequest) returns (ChannelActionResponse);
@@ -131,6 +133,7 @@ message ChannelInfo {
   int64 updated_at = 12;
   bool is_following = 13;
   bool is_favorited = 14;
+  bool is_featured = 15;
 }
 
 message ChannelResponse {
@@ -300,6 +303,16 @@ message ArchiveChannelRequest {
   int64 actor_id = 2;
 }
 
+message SetChannelFeaturedRequest {
+  int64 id = 1;
+  bool featured = 2;
+}
+
+message SetChannelArchivedRequest {
+  int64 id = 1;
+  bool archived = 2;
+}
+
 message GetChannelRequest {
   int64 id = 1;
   int64 viewer_user_id = 2;
@@ -318,6 +331,7 @@ message ListChannelsRequest {
   bool include_archived = 9;
   int32 limit = 10;
   int32 offset = 11;
+  int32 archived_status = 12;
 }
 
 message ChannelUserRequest {

@@ -26,6 +26,9 @@ const (
 	ContentService_ArchiveTopic_FullMethodName       = "/bbs.content.v1.ContentService/ArchiveTopic"
 	ContentService_GetTopic_FullMethodName           = "/bbs.content.v1.ContentService/GetTopic"
 	ContentService_ListTopics_FullMethodName         = "/bbs.content.v1.ContentService/ListTopics"
+	ContentService_ListChannels_FullMethodName       = "/bbs.content.v1.ContentService/ListChannels"
+	ContentService_SetChannelFeatured_FullMethodName = "/bbs.content.v1.ContentService/SetChannelFeatured"
+	ContentService_SetChannelArchived_FullMethodName = "/bbs.content.v1.ContentService/SetChannelArchived"
 	ContentService_CreateArticle_FullMethodName      = "/bbs.content.v1.ContentService/CreateArticle"
 	ContentService_UpdateArticle_FullMethodName      = "/bbs.content.v1.ContentService/UpdateArticle"
 	ContentService_PublishArticle_FullMethodName     = "/bbs.content.v1.ContentService/PublishArticle"
@@ -54,6 +57,9 @@ type ContentServiceClient interface {
 	ArchiveTopic(ctx context.Context, in *TopicIDRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	GetTopic(ctx context.Context, in *GetTopicRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ListTopics(ctx context.Context, in *ListTopicsRequest, opts ...grpc.CallOption) (*TopicListResponse, error)
+	ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error)
+	SetChannelFeatured(ctx context.Context, in *SetChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	SetChannelArchived(ctx context.Context, in *SetChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
 	PublishArticle(ctx context.Context, in *ArticleIDRequest, opts ...grpc.CallOption) (*ArticleResponse, error)
@@ -143,6 +149,36 @@ func (c *contentServiceClient) ListTopics(ctx context.Context, in *ListTopicsReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicListResponse)
 	err := c.cc.Invoke(ctx, ContentService_ListTopics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelListResponse)
+	err := c.cc.Invoke(ctx, ContentService_ListChannels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) SetChannelFeatured(ctx context.Context, in *SetChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_SetChannelFeatured_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contentServiceClient) SetChannelArchived(ctx context.Context, in *SetChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, ContentService_SetChannelArchived_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +346,9 @@ type ContentServiceServer interface {
 	ArchiveTopic(context.Context, *TopicIDRequest) (*TopicResponse, error)
 	GetTopic(context.Context, *GetTopicRequest) (*TopicResponse, error)
 	ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error)
+	ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error)
+	SetChannelFeatured(context.Context, *SetChannelFeaturedRequest) (*ChannelResponse, error)
+	SetChannelArchived(context.Context, *SetChannelArchivedRequest) (*ChannelResponse, error)
 	CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error)
 	UpdateArticle(context.Context, *UpdateArticleRequest) (*ArticleResponse, error)
 	PublishArticle(context.Context, *ArticleIDRequest) (*ArticleResponse, error)
@@ -355,6 +394,15 @@ func (UnimplementedContentServiceServer) GetTopic(context.Context, *GetTopicRequ
 }
 func (UnimplementedContentServiceServer) ListTopics(context.Context, *ListTopicsRequest) (*TopicListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTopics not implemented")
+}
+func (UnimplementedContentServiceServer) ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListChannels not implemented")
+}
+func (UnimplementedContentServiceServer) SetChannelFeatured(context.Context, *SetChannelFeaturedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelFeatured not implemented")
+}
+func (UnimplementedContentServiceServer) SetChannelArchived(context.Context, *SetChannelArchivedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelArchived not implemented")
 }
 func (UnimplementedContentServiceServer) CreateArticle(context.Context, *CreateArticleRequest) (*ArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateArticle not implemented")
@@ -544,6 +592,60 @@ func _ContentService_ListTopics_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContentServiceServer).ListTopics(ctx, req.(*ListTopicsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_ListChannels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).ListChannels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_ListChannels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).ListChannels(ctx, req.(*ListChannelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_SetChannelFeatured_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetChannelFeaturedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).SetChannelFeatured(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_SetChannelFeatured_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).SetChannelFeatured(ctx, req.(*SetChannelFeaturedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContentService_SetChannelArchived_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetChannelArchivedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContentServiceServer).SetChannelArchived(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContentService_SetChannelArchived_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContentServiceServer).SetChannelArchived(ctx, req.(*SetChannelArchivedRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -852,6 +954,18 @@ var ContentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTopics",
 			Handler:    _ContentService_ListTopics_Handler,
+		},
+		{
+			MethodName: "ListChannels",
+			Handler:    _ContentService_ListChannels_Handler,
+		},
+		{
+			MethodName: "SetChannelFeatured",
+			Handler:    _ContentService_SetChannelFeatured_Handler,
+		},
+		{
+			MethodName: "SetChannelArchived",
+			Handler:    _ContentService_SetChannelArchived_Handler,
 		},
 		{
 			MethodName: "CreateArticle",

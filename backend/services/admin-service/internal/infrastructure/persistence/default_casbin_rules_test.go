@@ -25,6 +25,10 @@ func TestDefaultCasbinRulesGrantAdminOperationalPermissions(t *testing.T) {
 		permission(domain.ResourceGovernance, domain.ActionPublishTopic),
 		permission(domain.ResourceGovernance, domain.ActionHideTopic),
 		permission(domain.ResourceGovernance, domain.ActionArchiveTopic),
+		permission(domain.ResourceGovernance, domain.ActionListChannels),
+		permission(domain.ResourceGovernance, domain.ActionFeatureChannel),
+		permission(domain.ResourceGovernance, domain.ActionArchiveChannel),
+		permission(domain.ResourceGovernance, domain.ActionRestoreChannel),
 		permission(domain.ResourceGovernance, domain.ActionListComments),
 		permission(domain.ResourceGovernance, domain.ActionHideComment),
 		permission(domain.ResourceGovernance, domain.ActionRestoreComment),
@@ -68,6 +72,8 @@ func TestDefaultCasbinRulesGrantModeratorModerationPermissions(t *testing.T) {
 		permission(domain.ResourceGovernance, domain.ActionListTopics),
 		permission(domain.ResourceGovernance, domain.ActionPublishTopic),
 		permission(domain.ResourceGovernance, domain.ActionHideTopic),
+		permission(domain.ResourceGovernance, domain.ActionListChannels),
+		permission(domain.ResourceGovernance, domain.ActionFeatureChannel),
 		permission(domain.ResourceGovernance, domain.ActionListComments),
 		permission(domain.ResourceGovernance, domain.ActionHideComment),
 		permission(domain.ResourceGovernance, domain.ActionRestoreComment),
@@ -92,6 +98,10 @@ func TestDefaultCasbinRulesGrantModeratorModerationPermissions(t *testing.T) {
 	if containsString(permissions, permission(domain.ResourceGovernance, domain.ActionListUserFileCapacity)) ||
 		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionUpdateUserFileCapacity)) {
 		t.Fatalf("moderator must not receive user file capacity permissions: %v", permissions)
+	}
+	if containsString(permissions, permission(domain.ResourceGovernance, domain.ActionArchiveChannel)) ||
+		containsString(permissions, permission(domain.ResourceGovernance, domain.ActionRestoreChannel)) {
+		t.Fatalf("moderator must not receive channel archive permissions: %v", permissions)
 	}
 }
 

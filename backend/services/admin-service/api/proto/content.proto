@@ -12,6 +12,9 @@ service ContentService {
   rpc ArchiveTopic(TopicIDRequest) returns (TopicResponse);
   rpc GetTopic(GetTopicRequest) returns (TopicResponse);
   rpc ListTopics(ListTopicsRequest) returns (TopicListResponse);
+  rpc ListChannels(ListChannelsRequest) returns (ChannelListResponse);
+  rpc SetChannelFeatured(SetChannelFeaturedRequest) returns (ChannelResponse);
+  rpc SetChannelArchived(SetChannelArchivedRequest) returns (ChannelResponse);
   rpc CreateArticle(CreateArticleRequest) returns (ArticleResponse);
   rpc UpdateArticle(UpdateArticleRequest) returns (ArticleResponse);
   rpc PublishArticle(ArticleIDRequest) returns (ArticleResponse);
@@ -228,4 +231,58 @@ message ListTagsRequest {
 message AutocompleteTagsRequest {
   string query = 1;
   int32 limit = 2;
+}
+
+message ChannelInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  int64 category_id = 3;
+  string name = 4;
+  string description = 5;
+  string color = 6;
+  bool is_archived = 7;
+  int64 followers_count = 8;
+  int64 topics_count = 9;
+  int64 last_posted_at = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  bool is_following = 13;
+  bool is_favorited = 14;
+  bool is_featured = 15;
+}
+
+message ChannelResponse {
+  bool success = 1;
+  string message = 2;
+  ChannelInfo channel = 3;
+}
+
+message ChannelListResponse {
+  repeated ChannelInfo items = 1;
+  int64 total = 2;
+}
+
+message ListChannelsRequest {
+  string query = 1;
+  int64 category_id = 2;
+  bool uncategorized = 3;
+  int64 owner_id = 4;
+  int64 follower_user_id = 5;
+  int64 favorited_user_id = 6;
+  int64 viewer_user_id = 7;
+  bool featured = 8;
+  bool include_archived = 9;
+  int32 limit = 10;
+  int32 offset = 11;
+  int32 archived_status = 12;
+}
+
+message SetChannelFeaturedRequest {
+  int64 id = 1;
+  bool featured = 2;
+}
+
+message SetChannelArchivedRequest {
+  int64 id = 1;
+  bool archived = 2;
 }

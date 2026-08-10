@@ -56,6 +56,27 @@ test("admin UI API routes are registered in api-gateway", () => {
   assert.deepEqual(missing, []);
 });
 
+test("channel governance UI exposes list, feature, archive and restore controls", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const routeSource = read("vue-pure-admin/src/router/modules/governance.ts");
+  const viewSource = read(
+    "vue-pure-admin/src/views/governance/channels/index.vue"
+  );
+
+  assert.match(apiSource, /listAdminChannels/);
+  assert.match(apiSource, /\/api\/v1\/admin\/channels/);
+  assert.match(apiSource, /setAdminChannelFeatured/);
+  assert.match(apiSource, /\/featured`/);
+  assert.match(apiSource, /setAdminChannelArchived/);
+  assert.match(apiSource, /\/archived`/);
+  assert.match(routeSource, /name:\s*"GovernanceChannels"/);
+  assert.match(viewSource, /governance:list_channels/);
+  assert.match(viewSource, /governance:feature_channel/);
+  assert.match(viewSource, /governance:archive_channel/);
+  assert.match(viewSource, /governance:restore_channel/);
+  assert.match(viewSource, /archived_status/);
+});
+
 test("welcome active users chart is permission-gated and chronological", () => {
   const apiSource = read("vue-pure-admin/src/api/admin.ts");
   const viewSource = read("vue-pure-admin/src/views/welcome/index.vue");
@@ -341,11 +362,13 @@ function extractSeededPermissions(source, actions) {
 }
 
 function extractGatewayAdminPermissions(source) {
-  return new Set(
-    [...source.matchAll(/requireAdminPermission\("([^"]+)"\)/g)].map(
-      match => match[1]
-    )
-  );
+  const staticPermissions = [
+    ...source.matchAll(/requireAdminPermission\("([^"]+)"\)/g)
+  ].map(match => match[1]);
+  const dynamicPermissions = [
+    ...source.matchAll(/\bpermission\s*:?=\s*"((?:governance|mall|system):[^"]+)"/g)
+  ].map(match => match[1]);
+  return new Set([...staticPermissions, ...dynamicPermissions]);
 }
 
 function addRequest(requests, file, source, match, method, rawPath) {

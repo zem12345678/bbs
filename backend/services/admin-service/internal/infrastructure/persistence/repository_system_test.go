@@ -180,6 +180,36 @@ func TestSeedDefaultsIncludesInviteCodeMenu(t *testing.T) {
 	}
 }
 
+func TestSeedDefaultsIncludesChannelGovernanceMenu(t *testing.T) {
+	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set BBS_ADMIN_TEST_DSN to run postgres-backed repository tests")
+	}
+
+	ctx := context.Background()
+	repo, cleanup := repositoryForProtectedRoleTest(t, ctx, dsn)
+	defer cleanup()
+
+	menu := systemMenuByName(t, ctx, repo, "governance.channels")
+	if menu.Permission != "governance:list_channels" || menu.Path != "/governance/channels" || menu.Component != "governance/channels/index" {
+		t.Fatalf("governance.channels = (permission=%q, path=%q, component=%q)", menu.Permission, menu.Path, menu.Component)
+	}
+	for _, want := range []struct {
+		name       string
+		permission string
+	}{
+		{name: "governance.channels.query", permission: "governance:list_channels"},
+		{name: "governance.channels.feature", permission: "governance:feature_channel"},
+		{name: "governance.channels.archive", permission: "governance:archive_channel"},
+		{name: "governance.channels.restore", permission: "governance:restore_channel"},
+	} {
+		button := systemMenuByName(t, ctx, repo, want.name)
+		if button.ParentID != menu.ID || button.Permission != want.permission {
+			t.Fatalf("%s = (parent=%d, permission=%q), want (parent=%d, permission=%q)", want.name, button.ParentID, button.Permission, menu.ID, want.permission)
+		}
+	}
+}
+
 func TestSeedDefaultsIncludesRegistrationModeSetting(t *testing.T) {
 	dsn := os.Getenv("BBS_ADMIN_TEST_DSN")
 	if dsn == "" {

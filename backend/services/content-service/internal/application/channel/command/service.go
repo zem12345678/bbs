@@ -84,6 +84,34 @@ func (s *Service) Archive(ctx context.Context, id, ownerID int64) (*domain.Chann
 	return channel, nil
 }
 
+func (s *Service) SetFeatured(ctx context.Context, id int64, featured bool) (*domain.Channel, error) {
+	channel, err := s.repo.FindChannelByID(ctx, id, 0, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := channel.SetFeatured(featured); err != nil {
+		return nil, err
+	}
+	if err := s.repo.SetChannelFeatured(ctx, channel); err != nil {
+		return nil, err
+	}
+	return channel, nil
+}
+
+func (s *Service) SetArchived(ctx context.Context, id int64, archived bool) (*domain.Channel, error) {
+	channel, err := s.repo.FindChannelByID(ctx, id, 0, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := channel.SetArchived(archived); err != nil {
+		return nil, err
+	}
+	if err := s.repo.SetChannelArchived(ctx, channel); err != nil {
+		return nil, err
+	}
+	return channel, nil
+}
+
 func (s *Service) Follow(ctx context.Context, channelID, userID int64) error {
 	return s.repo.FollowChannel(ctx, channelID, userID)
 }

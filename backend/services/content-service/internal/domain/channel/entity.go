@@ -18,6 +18,7 @@ type Channel struct {
 	Description     string
 	Color           string
 	IsArchived      bool
+	IsFeatured      bool
 	FollowersCount  int64
 	TopicsCount     int64
 	LastPostedAt    *time.Time
@@ -26,6 +27,14 @@ type Channel struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
+
+type ArchivedStatus int32
+
+const (
+	ArchivedStatusLegacy   ArchivedStatus = 0
+	ArchivedStatusActive   ArchivedStatus = 1
+	ArchivedStatusArchived ArchivedStatus = 2
+)
 
 type CreateCmd struct {
 	OwnerID     int64
@@ -53,6 +62,7 @@ type ListFilter struct {
 	FavoritedUserID int64
 	Featured        bool
 	IncludeArchived bool
+	ArchivedStatus  ArchivedStatus
 	Limit           int
 	Offset          int
 }
@@ -130,6 +140,32 @@ func (c *Channel) Archive() error {
 		return ErrArchived
 	}
 	c.IsArchived = true
+	c.IsFeatured = false
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+func (c *Channel) SetFeatured(featured bool) error {
+	if c == nil {
+		return ErrNotFound
+	}
+	if featured && c.IsArchived {
+		return ErrArchived
+	}
+	c.IsFeatured = featured
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+func (c *Channel) SetArchived(archived bool) error {
+	if c == nil {
+		return ErrNotFound
+	}
+	wasArchived := c.IsArchived
+	c.IsArchived = archived
+	if archived || wasArchived {
+		c.IsFeatured = false
+	}
 	c.UpdatedAt = time.Now()
 	return nil
 }

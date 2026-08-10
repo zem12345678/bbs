@@ -20,6 +20,7 @@ func TestChannelPersistenceMappingPreservesOptionalCategoryAndAggregates(t *test
 		LastPostedAt:    &postedAt,
 		ViewerFollowing: true,
 		ViewerFavorited: true,
+		IsFeatured:      true,
 	}
 	entity := channelToEntity(&row)
 	if entity.CategoryID != 0 || entity.FollowersCount != 3 || entity.TopicsCount != 4 {
@@ -27,6 +28,9 @@ func TestChannelPersistenceMappingPreservesOptionalCategoryAndAggregates(t *test
 	}
 	if !entity.ViewerFollowing || !entity.ViewerFavorited || entity.LastPostedAt == nil {
 		t.Fatalf("viewer aggregates were not preserved: %#v", entity)
+	}
+	if !entity.IsFeatured || !channelToPO(entity).IsFeatured {
+		t.Fatalf("featured state was not preserved: %#v", entity)
 	}
 	if channelToPO(entity).CategoryID != nil {
 		t.Fatal("uncategorized channel must persist a NULL category_id")

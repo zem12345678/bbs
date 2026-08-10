@@ -32,6 +32,10 @@ type fakeChannelQueryRepo struct {
 func (*fakeChannelQueryRepo) CreateChannel(context.Context, *domain.Channel) error  { return nil }
 func (*fakeChannelQueryRepo) UpdateChannel(context.Context, *domain.Channel) error  { return nil }
 func (*fakeChannelQueryRepo) ArchiveChannel(context.Context, *domain.Channel) error { return nil }
+func (*fakeChannelQueryRepo) SetChannelFeatured(context.Context, *domain.Channel) error {
+	return nil
+}
+func (*fakeChannelQueryRepo) SetChannelArchived(context.Context, *domain.Channel) error { return nil }
 func (*fakeChannelQueryRepo) FindChannelByID(context.Context, int64, int64, bool) (*domain.Channel, error) {
 	return nil, domain.ErrNotFound
 }

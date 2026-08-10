@@ -153,6 +153,36 @@ export type AdminTopicList = {
   total: number;
 };
 
+export type AdminChannel = {
+  id: EntityId;
+  owner_id?: EntityId;
+  ownerId?: EntityId;
+  category_id?: EntityId;
+  categoryId?: EntityId;
+  name: string;
+  description?: string;
+  color?: string;
+  is_archived?: boolean;
+  isArchived?: boolean;
+  is_featured?: boolean;
+  isFeatured?: boolean;
+  followers_count?: number;
+  followersCount?: number;
+  topics_count?: number;
+  topicsCount?: number;
+  last_posted_at?: number;
+  lastPostedAt?: number;
+  created_at?: number;
+  createdAt?: number;
+  updated_at?: number;
+  updatedAt?: number;
+};
+
+export type AdminChannelList = {
+  items: AdminChannel[];
+  total: number;
+};
+
 export type AdminCategory = {
   id: EntityId;
   slug: string;
@@ -1349,6 +1379,36 @@ export const archiveAdminTopic = (id: EntityId) => {
   return http.request<ApiEnvelope<{ topic: AdminTopic }>>(
     "post",
     `/api/v1/admin/topics/${id}/archive`
+  );
+};
+
+export const listAdminChannels = (params: {
+  q?: string;
+  category_id?: EntityId;
+  archived_status?: number;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminChannelList>>(
+    "get",
+    "/api/v1/admin/channels",
+    { params }
+  );
+};
+
+export const setAdminChannelFeatured = (id: EntityId, featured: boolean) => {
+  return http.request<ApiEnvelope<{ channel: AdminChannel }>>(
+    "put",
+    `/api/v1/admin/channels/${id}/featured`,
+    { data: { featured } }
+  );
+};
+
+export const setAdminChannelArchived = (id: EntityId, archived: boolean) => {
+  return http.request<ApiEnvelope<{ channel: AdminChannel }>>(
+    "put",
+    `/api/v1/admin/channels/${id}/archived`,
+    { data: { archived } }
   );
 };
 

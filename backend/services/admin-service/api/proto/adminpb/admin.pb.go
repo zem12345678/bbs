@@ -9953,6 +9953,462 @@ func (x *SearchRebuildStatusResponse) GetStatus() *SearchRebuildStatus {
 	return nil
 }
 
+type ChannelInfo struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	OwnerId        int64                  `protobuf:"varint,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CategoryId     int64                  `protobuf:"varint,3,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	Name           string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Description    string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	Color          string                 `protobuf:"bytes,6,opt,name=color,proto3" json:"color,omitempty"`
+	IsArchived     bool                   `protobuf:"varint,7,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
+	FollowersCount int64                  `protobuf:"varint,8,opt,name=followers_count,json=followersCount,proto3" json:"followers_count,omitempty"`
+	TopicsCount    int64                  `protobuf:"varint,9,opt,name=topics_count,json=topicsCount,proto3" json:"topics_count,omitempty"`
+	LastPostedAt   int64                  `protobuf:"varint,10,opt,name=last_posted_at,json=lastPostedAt,proto3" json:"last_posted_at,omitempty"`
+	CreatedAt      int64                  `protobuf:"varint,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      int64                  `protobuf:"varint,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	IsFeatured     bool                   `protobuf:"varint,13,opt,name=is_featured,json=isFeatured,proto3" json:"is_featured,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ChannelInfo) Reset() {
+	*x = ChannelInfo{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelInfo) ProtoMessage() {}
+
+func (x *ChannelInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[131]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelInfo.ProtoReflect.Descriptor instead.
+func (*ChannelInfo) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{131}
+}
+
+func (x *ChannelInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetColor() string {
+	if x != nil {
+		return x.Color
+	}
+	return ""
+}
+
+func (x *ChannelInfo) GetIsArchived() bool {
+	if x != nil {
+		return x.IsArchived
+	}
+	return false
+}
+
+func (x *ChannelInfo) GetFollowersCount() int64 {
+	if x != nil {
+		return x.FollowersCount
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetTopicsCount() int64 {
+	if x != nil {
+		return x.TopicsCount
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetLastPostedAt() int64 {
+	if x != nil {
+		return x.LastPostedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *ChannelInfo) GetIsFeatured() bool {
+	if x != nil {
+		return x.IsFeatured
+	}
+	return false
+}
+
+type ListChannelsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Actor          *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Query          string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	CategoryId     int64                  `protobuf:"varint,3,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
+	ArchivedStatus int32                  `protobuf:"varint,4,opt,name=archived_status,json=archivedStatus,proto3" json:"archived_status,omitempty"`
+	Limit          int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset         int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListChannelsRequest) Reset() {
+	*x = ListChannelsRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListChannelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListChannelsRequest) ProtoMessage() {}
+
+func (x *ListChannelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[132]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListChannelsRequest.ProtoReflect.Descriptor instead.
+func (*ListChannelsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{132}
+}
+
+func (x *ListChannelsRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ListChannelsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListChannelsRequest) GetCategoryId() int64 {
+	if x != nil {
+		return x.CategoryId
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetArchivedStatus() int32 {
+	if x != nil {
+		return x.ArchivedStatus
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListChannelsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type ChannelListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ChannelInfo         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelListResponse) Reset() {
+	*x = ChannelListResponse{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelListResponse) ProtoMessage() {}
+
+func (x *ChannelListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[133]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelListResponse.ProtoReflect.Descriptor instead.
+func (*ChannelListResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{133}
+}
+
+func (x *ChannelListResponse) GetItems() []*ChannelInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ChannelListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type ChannelFeaturedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Id            int64                  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	Featured      bool                   `protobuf:"varint,3,opt,name=featured,proto3" json:"featured,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelFeaturedRequest) Reset() {
+	*x = ChannelFeaturedRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelFeaturedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelFeaturedRequest) ProtoMessage() {}
+
+func (x *ChannelFeaturedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[134]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelFeaturedRequest.ProtoReflect.Descriptor instead.
+func (*ChannelFeaturedRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{134}
+}
+
+func (x *ChannelFeaturedRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ChannelFeaturedRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ChannelFeaturedRequest) GetFeatured() bool {
+	if x != nil {
+		return x.Featured
+	}
+	return false
+}
+
+type ChannelArchivedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Id            int64                  `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	Archived      bool                   `protobuf:"varint,3,opt,name=archived,proto3" json:"archived,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelArchivedRequest) Reset() {
+	*x = ChannelArchivedRequest{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelArchivedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelArchivedRequest) ProtoMessage() {}
+
+func (x *ChannelArchivedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[135]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelArchivedRequest.ProtoReflect.Descriptor instead.
+func (*ChannelArchivedRequest) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{135}
+}
+
+func (x *ChannelArchivedRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ChannelArchivedRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ChannelArchivedRequest) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
+}
+
+type ChannelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Channel       *ChannelInfo           `protobuf:"bytes,3,opt,name=channel,proto3" json:"channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChannelResponse) Reset() {
+	*x = ChannelResponse{}
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChannelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChannelResponse) ProtoMessage() {}
+
+func (x *ChannelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_service_api_proto_admin_proto_msgTypes[136]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChannelResponse.ProtoReflect.Descriptor instead.
+func (*ChannelResponse) Descriptor() ([]byte, []int) {
+	return file_admin_service_api_proto_admin_proto_rawDescGZIP(), []int{136}
+}
+
+func (x *ChannelResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ChannelResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ChannelResponse) GetChannel() *ChannelInfo {
+	if x != nil {
+		return x.Channel
+	}
+	return nil
+}
+
 var File_admin_service_api_proto_admin_proto protoreflect.FileDescriptor
 
 const file_admin_service_api_proto_admin_proto_rawDesc = "" +
@@ -10831,7 +11287,50 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"\x1bSearchRebuildStatusResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x129\n" +
-	"\x06status\x18\x03 \x01(\v2!.bbs.admin.v1.SearchRebuildStatusR\x06status2\xb87\n" +
+	"\x06status\x18\x03 \x01(\v2!.bbs.admin.v1.SearchRebuildStatusR\x06status\"\x97\x03\n" +
+	"\vChannelInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\x03R\aownerId\x12\x1f\n" +
+	"\vcategory_id\x18\x03 \x01(\x03R\n" +
+	"categoryId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x14\n" +
+	"\x05color\x18\x06 \x01(\tR\x05color\x12\x1f\n" +
+	"\vis_archived\x18\a \x01(\bR\n" +
+	"isArchived\x12'\n" +
+	"\x0ffollowers_count\x18\b \x01(\x03R\x0efollowersCount\x12!\n" +
+	"\ftopics_count\x18\t \x01(\x03R\vtopicsCount\x12$\n" +
+	"\x0elast_posted_at\x18\n" +
+	" \x01(\x03R\flastPostedAt\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\v \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\x03R\tupdatedAt\x12\x1f\n" +
+	"\vis_featured\x18\r \x01(\bR\n" +
+	"isFeatured\"\xce\x01\n" +
+	"\x13ListChannelsRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x1f\n" +
+	"\vcategory_id\x18\x03 \x01(\x03R\n" +
+	"categoryId\x12'\n" +
+	"\x0farchived_status\x18\x04 \x01(\x05R\x0earchivedStatus\x12\x14\n" +
+	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x06 \x01(\x05R\x06offset\"\\\n" +
+	"\x13ChannelListResponse\x12/\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.bbs.admin.v1.ChannelInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"o\n" +
+	"\x16ChannelFeaturedRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\x03R\x02id\x12\x1a\n" +
+	"\bfeatured\x18\x03 \x01(\bR\bfeatured\"o\n" +
+	"\x16ChannelArchivedRequest\x12)\n" +
+	"\x05actor\x18\x01 \x01(\v2\x13.bbs.admin.v1.ActorR\x05actor\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\x03R\x02id\x12\x1a\n" +
+	"\barchived\x18\x03 \x01(\bR\barchived\"z\n" +
+	"\x0fChannelResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x123\n" +
+	"\achannel\x18\x03 \x01(\v2\x19.bbs.admin.v1.ChannelInfoR\achannel2\xc49\n" +
 	"\fAdminService\x12?\n" +
 	"\x05Login\x12\x1a.bbs.admin.v1.LoginRequest\x1a\x1a.bbs.admin.v1.AuthResponse\x12H\n" +
 	"\aRefresh\x12!.bbs.admin.v1.RefreshTokenRequest\x1a\x1a.bbs.admin.v1.AuthResponse\x12C\n" +
@@ -10854,7 +11353,10 @@ const file_admin_service_api_proto_admin_proto_rawDesc = "" +
 	"ListTopics\x12\x1f.bbs.admin.v1.ListTopicsRequest\x1a\x1f.bbs.admin.v1.TopicListResponse\x12M\n" +
 	"\fPublishTopic\x12 .bbs.admin.v1.TopicStatusRequest\x1a\x1b.bbs.admin.v1.TopicResponse\x12J\n" +
 	"\tHideTopic\x12 .bbs.admin.v1.TopicStatusRequest\x1a\x1b.bbs.admin.v1.TopicResponse\x12M\n" +
-	"\fArchiveTopic\x12 .bbs.admin.v1.TopicStatusRequest\x1a\x1b.bbs.admin.v1.TopicResponse\x12Y\n" +
+	"\fArchiveTopic\x12 .bbs.admin.v1.TopicStatusRequest\x1a\x1b.bbs.admin.v1.TopicResponse\x12T\n" +
+	"\fListChannels\x12!.bbs.admin.v1.ListChannelsRequest\x1a!.bbs.admin.v1.ChannelListResponse\x12Y\n" +
+	"\x12SetChannelFeatured\x12$.bbs.admin.v1.ChannelFeaturedRequest\x1a\x1d.bbs.admin.v1.ChannelResponse\x12Y\n" +
+	"\x12SetChannelArchived\x12$.bbs.admin.v1.ChannelArchivedRequest\x1a\x1d.bbs.admin.v1.ChannelResponse\x12Y\n" +
 	"\x0eListCategories\x12#.bbs.admin.v1.ListCategoriesRequest\x1a\".bbs.admin.v1.CategoryListResponse\x12U\n" +
 	"\x0eCreateCategory\x12#.bbs.admin.v1.UpsertCategoryRequest\x1a\x1e.bbs.admin.v1.CategoryResponse\x12U\n" +
 	"\x0eUpdateCategory\x12#.bbs.admin.v1.UpsertCategoryRequest\x1a\x1e.bbs.admin.v1.CategoryResponse\x12O\n" +
@@ -10939,7 +11441,7 @@ func file_admin_service_api_proto_admin_proto_rawDescGZIP() []byte {
 	return file_admin_service_api_proto_admin_proto_rawDescData
 }
 
-var file_admin_service_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 131)
+var file_admin_service_api_proto_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
 var file_admin_service_api_proto_admin_proto_goTypes = []any{
 	(*Actor)(nil),                          // 0: bbs.admin.v1.Actor
 	(*EntityRef)(nil),                      // 1: bbs.admin.v1.EntityRef
@@ -11072,6 +11574,12 @@ var file_admin_service_api_proto_admin_proto_goTypes = []any{
 	(*SearchRebuildStatusRequest)(nil),     // 128: bbs.admin.v1.SearchRebuildStatusRequest
 	(*SearchRebuildStatus)(nil),            // 129: bbs.admin.v1.SearchRebuildStatus
 	(*SearchRebuildStatusResponse)(nil),    // 130: bbs.admin.v1.SearchRebuildStatusResponse
+	(*ChannelInfo)(nil),                    // 131: bbs.admin.v1.ChannelInfo
+	(*ListChannelsRequest)(nil),            // 132: bbs.admin.v1.ListChannelsRequest
+	(*ChannelListResponse)(nil),            // 133: bbs.admin.v1.ChannelListResponse
+	(*ChannelFeaturedRequest)(nil),         // 134: bbs.admin.v1.ChannelFeaturedRequest
+	(*ChannelArchivedRequest)(nil),         // 135: bbs.admin.v1.ChannelArchivedRequest
+	(*ChannelResponse)(nil),                // 136: bbs.admin.v1.ChannelResponse
 }
 var file_admin_service_api_proto_admin_proto_depIdxs = []int32{
 	1,   // 0: bbs.admin.v1.ReportInfo.entity:type_name -> bbs.admin.v1.EntityRef
@@ -11174,175 +11682,186 @@ var file_admin_service_api_proto_admin_proto_depIdxs = []int32{
 	0,   // 97: bbs.admin.v1.SearchRebuildRequest.actor:type_name -> bbs.admin.v1.Actor
 	0,   // 98: bbs.admin.v1.SearchRebuildStatusRequest.actor:type_name -> bbs.admin.v1.Actor
 	129, // 99: bbs.admin.v1.SearchRebuildStatusResponse.status:type_name -> bbs.admin.v1.SearchRebuildStatus
-	9,   // 100: bbs.admin.v1.AdminService.Login:input_type -> bbs.admin.v1.LoginRequest
-	10,  // 101: bbs.admin.v1.AdminService.Refresh:input_type -> bbs.admin.v1.RefreshTokenRequest
-	11,  // 102: bbs.admin.v1.AdminService.Logout:input_type -> bbs.admin.v1.LogoutRequest
-	13,  // 103: bbs.admin.v1.AdminService.GetProfile:input_type -> bbs.admin.v1.ProfileRequest
-	15,  // 104: bbs.admin.v1.AdminService.UpdateProfile:input_type -> bbs.admin.v1.UpdateProfileRequest
-	16,  // 105: bbs.admin.v1.AdminService.ChangePassword:input_type -> bbs.admin.v1.ChangePasswordRequest
-	17,  // 106: bbs.admin.v1.AdminService.ListReports:input_type -> bbs.admin.v1.ListReportsRequest
-	19,  // 107: bbs.admin.v1.AdminService.AuditReport:input_type -> bbs.admin.v1.AuditReportRequest
-	22,  // 108: bbs.admin.v1.AdminService.ListUsers:input_type -> bbs.admin.v1.ListUsersRequest
-	21,  // 109: bbs.admin.v1.AdminService.MuteUser:input_type -> bbs.admin.v1.UserStatusRequest
-	21,  // 110: bbs.admin.v1.AdminService.UnmuteUser:input_type -> bbs.admin.v1.UserStatusRequest
-	25,  // 111: bbs.admin.v1.AdminService.ListArticles:input_type -> bbs.admin.v1.ListArticlesRequest
-	27,  // 112: bbs.admin.v1.AdminService.PublishArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	27,  // 113: bbs.admin.v1.AdminService.HideArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	27,  // 114: bbs.admin.v1.AdminService.ArchiveArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
-	29,  // 115: bbs.admin.v1.AdminService.ListTopics:input_type -> bbs.admin.v1.ListTopicsRequest
-	31,  // 116: bbs.admin.v1.AdminService.PublishTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	31,  // 117: bbs.admin.v1.AdminService.HideTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	31,  // 118: bbs.admin.v1.AdminService.ArchiveTopic:input_type -> bbs.admin.v1.TopicStatusRequest
-	34,  // 119: bbs.admin.v1.AdminService.ListCategories:input_type -> bbs.admin.v1.ListCategoriesRequest
-	36,  // 120: bbs.admin.v1.AdminService.CreateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
-	36,  // 121: bbs.admin.v1.AdminService.UpdateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
-	37,  // 122: bbs.admin.v1.AdminService.DeleteCategory:input_type -> bbs.admin.v1.CategoryIDRequest
-	39,  // 123: bbs.admin.v1.AdminService.ListComments:input_type -> bbs.admin.v1.ListCommentsRequest
-	41,  // 124: bbs.admin.v1.AdminService.HideComment:input_type -> bbs.admin.v1.CommentStatusRequest
-	41,  // 125: bbs.admin.v1.AdminService.RestoreComment:input_type -> bbs.admin.v1.CommentStatusRequest
-	43,  // 126: bbs.admin.v1.AdminService.ListAdminUsers:input_type -> bbs.admin.v1.ListAdminUsersRequest
-	45,  // 127: bbs.admin.v1.AdminService.CreateAdminUser:input_type -> bbs.admin.v1.CreateAdminUserRequest
-	46,  // 128: bbs.admin.v1.AdminService.ListRoles:input_type -> bbs.admin.v1.ListRolesRequest
-	48,  // 129: bbs.admin.v1.AdminService.AssignRoles:input_type -> bbs.admin.v1.AssignRolesRequest
-	51,  // 130: bbs.admin.v1.AdminService.ListSystemUsers:input_type -> bbs.admin.v1.ListSystemUsersRequest
-	52,  // 131: bbs.admin.v1.AdminService.CreateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
-	52,  // 132: bbs.admin.v1.AdminService.UpdateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
-	53,  // 133: bbs.admin.v1.AdminService.DeleteSystemUser:input_type -> bbs.admin.v1.SystemUserIDRequest
-	54,  // 134: bbs.admin.v1.AdminService.ResetSystemUserPassword:input_type -> bbs.admin.v1.ResetSystemUserPasswordRequest
-	55,  // 135: bbs.admin.v1.AdminService.AssignSystemUserRoles:input_type -> bbs.admin.v1.AssignSystemUserRolesRequest
-	59,  // 136: bbs.admin.v1.AdminService.ListSystemRoles:input_type -> bbs.admin.v1.ListSystemRolesRequest
-	61,  // 137: bbs.admin.v1.AdminService.GetSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
-	60,  // 138: bbs.admin.v1.AdminService.CreateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
-	60,  // 139: bbs.admin.v1.AdminService.UpdateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
-	61,  // 140: bbs.admin.v1.AdminService.DeleteSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
-	62,  // 141: bbs.admin.v1.AdminService.AssignSystemRoleMenus:input_type -> bbs.admin.v1.AssignSystemRoleMenusRequest
-	66,  // 142: bbs.admin.v1.AdminService.ListSystemMenus:input_type -> bbs.admin.v1.ListSystemMenusRequest
-	67,  // 143: bbs.admin.v1.AdminService.ListCurrentSystemMenus:input_type -> bbs.admin.v1.CurrentSystemMenusRequest
-	68,  // 144: bbs.admin.v1.AdminService.CreateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
-	68,  // 145: bbs.admin.v1.AdminService.UpdateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
-	69,  // 146: bbs.admin.v1.AdminService.DeleteSystemMenu:input_type -> bbs.admin.v1.SystemMenuIDRequest
-	73,  // 147: bbs.admin.v1.AdminService.ListSystemDepts:input_type -> bbs.admin.v1.ListSystemDeptsRequest
-	74,  // 148: bbs.admin.v1.AdminService.CreateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
-	74,  // 149: bbs.admin.v1.AdminService.UpdateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
-	75,  // 150: bbs.admin.v1.AdminService.DeleteSystemDept:input_type -> bbs.admin.v1.SystemDeptIDRequest
-	79,  // 151: bbs.admin.v1.AdminService.ListBadges:input_type -> bbs.admin.v1.ListBadgesRequest
-	81,  // 152: bbs.admin.v1.AdminService.CreateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
-	81,  // 153: bbs.admin.v1.AdminService.UpdateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
-	82,  // 154: bbs.admin.v1.AdminService.DeleteBadge:input_type -> bbs.admin.v1.BadgeIDRequest
-	85,  // 155: bbs.admin.v1.AdminService.ListLevels:input_type -> bbs.admin.v1.ListLevelsRequest
-	87,  // 156: bbs.admin.v1.AdminService.CreateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
-	87,  // 157: bbs.admin.v1.AdminService.UpdateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
-	88,  // 158: bbs.admin.v1.AdminService.DeleteLevel:input_type -> bbs.admin.v1.LevelIDRequest
-	91,  // 159: bbs.admin.v1.AdminService.ListForbiddenWords:input_type -> bbs.admin.v1.ListForbiddenWordsRequest
-	93,  // 160: bbs.admin.v1.AdminService.CreateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
-	93,  // 161: bbs.admin.v1.AdminService.UpdateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
-	94,  // 162: bbs.admin.v1.AdminService.DeleteForbiddenWord:input_type -> bbs.admin.v1.ForbiddenWordIDRequest
-	97,  // 163: bbs.admin.v1.AdminService.ListSettings:input_type -> bbs.admin.v1.ListSettingsRequest
-	98,  // 164: bbs.admin.v1.AdminService.ListAuthSettings:input_type -> bbs.admin.v1.ListAuthSettingsRequest
-	99,  // 165: bbs.admin.v1.AdminService.ListPublicSettings:input_type -> bbs.admin.v1.ListPublicSettingsRequest
-	101, // 166: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
-	104, // 167: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
-	107, // 168: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
-	110, // 169: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
-	112, // 170: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
-	114, // 171: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
-	116, // 172: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	116, // 173: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
-	117, // 174: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
-	120, // 175: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
-	122, // 176: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	122, // 177: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
-	123, // 178: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
-	125, // 179: bbs.admin.v1.AdminService.SendSystemNotification:input_type -> bbs.admin.v1.SendSystemNotificationRequest
-	127, // 180: bbs.admin.v1.AdminService.StartSearchRebuild:input_type -> bbs.admin.v1.SearchRebuildRequest
-	128, // 181: bbs.admin.v1.AdminService.GetSearchRebuildStatus:input_type -> bbs.admin.v1.SearchRebuildStatusRequest
-	12,  // 182: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
-	12,  // 183: bbs.admin.v1.AdminService.Refresh:output_type -> bbs.admin.v1.AuthResponse
-	42,  // 184: bbs.admin.v1.AdminService.Logout:output_type -> bbs.admin.v1.SimpleResponse
-	14,  // 185: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
-	14,  // 186: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
-	14,  // 187: bbs.admin.v1.AdminService.ChangePassword:output_type -> bbs.admin.v1.ProfileResponse
-	18,  // 188: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
-	20,  // 189: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
-	24,  // 190: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
-	23,  // 191: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
-	23,  // 192: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
-	26,  // 193: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
-	28,  // 194: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
-	28,  // 195: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
-	28,  // 196: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
-	30,  // 197: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
-	32,  // 198: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
-	32,  // 199: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
-	32,  // 200: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
-	35,  // 201: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
-	38,  // 202: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	38,  // 203: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
-	42,  // 204: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
-	40,  // 205: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
-	42,  // 206: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
-	42,  // 207: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
-	44,  // 208: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
-	49,  // 209: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
-	47,  // 210: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
-	49,  // 211: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
-	57,  // 212: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
-	56,  // 213: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	56,  // 214: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
-	42,  // 215: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
-	56,  // 216: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
-	56,  // 217: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
-	64,  // 218: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
-	63,  // 219: bbs.admin.v1.AdminService.GetSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	63,  // 220: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	63,  // 221: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
-	42,  // 222: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
-	63,  // 223: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
-	71,  // 224: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	71,  // 225: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
-	70,  // 226: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	70,  // 227: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
-	42,  // 228: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
-	77,  // 229: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
-	76,  // 230: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	76,  // 231: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
-	42,  // 232: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
-	80,  // 233: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
-	83,  // 234: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	83,  // 235: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
-	42,  // 236: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
-	86,  // 237: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
-	89,  // 238: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
-	89,  // 239: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
-	42,  // 240: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
-	92,  // 241: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
-	95,  // 242: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	95,  // 243: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
-	42,  // 244: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
-	100, // 245: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
-	100, // 246: bbs.admin.v1.AdminService.ListAuthSettings:output_type -> bbs.admin.v1.SettingListResponse
-	100, // 247: bbs.admin.v1.AdminService.ListPublicSettings:output_type -> bbs.admin.v1.SettingListResponse
-	102, // 248: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
-	105, // 249: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
-	108, // 250: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
-	111, // 251: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
-	42,  // 252: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
-	115, // 253: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
-	118, // 254: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
-	118, // 255: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
-	42,  // 256: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
-	121, // 257: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
-	124, // 258: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
-	124, // 259: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
-	42,  // 260: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
-	126, // 261: bbs.admin.v1.AdminService.SendSystemNotification:output_type -> bbs.admin.v1.SendSystemNotificationResponse
-	130, // 262: bbs.admin.v1.AdminService.StartSearchRebuild:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
-	130, // 263: bbs.admin.v1.AdminService.GetSearchRebuildStatus:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
-	182, // [182:264] is the sub-list for method output_type
-	100, // [100:182] is the sub-list for method input_type
-	100, // [100:100] is the sub-list for extension type_name
-	100, // [100:100] is the sub-list for extension extendee
-	0,   // [0:100] is the sub-list for field type_name
+	0,   // 100: bbs.admin.v1.ListChannelsRequest.actor:type_name -> bbs.admin.v1.Actor
+	131, // 101: bbs.admin.v1.ChannelListResponse.items:type_name -> bbs.admin.v1.ChannelInfo
+	0,   // 102: bbs.admin.v1.ChannelFeaturedRequest.actor:type_name -> bbs.admin.v1.Actor
+	0,   // 103: bbs.admin.v1.ChannelArchivedRequest.actor:type_name -> bbs.admin.v1.Actor
+	131, // 104: bbs.admin.v1.ChannelResponse.channel:type_name -> bbs.admin.v1.ChannelInfo
+	9,   // 105: bbs.admin.v1.AdminService.Login:input_type -> bbs.admin.v1.LoginRequest
+	10,  // 106: bbs.admin.v1.AdminService.Refresh:input_type -> bbs.admin.v1.RefreshTokenRequest
+	11,  // 107: bbs.admin.v1.AdminService.Logout:input_type -> bbs.admin.v1.LogoutRequest
+	13,  // 108: bbs.admin.v1.AdminService.GetProfile:input_type -> bbs.admin.v1.ProfileRequest
+	15,  // 109: bbs.admin.v1.AdminService.UpdateProfile:input_type -> bbs.admin.v1.UpdateProfileRequest
+	16,  // 110: bbs.admin.v1.AdminService.ChangePassword:input_type -> bbs.admin.v1.ChangePasswordRequest
+	17,  // 111: bbs.admin.v1.AdminService.ListReports:input_type -> bbs.admin.v1.ListReportsRequest
+	19,  // 112: bbs.admin.v1.AdminService.AuditReport:input_type -> bbs.admin.v1.AuditReportRequest
+	22,  // 113: bbs.admin.v1.AdminService.ListUsers:input_type -> bbs.admin.v1.ListUsersRequest
+	21,  // 114: bbs.admin.v1.AdminService.MuteUser:input_type -> bbs.admin.v1.UserStatusRequest
+	21,  // 115: bbs.admin.v1.AdminService.UnmuteUser:input_type -> bbs.admin.v1.UserStatusRequest
+	25,  // 116: bbs.admin.v1.AdminService.ListArticles:input_type -> bbs.admin.v1.ListArticlesRequest
+	27,  // 117: bbs.admin.v1.AdminService.PublishArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	27,  // 118: bbs.admin.v1.AdminService.HideArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	27,  // 119: bbs.admin.v1.AdminService.ArchiveArticle:input_type -> bbs.admin.v1.ArticleStatusRequest
+	29,  // 120: bbs.admin.v1.AdminService.ListTopics:input_type -> bbs.admin.v1.ListTopicsRequest
+	31,  // 121: bbs.admin.v1.AdminService.PublishTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	31,  // 122: bbs.admin.v1.AdminService.HideTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	31,  // 123: bbs.admin.v1.AdminService.ArchiveTopic:input_type -> bbs.admin.v1.TopicStatusRequest
+	132, // 124: bbs.admin.v1.AdminService.ListChannels:input_type -> bbs.admin.v1.ListChannelsRequest
+	134, // 125: bbs.admin.v1.AdminService.SetChannelFeatured:input_type -> bbs.admin.v1.ChannelFeaturedRequest
+	135, // 126: bbs.admin.v1.AdminService.SetChannelArchived:input_type -> bbs.admin.v1.ChannelArchivedRequest
+	34,  // 127: bbs.admin.v1.AdminService.ListCategories:input_type -> bbs.admin.v1.ListCategoriesRequest
+	36,  // 128: bbs.admin.v1.AdminService.CreateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
+	36,  // 129: bbs.admin.v1.AdminService.UpdateCategory:input_type -> bbs.admin.v1.UpsertCategoryRequest
+	37,  // 130: bbs.admin.v1.AdminService.DeleteCategory:input_type -> bbs.admin.v1.CategoryIDRequest
+	39,  // 131: bbs.admin.v1.AdminService.ListComments:input_type -> bbs.admin.v1.ListCommentsRequest
+	41,  // 132: bbs.admin.v1.AdminService.HideComment:input_type -> bbs.admin.v1.CommentStatusRequest
+	41,  // 133: bbs.admin.v1.AdminService.RestoreComment:input_type -> bbs.admin.v1.CommentStatusRequest
+	43,  // 134: bbs.admin.v1.AdminService.ListAdminUsers:input_type -> bbs.admin.v1.ListAdminUsersRequest
+	45,  // 135: bbs.admin.v1.AdminService.CreateAdminUser:input_type -> bbs.admin.v1.CreateAdminUserRequest
+	46,  // 136: bbs.admin.v1.AdminService.ListRoles:input_type -> bbs.admin.v1.ListRolesRequest
+	48,  // 137: bbs.admin.v1.AdminService.AssignRoles:input_type -> bbs.admin.v1.AssignRolesRequest
+	51,  // 138: bbs.admin.v1.AdminService.ListSystemUsers:input_type -> bbs.admin.v1.ListSystemUsersRequest
+	52,  // 139: bbs.admin.v1.AdminService.CreateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
+	52,  // 140: bbs.admin.v1.AdminService.UpdateSystemUser:input_type -> bbs.admin.v1.UpsertSystemUserRequest
+	53,  // 141: bbs.admin.v1.AdminService.DeleteSystemUser:input_type -> bbs.admin.v1.SystemUserIDRequest
+	54,  // 142: bbs.admin.v1.AdminService.ResetSystemUserPassword:input_type -> bbs.admin.v1.ResetSystemUserPasswordRequest
+	55,  // 143: bbs.admin.v1.AdminService.AssignSystemUserRoles:input_type -> bbs.admin.v1.AssignSystemUserRolesRequest
+	59,  // 144: bbs.admin.v1.AdminService.ListSystemRoles:input_type -> bbs.admin.v1.ListSystemRolesRequest
+	61,  // 145: bbs.admin.v1.AdminService.GetSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
+	60,  // 146: bbs.admin.v1.AdminService.CreateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
+	60,  // 147: bbs.admin.v1.AdminService.UpdateSystemRole:input_type -> bbs.admin.v1.UpsertSystemRoleRequest
+	61,  // 148: bbs.admin.v1.AdminService.DeleteSystemRole:input_type -> bbs.admin.v1.SystemRoleIDRequest
+	62,  // 149: bbs.admin.v1.AdminService.AssignSystemRoleMenus:input_type -> bbs.admin.v1.AssignSystemRoleMenusRequest
+	66,  // 150: bbs.admin.v1.AdminService.ListSystemMenus:input_type -> bbs.admin.v1.ListSystemMenusRequest
+	67,  // 151: bbs.admin.v1.AdminService.ListCurrentSystemMenus:input_type -> bbs.admin.v1.CurrentSystemMenusRequest
+	68,  // 152: bbs.admin.v1.AdminService.CreateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
+	68,  // 153: bbs.admin.v1.AdminService.UpdateSystemMenu:input_type -> bbs.admin.v1.UpsertSystemMenuRequest
+	69,  // 154: bbs.admin.v1.AdminService.DeleteSystemMenu:input_type -> bbs.admin.v1.SystemMenuIDRequest
+	73,  // 155: bbs.admin.v1.AdminService.ListSystemDepts:input_type -> bbs.admin.v1.ListSystemDeptsRequest
+	74,  // 156: bbs.admin.v1.AdminService.CreateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
+	74,  // 157: bbs.admin.v1.AdminService.UpdateSystemDept:input_type -> bbs.admin.v1.UpsertSystemDeptRequest
+	75,  // 158: bbs.admin.v1.AdminService.DeleteSystemDept:input_type -> bbs.admin.v1.SystemDeptIDRequest
+	79,  // 159: bbs.admin.v1.AdminService.ListBadges:input_type -> bbs.admin.v1.ListBadgesRequest
+	81,  // 160: bbs.admin.v1.AdminService.CreateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
+	81,  // 161: bbs.admin.v1.AdminService.UpdateBadge:input_type -> bbs.admin.v1.UpsertBadgeRequest
+	82,  // 162: bbs.admin.v1.AdminService.DeleteBadge:input_type -> bbs.admin.v1.BadgeIDRequest
+	85,  // 163: bbs.admin.v1.AdminService.ListLevels:input_type -> bbs.admin.v1.ListLevelsRequest
+	87,  // 164: bbs.admin.v1.AdminService.CreateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
+	87,  // 165: bbs.admin.v1.AdminService.UpdateLevel:input_type -> bbs.admin.v1.UpsertLevelRequest
+	88,  // 166: bbs.admin.v1.AdminService.DeleteLevel:input_type -> bbs.admin.v1.LevelIDRequest
+	91,  // 167: bbs.admin.v1.AdminService.ListForbiddenWords:input_type -> bbs.admin.v1.ListForbiddenWordsRequest
+	93,  // 168: bbs.admin.v1.AdminService.CreateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
+	93,  // 169: bbs.admin.v1.AdminService.UpdateForbiddenWord:input_type -> bbs.admin.v1.UpsertForbiddenWordRequest
+	94,  // 170: bbs.admin.v1.AdminService.DeleteForbiddenWord:input_type -> bbs.admin.v1.ForbiddenWordIDRequest
+	97,  // 171: bbs.admin.v1.AdminService.ListSettings:input_type -> bbs.admin.v1.ListSettingsRequest
+	98,  // 172: bbs.admin.v1.AdminService.ListAuthSettings:input_type -> bbs.admin.v1.ListAuthSettingsRequest
+	99,  // 173: bbs.admin.v1.AdminService.ListPublicSettings:input_type -> bbs.admin.v1.ListPublicSettingsRequest
+	101, // 174: bbs.admin.v1.AdminService.UpdateSetting:input_type -> bbs.admin.v1.UpsertSettingRequest
+	104, // 175: bbs.admin.v1.AdminService.ListEmailLogs:input_type -> bbs.admin.v1.ListEmailLogsRequest
+	107, // 176: bbs.admin.v1.AdminService.ListLoginLogs:input_type -> bbs.admin.v1.ListLoginLogsRequest
+	110, // 177: bbs.admin.v1.AdminService.ListOperationLogs:input_type -> bbs.admin.v1.ListOperationLogsRequest
+	112, // 178: bbs.admin.v1.AdminService.RecordOperationLog:input_type -> bbs.admin.v1.RecordOperationLogRequest
+	114, // 179: bbs.admin.v1.AdminService.ListLinks:input_type -> bbs.admin.v1.ListLinksRequest
+	116, // 180: bbs.admin.v1.AdminService.CreateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	116, // 181: bbs.admin.v1.AdminService.UpdateLink:input_type -> bbs.admin.v1.UpsertLinkRequest
+	117, // 182: bbs.admin.v1.AdminService.DeleteLink:input_type -> bbs.admin.v1.LinkIDRequest
+	120, // 183: bbs.admin.v1.AdminService.ListTasks:input_type -> bbs.admin.v1.ListTasksRequest
+	122, // 184: bbs.admin.v1.AdminService.CreateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	122, // 185: bbs.admin.v1.AdminService.UpdateTask:input_type -> bbs.admin.v1.UpsertTaskRequest
+	123, // 186: bbs.admin.v1.AdminService.DeleteTask:input_type -> bbs.admin.v1.TaskIDRequest
+	125, // 187: bbs.admin.v1.AdminService.SendSystemNotification:input_type -> bbs.admin.v1.SendSystemNotificationRequest
+	127, // 188: bbs.admin.v1.AdminService.StartSearchRebuild:input_type -> bbs.admin.v1.SearchRebuildRequest
+	128, // 189: bbs.admin.v1.AdminService.GetSearchRebuildStatus:input_type -> bbs.admin.v1.SearchRebuildStatusRequest
+	12,  // 190: bbs.admin.v1.AdminService.Login:output_type -> bbs.admin.v1.AuthResponse
+	12,  // 191: bbs.admin.v1.AdminService.Refresh:output_type -> bbs.admin.v1.AuthResponse
+	42,  // 192: bbs.admin.v1.AdminService.Logout:output_type -> bbs.admin.v1.SimpleResponse
+	14,  // 193: bbs.admin.v1.AdminService.GetProfile:output_type -> bbs.admin.v1.ProfileResponse
+	14,  // 194: bbs.admin.v1.AdminService.UpdateProfile:output_type -> bbs.admin.v1.ProfileResponse
+	14,  // 195: bbs.admin.v1.AdminService.ChangePassword:output_type -> bbs.admin.v1.ProfileResponse
+	18,  // 196: bbs.admin.v1.AdminService.ListReports:output_type -> bbs.admin.v1.ReportListResponse
+	20,  // 197: bbs.admin.v1.AdminService.AuditReport:output_type -> bbs.admin.v1.ReportResponse
+	24,  // 198: bbs.admin.v1.AdminService.ListUsers:output_type -> bbs.admin.v1.UserListResponse
+	23,  // 199: bbs.admin.v1.AdminService.MuteUser:output_type -> bbs.admin.v1.UserResponse
+	23,  // 200: bbs.admin.v1.AdminService.UnmuteUser:output_type -> bbs.admin.v1.UserResponse
+	26,  // 201: bbs.admin.v1.AdminService.ListArticles:output_type -> bbs.admin.v1.ArticleListResponse
+	28,  // 202: bbs.admin.v1.AdminService.PublishArticle:output_type -> bbs.admin.v1.ArticleResponse
+	28,  // 203: bbs.admin.v1.AdminService.HideArticle:output_type -> bbs.admin.v1.ArticleResponse
+	28,  // 204: bbs.admin.v1.AdminService.ArchiveArticle:output_type -> bbs.admin.v1.ArticleResponse
+	30,  // 205: bbs.admin.v1.AdminService.ListTopics:output_type -> bbs.admin.v1.TopicListResponse
+	32,  // 206: bbs.admin.v1.AdminService.PublishTopic:output_type -> bbs.admin.v1.TopicResponse
+	32,  // 207: bbs.admin.v1.AdminService.HideTopic:output_type -> bbs.admin.v1.TopicResponse
+	32,  // 208: bbs.admin.v1.AdminService.ArchiveTopic:output_type -> bbs.admin.v1.TopicResponse
+	133, // 209: bbs.admin.v1.AdminService.ListChannels:output_type -> bbs.admin.v1.ChannelListResponse
+	136, // 210: bbs.admin.v1.AdminService.SetChannelFeatured:output_type -> bbs.admin.v1.ChannelResponse
+	136, // 211: bbs.admin.v1.AdminService.SetChannelArchived:output_type -> bbs.admin.v1.ChannelResponse
+	35,  // 212: bbs.admin.v1.AdminService.ListCategories:output_type -> bbs.admin.v1.CategoryListResponse
+	38,  // 213: bbs.admin.v1.AdminService.CreateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	38,  // 214: bbs.admin.v1.AdminService.UpdateCategory:output_type -> bbs.admin.v1.CategoryResponse
+	42,  // 215: bbs.admin.v1.AdminService.DeleteCategory:output_type -> bbs.admin.v1.SimpleResponse
+	40,  // 216: bbs.admin.v1.AdminService.ListComments:output_type -> bbs.admin.v1.CommentListResponse
+	42,  // 217: bbs.admin.v1.AdminService.HideComment:output_type -> bbs.admin.v1.SimpleResponse
+	42,  // 218: bbs.admin.v1.AdminService.RestoreComment:output_type -> bbs.admin.v1.SimpleResponse
+	44,  // 219: bbs.admin.v1.AdminService.ListAdminUsers:output_type -> bbs.admin.v1.AdminUserListResponse
+	49,  // 220: bbs.admin.v1.AdminService.CreateAdminUser:output_type -> bbs.admin.v1.AdminUserResponse
+	47,  // 221: bbs.admin.v1.AdminService.ListRoles:output_type -> bbs.admin.v1.RoleListResponse
+	49,  // 222: bbs.admin.v1.AdminService.AssignRoles:output_type -> bbs.admin.v1.AdminUserResponse
+	57,  // 223: bbs.admin.v1.AdminService.ListSystemUsers:output_type -> bbs.admin.v1.SystemUserListResponse
+	56,  // 224: bbs.admin.v1.AdminService.CreateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	56,  // 225: bbs.admin.v1.AdminService.UpdateSystemUser:output_type -> bbs.admin.v1.SystemUserResponse
+	42,  // 226: bbs.admin.v1.AdminService.DeleteSystemUser:output_type -> bbs.admin.v1.SimpleResponse
+	56,  // 227: bbs.admin.v1.AdminService.ResetSystemUserPassword:output_type -> bbs.admin.v1.SystemUserResponse
+	56,  // 228: bbs.admin.v1.AdminService.AssignSystemUserRoles:output_type -> bbs.admin.v1.SystemUserResponse
+	64,  // 229: bbs.admin.v1.AdminService.ListSystemRoles:output_type -> bbs.admin.v1.SystemRoleListResponse
+	63,  // 230: bbs.admin.v1.AdminService.GetSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	63,  // 231: bbs.admin.v1.AdminService.CreateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	63,  // 232: bbs.admin.v1.AdminService.UpdateSystemRole:output_type -> bbs.admin.v1.SystemRoleResponse
+	42,  // 233: bbs.admin.v1.AdminService.DeleteSystemRole:output_type -> bbs.admin.v1.SimpleResponse
+	63,  // 234: bbs.admin.v1.AdminService.AssignSystemRoleMenus:output_type -> bbs.admin.v1.SystemRoleResponse
+	71,  // 235: bbs.admin.v1.AdminService.ListSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	71,  // 236: bbs.admin.v1.AdminService.ListCurrentSystemMenus:output_type -> bbs.admin.v1.SystemMenuListResponse
+	70,  // 237: bbs.admin.v1.AdminService.CreateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	70,  // 238: bbs.admin.v1.AdminService.UpdateSystemMenu:output_type -> bbs.admin.v1.SystemMenuResponse
+	42,  // 239: bbs.admin.v1.AdminService.DeleteSystemMenu:output_type -> bbs.admin.v1.SimpleResponse
+	77,  // 240: bbs.admin.v1.AdminService.ListSystemDepts:output_type -> bbs.admin.v1.SystemDeptListResponse
+	76,  // 241: bbs.admin.v1.AdminService.CreateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	76,  // 242: bbs.admin.v1.AdminService.UpdateSystemDept:output_type -> bbs.admin.v1.SystemDeptResponse
+	42,  // 243: bbs.admin.v1.AdminService.DeleteSystemDept:output_type -> bbs.admin.v1.SimpleResponse
+	80,  // 244: bbs.admin.v1.AdminService.ListBadges:output_type -> bbs.admin.v1.BadgeListResponse
+	83,  // 245: bbs.admin.v1.AdminService.CreateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	83,  // 246: bbs.admin.v1.AdminService.UpdateBadge:output_type -> bbs.admin.v1.BadgeResponse
+	42,  // 247: bbs.admin.v1.AdminService.DeleteBadge:output_type -> bbs.admin.v1.SimpleResponse
+	86,  // 248: bbs.admin.v1.AdminService.ListLevels:output_type -> bbs.admin.v1.LevelListResponse
+	89,  // 249: bbs.admin.v1.AdminService.CreateLevel:output_type -> bbs.admin.v1.LevelResponse
+	89,  // 250: bbs.admin.v1.AdminService.UpdateLevel:output_type -> bbs.admin.v1.LevelResponse
+	42,  // 251: bbs.admin.v1.AdminService.DeleteLevel:output_type -> bbs.admin.v1.SimpleResponse
+	92,  // 252: bbs.admin.v1.AdminService.ListForbiddenWords:output_type -> bbs.admin.v1.ForbiddenWordListResponse
+	95,  // 253: bbs.admin.v1.AdminService.CreateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	95,  // 254: bbs.admin.v1.AdminService.UpdateForbiddenWord:output_type -> bbs.admin.v1.ForbiddenWordResponse
+	42,  // 255: bbs.admin.v1.AdminService.DeleteForbiddenWord:output_type -> bbs.admin.v1.SimpleResponse
+	100, // 256: bbs.admin.v1.AdminService.ListSettings:output_type -> bbs.admin.v1.SettingListResponse
+	100, // 257: bbs.admin.v1.AdminService.ListAuthSettings:output_type -> bbs.admin.v1.SettingListResponse
+	100, // 258: bbs.admin.v1.AdminService.ListPublicSettings:output_type -> bbs.admin.v1.SettingListResponse
+	102, // 259: bbs.admin.v1.AdminService.UpdateSetting:output_type -> bbs.admin.v1.SettingResponse
+	105, // 260: bbs.admin.v1.AdminService.ListEmailLogs:output_type -> bbs.admin.v1.EmailLogListResponse
+	108, // 261: bbs.admin.v1.AdminService.ListLoginLogs:output_type -> bbs.admin.v1.LoginLogListResponse
+	111, // 262: bbs.admin.v1.AdminService.ListOperationLogs:output_type -> bbs.admin.v1.OperationLogListResponse
+	42,  // 263: bbs.admin.v1.AdminService.RecordOperationLog:output_type -> bbs.admin.v1.SimpleResponse
+	115, // 264: bbs.admin.v1.AdminService.ListLinks:output_type -> bbs.admin.v1.LinkListResponse
+	118, // 265: bbs.admin.v1.AdminService.CreateLink:output_type -> bbs.admin.v1.LinkResponse
+	118, // 266: bbs.admin.v1.AdminService.UpdateLink:output_type -> bbs.admin.v1.LinkResponse
+	42,  // 267: bbs.admin.v1.AdminService.DeleteLink:output_type -> bbs.admin.v1.SimpleResponse
+	121, // 268: bbs.admin.v1.AdminService.ListTasks:output_type -> bbs.admin.v1.TaskListResponse
+	124, // 269: bbs.admin.v1.AdminService.CreateTask:output_type -> bbs.admin.v1.TaskResponse
+	124, // 270: bbs.admin.v1.AdminService.UpdateTask:output_type -> bbs.admin.v1.TaskResponse
+	42,  // 271: bbs.admin.v1.AdminService.DeleteTask:output_type -> bbs.admin.v1.SimpleResponse
+	126, // 272: bbs.admin.v1.AdminService.SendSystemNotification:output_type -> bbs.admin.v1.SendSystemNotificationResponse
+	130, // 273: bbs.admin.v1.AdminService.StartSearchRebuild:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
+	130, // 274: bbs.admin.v1.AdminService.GetSearchRebuildStatus:output_type -> bbs.admin.v1.SearchRebuildStatusResponse
+	190, // [190:275] is the sub-list for method output_type
+	105, // [105:190] is the sub-list for method input_type
+	105, // [105:105] is the sub-list for extension type_name
+	105, // [105:105] is the sub-list for extension extendee
+	0,   // [0:105] is the sub-list for field type_name
 }
 
 func init() { file_admin_service_api_proto_admin_proto_init() }
@@ -11356,7 +11875,7 @@ func file_admin_service_api_proto_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_service_api_proto_admin_proto_rawDesc), len(file_admin_service_api_proto_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   131,
+			NumMessages:   137,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

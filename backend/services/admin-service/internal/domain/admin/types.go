@@ -20,6 +20,10 @@ const (
 	ActionPublishTopic                 Action = "publish_topic"
 	ActionHideTopic                    Action = "hide_topic"
 	ActionArchiveTopic                 Action = "archive_topic"
+	ActionListChannels                 Action = "list_channels"
+	ActionFeatureChannel               Action = "feature_channel"
+	ActionArchiveChannel               Action = "archive_channel"
+	ActionRestoreChannel               Action = "restore_channel"
 	ActionListCategories               Action = "list_categories"
 	ActionCreateCategory               Action = "create_category"
 	ActionUpdateCategory               Action = "update_category"
@@ -102,6 +106,7 @@ var (
 	ErrInvalidReportAction    = errors.New("invalid report action")
 	ErrInvalidArticleID       = errors.New("invalid article id")
 	ErrInvalidTopicID         = errors.New("invalid topic id")
+	ErrInvalidChannelID       = errors.New("invalid channel id")
 	ErrInvalidCategoryID      = errors.New("invalid category id")
 	ErrInvalidCommentID       = errors.New("invalid comment id")
 	ErrInvalidAdminUserID     = errors.New("invalid admin user id")

@@ -438,6 +438,7 @@ func toPbChannel(channel *channelDomain.Channel) *pb.ChannelInfo {
 		TopicsCount: channel.TopicsCount, LastPostedAt: lastPostedAt,
 		CreatedAt: channel.CreatedAt.UnixMilli(), UpdatedAt: channel.UpdatedAt.UnixMilli(),
 		IsFollowing: channel.ViewerFollowing, IsFavorited: channel.ViewerFavorited,
+		IsFeatured: channel.IsFeatured,
 	}
 }
 
@@ -477,6 +478,22 @@ func (h *Handler) ArchiveChannel(ctx context.Context, req *pb.ArchiveChannelRequ
 	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
 }
 
+func (h *Handler) SetChannelFeatured(ctx context.Context, req *pb.SetChannelFeaturedRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelCmd.SetFeatured(ctx, req.GetId(), req.GetFeatured())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
+func (h *Handler) SetChannelArchived(ctx context.Context, req *pb.SetChannelArchivedRequest) (*pb.ChannelResponse, error) {
+	channel, err := h.channelCmd.SetArchived(ctx, req.GetId(), req.GetArchived())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ChannelResponse{Success: true, Message: "ok", Channel: toPbChannel(channel)}, nil
+}
+
 func (h *Handler) GetChannel(ctx context.Context, req *pb.GetChannelRequest) (*pb.ChannelResponse, error) {
 	channel, err := h.channelQry.Get(ctx, req.GetId(), req.GetViewerUserId(), req.GetIncludeArchived())
 	if err != nil {
@@ -490,7 +507,8 @@ func (h *Handler) ListChannels(ctx context.Context, req *pb.ListChannelsRequest)
 		Query: req.GetQuery(), CategoryID: req.GetCategoryId(), Uncategorized: req.GetUncategorized(),
 		OwnerID: req.GetOwnerId(), FollowerUserID: req.GetFollowerUserId(), FavoritedUserID: req.GetFavoritedUserId(),
 		ViewerID: req.GetViewerUserId(), Featured: req.GetFeatured(), IncludeArchived: req.GetIncludeArchived(),
-		Limit: int(req.GetLimit()), Offset: int(req.GetOffset()),
+		ArchivedStatus: channelDomain.ArchivedStatus(req.GetArchivedStatus()),
+		Limit:          int(req.GetLimit()), Offset: int(req.GetOffset()),
 	})
 	if err != nil {
 		return nil, toStatus(err)

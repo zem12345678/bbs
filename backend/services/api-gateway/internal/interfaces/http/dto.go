@@ -182,6 +182,14 @@ type channelRequest struct {
 	Color       string    `json:"color"`
 }
 
+type setAdminChannelFeaturedRequest struct {
+	Featured *bool `json:"featured"`
+}
+
+type setAdminChannelArchivedRequest struct {
+	Archived *bool `json:"archived"`
+}
+
 type topicPollRequest struct {
 	Enabled   bool      `json:"enabled"`
 	Multiple  bool      `json:"multiple"`

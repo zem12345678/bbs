@@ -182,7 +182,7 @@ WHERE choices.topic_id = decrements.topic_id
 func eraseAccountChannelState(tx *gorm.DB, userID int64, now time.Time) error {
 	if err := tx.Model(&channelPO{}).
 		Where("owner_id = ? AND is_archived = FALSE", userID).
-		Updates(map[string]any{"is_archived": true, "updated_at": now}).Error; err != nil {
+		Updates(map[string]any{"is_archived": true, "is_featured": false, "updated_at": now}).Error; err != nil {
 		return err
 	}
 	if err := tx.Table("channel_followers").Where("user_id = ?", userID).Delete(&channelRelationPO{}).Error; err != nil {

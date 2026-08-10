@@ -34,6 +34,9 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	channelMigration, err := migrations.Files.ReadFile("0016_create_channels.sql")
 	require.NoError(t, err)
 	require.NoError(t, db.Exec(string(channelMigration)).Error)
+	featuredMigration, err := migrations.Files.ReadFile("0017_add_channel_featured.sql")
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(string(featuredMigration)).Error)
 
 	ctx := context.Background()
 	seed := time.Now().UnixNano()
@@ -71,6 +74,8 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, channelRepo.CreateChannel(ctx, targetChannel))
 	require.NoError(t, channelRepo.CreateChannel(ctx, otherChannel))
+	require.NoError(t, targetChannel.SetFeatured(true))
+	require.NoError(t, channelRepo.SetChannelFeatured(ctx, targetChannel))
 	require.NoError(t, channelRepo.FollowChannel(ctx, otherChannelID, targetUserID))
 	require.NoError(t, channelRepo.FavoriteChannel(ctx, targetChannelID, targetUserID))
 
@@ -100,6 +105,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	require.Equal(t, []string{article.Slug}, result.ArticleSlugs)
 	assertAccountContentErased(t, ctx, db, targetUserID, articleID, topicID)
 	assertDatabaseCount(t, ctx, db, 1, `SELECT COUNT(*) FROM channels WHERE id = ? AND is_archived = TRUE`, targetChannelID)
+	assertDatabaseCount(t, ctx, db, 1, `SELECT COUNT(*) FROM channels WHERE id = ? AND is_featured = FALSE`, targetChannelID)
 	assertDatabaseCount(t, ctx, db, 1, `SELECT COUNT(*) FROM channels WHERE id = ? AND is_archived = FALSE`, otherChannelID)
 	assertDatabaseCount(t, ctx, db, 0, `SELECT COUNT(*) FROM channel_followers WHERE user_id = ?`, targetUserID)
 	assertDatabaseCount(t, ctx, db, 0, `SELECT COUNT(*) FROM channel_favorites WHERE user_id = ?`, targetUserID)

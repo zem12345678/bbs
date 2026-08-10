@@ -38,6 +38,9 @@ const (
 	AdminService_PublishTopic_FullMethodName            = "/bbs.admin.v1.AdminService/PublishTopic"
 	AdminService_HideTopic_FullMethodName               = "/bbs.admin.v1.AdminService/HideTopic"
 	AdminService_ArchiveTopic_FullMethodName            = "/bbs.admin.v1.AdminService/ArchiveTopic"
+	AdminService_ListChannels_FullMethodName            = "/bbs.admin.v1.AdminService/ListChannels"
+	AdminService_SetChannelFeatured_FullMethodName      = "/bbs.admin.v1.AdminService/SetChannelFeatured"
+	AdminService_SetChannelArchived_FullMethodName      = "/bbs.admin.v1.AdminService/SetChannelArchived"
 	AdminService_ListCategories_FullMethodName          = "/bbs.admin.v1.AdminService/ListCategories"
 	AdminService_CreateCategory_FullMethodName          = "/bbs.admin.v1.AdminService/CreateCategory"
 	AdminService_UpdateCategory_FullMethodName          = "/bbs.admin.v1.AdminService/UpdateCategory"
@@ -126,6 +129,9 @@ type AdminServiceClient interface {
 	PublishTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	HideTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
 	ArchiveTopic(ctx context.Context, in *TopicStatusRequest, opts ...grpc.CallOption) (*TopicResponse, error)
+	ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error)
+	SetChannelFeatured(ctx context.Context, in *ChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
+	SetChannelArchived(ctx context.Context, in *ChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error)
 	ListCategories(ctx context.Context, in *ListCategoriesRequest, opts ...grpc.CallOption) (*CategoryListResponse, error)
 	CreateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	UpdateCategory(ctx context.Context, in *UpsertCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
@@ -383,6 +389,36 @@ func (c *adminServiceClient) ArchiveTopic(ctx context.Context, in *TopicStatusRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TopicResponse)
 	err := c.cc.Invoke(ctx, AdminService_ArchiveTopic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) ListChannels(ctx context.Context, in *ListChannelsRequest, opts ...grpc.CallOption) (*ChannelListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListChannels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) SetChannelFeatured(ctx context.Context, in *ChannelFeaturedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, AdminService_SetChannelFeatured_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) SetChannelArchived(ctx context.Context, in *ChannelArchivedRequest, opts ...grpc.CallOption) (*ChannelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChannelResponse)
+	err := c.cc.Invoke(ctx, AdminService_SetChannelArchived_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1042,6 +1078,9 @@ type AdminServiceServer interface {
 	PublishTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	HideTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
 	ArchiveTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error)
+	ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error)
+	SetChannelFeatured(context.Context, *ChannelFeaturedRequest) (*ChannelResponse, error)
+	SetChannelArchived(context.Context, *ChannelArchivedRequest) (*ChannelResponse, error)
 	ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error)
 	CreateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
 	UpdateCategory(context.Context, *UpsertCategoryRequest) (*CategoryResponse, error)
@@ -1171,6 +1210,15 @@ func (UnimplementedAdminServiceServer) HideTopic(context.Context, *TopicStatusRe
 }
 func (UnimplementedAdminServiceServer) ArchiveTopic(context.Context, *TopicStatusRequest) (*TopicResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveTopic not implemented")
+}
+func (UnimplementedAdminServiceServer) ListChannels(context.Context, *ListChannelsRequest) (*ChannelListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListChannels not implemented")
+}
+func (UnimplementedAdminServiceServer) SetChannelFeatured(context.Context, *ChannelFeaturedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelFeatured not implemented")
+}
+func (UnimplementedAdminServiceServer) SetChannelArchived(context.Context, *ChannelArchivedRequest) (*ChannelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetChannelArchived not implemented")
 }
 func (UnimplementedAdminServiceServer) ListCategories(context.Context, *ListCategoriesRequest) (*CategoryListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCategories not implemented")
@@ -1720,6 +1768,60 @@ func _AdminService_ArchiveTopic_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).ArchiveTopic(ctx, req.(*TopicStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_ListChannels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListChannelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListChannels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListChannels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListChannels(ctx, req.(*ListChannelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_SetChannelFeatured_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelFeaturedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).SetChannelFeatured(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_SetChannelFeatured_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).SetChannelFeatured(ctx, req.(*ChannelFeaturedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_SetChannelArchived_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChannelArchivedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).SetChannelArchived(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_SetChannelArchived_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).SetChannelArchived(ctx, req.(*ChannelArchivedRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2940,6 +3042,18 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ArchiveTopic",
 			Handler:    _AdminService_ArchiveTopic_Handler,
+		},
+		{
+			MethodName: "ListChannels",
+			Handler:    _AdminService_ListChannels_Handler,
+		},
+		{
+			MethodName: "SetChannelFeatured",
+			Handler:    _AdminService_SetChannelFeatured_Handler,
+		},
+		{
+			MethodName: "SetChannelArchived",
+			Handler:    _AdminService_SetChannelArchived_Handler,
 		},
 		{
 			MethodName: "ListCategories",

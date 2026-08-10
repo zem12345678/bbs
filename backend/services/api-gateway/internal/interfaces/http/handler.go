@@ -684,6 +684,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.PUT("/admin/users/:id/file-capacity", h.requireAdminAuth(), h.requireAdminPermission("governance:list_user_file_capacity"), h.requireAdminPermission("governance:update_user_file_capacity"), h.updateAdminUserFileCapacity)
 		api.POST("/admin/users/:id/mute", h.requireAdminAuth(), h.requireAdminPermission("governance:mute_user"), h.muteUser)
 		api.POST("/admin/users/:id/unmute", h.requireAdminAuth(), h.requireAdminPermission("governance:unmute_user"), h.unmuteUser)
+		api.GET("/admin/channels", h.requireAdminAuth(), h.requireAdminPermission("governance:list_channels"), h.listAdminChannels)
+		api.PUT("/admin/channels/:id/featured", h.requireAdminAuth(), h.requireAdminPermission("governance:feature_channel"), h.setAdminChannelFeatured)
+		api.PUT("/admin/channels/:id/archived", h.requireAdminAuth(), h.setAdminChannelArchived)
 		api.GET("/admin/categories", h.requireAdminAuth(), h.requireAdminPermission("governance:list_categories"), h.listAdminCategories)
 		api.POST("/admin/categories", h.requireAdminAuth(), h.requireAdminPermission("governance:create_category"), h.createAdminCategory)
 		api.PUT("/admin/categories/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_category"), h.updateAdminCategory)
@@ -3414,6 +3417,134 @@ func (h *Handler) listAdminArticles(c *gin.Context) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) listAdminChannels(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if len([]rune(query)) > 100 {
+		writeError(c, http.StatusBadRequest, "q must be at most 100 characters", "bad_request")
+		return
+	}
+	categoryID := int64(0)
+	if raw, exists := c.GetQuery("category_id"); exists {
+		value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+		if err != nil || value < 0 {
+			writeError(c, http.StatusBadRequest, "category_id must be a non-negative integer", "bad_request")
+			return
+		}
+		categoryID = value
+	}
+	archivedStatus, ok := adminChannelArchivedStatus(c)
+	if !ok {
+		return
+	}
+	limit := int32(20)
+	if raw, exists := c.GetQuery("limit"); exists {
+		value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+		if err != nil || value < 1 || value > 100 {
+			writeError(c, http.StatusBadRequest, "limit must be between 1 and 100", "bad_request")
+			return
+		}
+		limit = int32(value)
+	}
+	offset := int32(0)
+	if raw, exists := c.GetQuery("offset"); exists {
+		value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+		if err != nil || value < 0 {
+			writeError(c, http.StatusBadRequest, "offset must be a non-negative integer", "bad_request")
+			return
+		}
+		offset = int32(value)
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.ListChannels(ctx, &adminpb.ListChannelsRequest{
+		Actor:          currentActor(c),
+		Query:          query,
+		CategoryId:     categoryID,
+		ArchivedStatus: archivedStatus,
+		Limit:          limit,
+		Offset:         offset,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) setAdminChannelFeatured(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req setAdminChannelFeaturedRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if req.Featured == nil {
+		writeError(c, http.StatusBadRequest, "featured is required", "bad_request")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.SetChannelFeatured(ctx, &adminpb.ChannelFeaturedRequest{
+		Actor: currentActor(c), Id: id, Featured: *req.Featured,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func (h *Handler) setAdminChannelArchived(c *gin.Context) {
+	id, ok := pathInt64(c, "id")
+	if !ok {
+		return
+	}
+	var req setAdminChannelArchivedRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if req.Archived == nil {
+		writeError(c, http.StatusBadRequest, "archived is required", "bad_request")
+		return
+	}
+	permission := "governance:restore_channel"
+	if *req.Archived {
+		permission = "governance:archive_channel"
+	}
+	profile, ok := c.Get("admin_profile")
+	adminProfile, validProfile := profile.(*adminpb.ProfileResponse)
+	if !ok || !validProfile || !adminProfileHasPermission(adminProfile, permission) {
+		writeError(c, http.StatusForbidden, "admin permission denied", "permission_denied")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Admin.SetChannelArchived(ctx, &adminpb.ChannelArchivedRequest{
+		Actor: currentActor(c), Id: id, Archived: *req.Archived,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, resp)
+}
+
+func adminChannelArchivedStatus(c *gin.Context) (int32, bool) {
+	raw, exists := c.GetQuery("archived_status")
+	if !exists {
+		return 0, true
+	}
+	raw = strings.TrimSpace(raw)
+	value, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || value < 0 || value > 2 {
+		writeError(c, http.StatusBadRequest, "archived_status must be 0, 1, or 2", "bad_request")
+		return 0, false
+	}
+	return int32(value), true
 }
 
 func (h *Handler) getAdminArticle(c *gin.Context) {

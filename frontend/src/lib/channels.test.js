@@ -13,6 +13,7 @@ test("normalizes channel ids, counts, colors, and relationship state", () => {
       color: "not-a-color",
       followers_count: "12",
       topics_count: 7,
+      is_featured: true,
       is_following: true,
       is_favorited: false
     }],
@@ -31,7 +32,8 @@ test("normalizes channel ids, counts, colors, and relationship state", () => {
     is_following: true,
     is_favorited: false,
     description: "",
-    is_archived: false
+    is_archived: false,
+    is_featured: true
   });
 });
 

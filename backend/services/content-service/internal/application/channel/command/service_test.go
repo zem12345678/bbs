@@ -47,6 +47,42 @@ func TestServiceDelegatesIdempotentRelations(t *testing.T) {
 	}
 }
 
+func TestServiceManagesFeaturedAndArchivedState(t *testing.T) {
+	repo := newFakeChannelRepo()
+	service := NewService(repo, fixedIDGenerator(100), &fakeCategoryReader{})
+	created, err := service.Create(context.Background(), domain.CreateCmd{OwnerID: 20, Name: "name"})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+
+	featured, err := service.SetFeatured(context.Background(), created.ID, true)
+	if err != nil {
+		t.Fatalf("SetFeatured returned error: %v", err)
+	}
+	if !featured.IsFeatured || !repo.channels[created.ID].IsFeatured {
+		t.Fatalf("featured state was not persisted: returned=%#v stored=%#v", featured, repo.channels[created.ID])
+	}
+
+	archived, err := service.SetArchived(context.Background(), created.ID, true)
+	if err != nil {
+		t.Fatalf("SetArchived(true) returned error: %v", err)
+	}
+	if !archived.IsArchived || archived.IsFeatured || repo.channels[created.ID].IsFeatured {
+		t.Fatalf("archive did not clear featured state: returned=%#v stored=%#v", archived, repo.channels[created.ID])
+	}
+	if _, err := service.SetFeatured(context.Background(), created.ID, true); !errors.Is(err, domain.ErrArchived) {
+		t.Fatalf("SetFeatured on archived channel error = %v, want %v", err, domain.ErrArchived)
+	}
+
+	restored, err := service.SetArchived(context.Background(), created.ID, false)
+	if err != nil {
+		t.Fatalf("SetArchived(false) returned error: %v", err)
+	}
+	if restored.IsArchived || restored.IsFeatured || repo.channels[created.ID].IsFeatured {
+		t.Fatalf("restore re-enabled featured state: returned=%#v stored=%#v", restored, repo.channels[created.ID])
+	}
+}
+
 func TestServiceValidatesCategoryOnCreate(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -164,6 +200,14 @@ func (r *fakeChannelRepo) UpdateChannel(_ context.Context, channel *domain.Chann
 }
 
 func (r *fakeChannelRepo) ArchiveChannel(ctx context.Context, channel *domain.Channel) error {
+	return r.UpdateChannel(ctx, channel)
+}
+
+func (r *fakeChannelRepo) SetChannelFeatured(ctx context.Context, channel *domain.Channel) error {
+	return r.UpdateChannel(ctx, channel)
+}
+
+func (r *fakeChannelRepo) SetChannelArchived(ctx context.Context, channel *domain.Channel) error {
 	return r.UpdateChannel(ctx, channel)
 }
 
