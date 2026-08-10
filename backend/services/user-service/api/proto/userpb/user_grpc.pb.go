@@ -89,6 +89,9 @@ const (
 	UserService_GetSession_FullMethodName                       = "/bbs.user.v1.UserService/GetSession"
 	UserService_RevokeSession_FullMethodName                    = "/bbs.user.v1.UserService/RevokeSession"
 	UserService_ListLoginEvents_FullMethodName                  = "/bbs.user.v1.UserService/ListLoginEvents"
+	UserService_CreateAPIToken_FullMethodName                   = "/bbs.user.v1.UserService/CreateAPIToken"
+	UserService_ListAPITokens_FullMethodName                    = "/bbs.user.v1.UserService/ListAPITokens"
+	UserService_RevokeAPIToken_FullMethodName                   = "/bbs.user.v1.UserService/RevokeAPIToken"
 	UserService_GetUserChart_FullMethodName                     = "/bbs.user.v1.UserService/GetUserChart"
 	UserService_GetUserFollowingChart_FullMethodName            = "/bbs.user.v1.UserService/GetUserFollowingChart"
 	UserService_GetActiveUsersChart_FullMethodName              = "/bbs.user.v1.UserService/GetActiveUsersChart"
@@ -170,6 +173,9 @@ type UserServiceClient interface {
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	ListLoginEvents(ctx context.Context, in *ListLoginEventsRequest, opts ...grpc.CallOption) (*LoginEventListResponse, error)
+	CreateAPIToken(ctx context.Context, in *CreateAPITokenRequest, opts ...grpc.CallOption) (*CreateAPITokenResponse, error)
+	ListAPITokens(ctx context.Context, in *ListAPITokensRequest, opts ...grpc.CallOption) (*APITokenListResponse, error)
+	RevokeAPIToken(ctx context.Context, in *RevokeAPITokenRequest, opts ...grpc.CallOption) (*APITokenResponse, error)
 	GetUserChart(ctx context.Context, in *UserChartRequest, opts ...grpc.CallOption) (*UserChartResponse, error)
 	GetUserFollowingChart(ctx context.Context, in *UserFollowingChartRequest, opts ...grpc.CallOption) (*UserFollowingChartResponse, error)
 	GetActiveUsersChart(ctx context.Context, in *ActiveUsersChartRequest, opts ...grpc.CallOption) (*ActiveUsersChartResponse, error)
@@ -883,6 +889,36 @@ func (c *userServiceClient) ListLoginEvents(ctx context.Context, in *ListLoginEv
 	return out, nil
 }
 
+func (c *userServiceClient) CreateAPIToken(ctx context.Context, in *CreateAPITokenRequest, opts ...grpc.CallOption) (*CreateAPITokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAPITokenResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateAPIToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListAPITokens(ctx context.Context, in *ListAPITokensRequest, opts ...grpc.CallOption) (*APITokenListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(APITokenListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListAPITokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RevokeAPIToken(ctx context.Context, in *RevokeAPITokenRequest, opts ...grpc.CallOption) (*APITokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(APITokenResponse)
+	err := c.cc.Invoke(ctx, UserService_RevokeAPIToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) GetUserChart(ctx context.Context, in *UserChartRequest, opts ...grpc.CallOption) (*UserChartResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserChartResponse)
@@ -989,6 +1025,9 @@ type UserServiceServer interface {
 	GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error)
 	RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error)
 	ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error)
+	CreateAPIToken(context.Context, *CreateAPITokenRequest) (*CreateAPITokenResponse, error)
+	ListAPITokens(context.Context, *ListAPITokensRequest) (*APITokenListResponse, error)
+	RevokeAPIToken(context.Context, *RevokeAPITokenRequest) (*APITokenResponse, error)
 	GetUserChart(context.Context, *UserChartRequest) (*UserChartResponse, error)
 	GetUserFollowingChart(context.Context, *UserFollowingChartRequest) (*UserFollowingChartResponse, error)
 	GetActiveUsersChart(context.Context, *ActiveUsersChartRequest) (*ActiveUsersChartResponse, error)
@@ -1211,6 +1250,15 @@ func (UnimplementedUserServiceServer) RevokeSession(context.Context, *RevokeSess
 }
 func (UnimplementedUserServiceServer) ListLoginEvents(context.Context, *ListLoginEventsRequest) (*LoginEventListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLoginEvents not implemented")
+}
+func (UnimplementedUserServiceServer) CreateAPIToken(context.Context, *CreateAPITokenRequest) (*CreateAPITokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAPIToken not implemented")
+}
+func (UnimplementedUserServiceServer) ListAPITokens(context.Context, *ListAPITokensRequest) (*APITokenListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAPITokens not implemented")
+}
+func (UnimplementedUserServiceServer) RevokeAPIToken(context.Context, *RevokeAPITokenRequest) (*APITokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeAPIToken not implemented")
 }
 func (UnimplementedUserServiceServer) GetUserChart(context.Context, *UserChartRequest) (*UserChartResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUserChart not implemented")
@@ -2502,6 +2550,60 @@ func _UserService_ListLoginEvents_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CreateAPIToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAPITokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateAPIToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateAPIToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateAPIToken(ctx, req.(*CreateAPITokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListAPITokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAPITokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListAPITokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListAPITokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListAPITokens(ctx, req.(*ListAPITokensRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RevokeAPIToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeAPITokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RevokeAPIToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RevokeAPIToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RevokeAPIToken(ctx, req.(*RevokeAPITokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_GetUserChart_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UserChartRequest)
 	if err := dec(in); err != nil {
@@ -2842,6 +2944,18 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLoginEvents",
 			Handler:    _UserService_ListLoginEvents_Handler,
+		},
+		{
+			MethodName: "CreateAPIToken",
+			Handler:    _UserService_CreateAPIToken_Handler,
+		},
+		{
+			MethodName: "ListAPITokens",
+			Handler:    _UserService_ListAPITokens_Handler,
+		},
+		{
+			MethodName: "RevokeAPIToken",
+			Handler:    _UserService_RevokeAPIToken_Handler,
 		},
 		{
 			MethodName: "GetUserChart",

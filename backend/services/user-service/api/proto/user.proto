@@ -77,6 +77,9 @@ service UserService {
   rpc GetSession(GetSessionRequest) returns (SessionResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
   rpc ListLoginEvents(ListLoginEventsRequest) returns (LoginEventListResponse);
+  rpc CreateAPIToken(CreateAPITokenRequest) returns (CreateAPITokenResponse);
+  rpc ListAPITokens(ListAPITokensRequest) returns (APITokenListResponse);
+  rpc RevokeAPIToken(RevokeAPITokenRequest) returns (APITokenResponse);
   rpc GetUserChart(UserChartRequest) returns (UserChartResponse);
   rpc GetUserFollowingChart(UserFollowingChartRequest) returns (UserFollowingChartResponse);
   rpc GetActiveUsersChart(ActiveUsersChartRequest) returns (ActiveUsersChartResponse);
@@ -624,6 +627,50 @@ message SessionResponse {
 message LoginEventListResponse {
   repeated LoginEventInfo items = 1;
   int64 total = 2;
+}
+
+message APITokenInfo {
+  string id = 1;
+  int64 user_id = 2;
+  string name = 3;
+  repeated string scopes = 4;
+  int64 created_at = 5;
+  int64 expires_at = 6;
+  int64 revoked_at = 7;
+  bool credential_valid = 8;
+}
+
+message CreateAPITokenRequest {
+  int64 user_id = 1;
+  string name = 2;
+  repeated string scopes = 3;
+  int32 expires_in_days = 4;
+  SessionClientInfo client = 5;
+}
+
+message CreateAPITokenResponse {
+  string token = 1;
+  APITokenInfo api_token = 2;
+}
+
+message ListAPITokensRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message RevokeAPITokenRequest {
+  int64 user_id = 1;
+  string token_id = 2;
+}
+
+message APITokenListResponse {
+  repeated APITokenInfo items = 1;
+  int64 total = 2;
+}
+
+message APITokenResponse {
+  APITokenInfo api_token = 1;
 }
 message SimpleResponse {
   bool success = 1;

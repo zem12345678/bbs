@@ -61,6 +61,54 @@ func (h *Handler) ListLoginEvents(ctx context.Context, req *pb.ListLoginEventsRe
 	return &pb.LoginEventListResponse{Items: items, Total: int64(len(items))}, nil
 }
 
+func (h *Handler) CreateAPIToken(ctx context.Context, req *pb.CreateAPITokenRequest) (*pb.CreateAPITokenResponse, error) {
+	session, token, err := h.cmd.CreateAPIToken(
+		withSessionClient(ctx, req.GetClient()),
+		req.GetUserId(), req.GetName(), req.GetScopes(), int(req.GetExpiresInDays()),
+	)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CreateAPITokenResponse{Token: token.Value, ApiToken: toPBAPIToken(session)}, nil
+}
+
+func (h *Handler) ListAPITokens(ctx context.Context, req *pb.ListAPITokensRequest) (*pb.APITokenListResponse, error) {
+	tokens, total, err := h.cmd.ListAPITokens(ctx, req.GetUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.APITokenInfo, 0, len(tokens))
+	for _, token := range tokens {
+		items = append(items, toPBAPIToken(token))
+	}
+	return &pb.APITokenListResponse{Items: items, Total: total}, nil
+}
+
+func (h *Handler) RevokeAPIToken(ctx context.Context, req *pb.RevokeAPITokenRequest) (*pb.APITokenResponse, error) {
+	token, err := h.cmd.RevokeAPIToken(ctx, req.GetUserId(), req.GetTokenId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.APITokenResponse{ApiToken: toPBAPIToken(token)}, nil
+}
+
+func toPBAPIToken(token domain.UserSession) *pb.APITokenInfo {
+	info := &pb.APITokenInfo{
+		Id: token.SessionID, UserId: token.UserID, Name: token.APITokenName,
+		Scopes: token.APITokenScopes, CredentialValid: token.APITokenCredentialValid,
+	}
+	if !token.CreatedAt.IsZero() {
+		info.CreatedAt = token.CreatedAt.Unix()
+	}
+	if !token.ExpiresAt.IsZero() {
+		info.ExpiresAt = token.ExpiresAt.Unix()
+	}
+	if token.RevokedAt != nil && !token.RevokedAt.IsZero() {
+		info.RevokedAt = token.RevokedAt.Unix()
+	}
+	return info
+}
+
 func toPBSession(session domain.UserSession) *pb.SessionInfo {
 	info := &pb.SessionInfo{
 		SessionId:   session.SessionID,

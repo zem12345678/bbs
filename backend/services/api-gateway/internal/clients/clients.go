@@ -22,6 +22,7 @@ type Clients struct {
 	UserInvites           UserInviteClient
 	UserCredentialVersion UserCredentialVersionClient
 	UserSessions          UserSessionClient
+	UserAPITokens         UserAPITokenClient
 	Content               ContentClient
 	Comment               CommentClient
 	Reaction              ReactionClient

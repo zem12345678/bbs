@@ -207,6 +207,21 @@ test("connects passkey registration, MFA, and passwordless login to existing aut
   assert.match(apiSource, /request\("\/users\/me\/passkeys\/registration\/options"/);
 });
 
+test("connects API token management to account security", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  assert.match(userSource, /function APITokenSecuritySection/);
+  assert.match(userSource, /bbsApi\.listAPITokens\(token\)/);
+  assert.match(userSource, /bbsApi\.createAPIToken\(\{ name, scopes, expires_in_days: Number\(form\.expiresInDays\) \}, token\)/);
+  assert.match(userSource, /bbsApi\.revokeAPIToken\(item\.id, token\)/);
+  assert.match(userSource, /normalizeAPITokenList/);
+  assert.match(userSource, /requestRef\.current/);
+  assert.match(userSource, /navigator\.clipboard\.writeText/);
+  assert.match(userSource, /setSecret\(""\); setCopied\(false\); setNotice\(""\)/);
+  assert.match(apiSource, /request\("\/users\/me\/api-tokens", \{ token \}\)/);
+  assert.match(apiSource, /request\(`\/users\/me\/api-tokens\/\$\{encodeURIComponent\(tokenId\)\}`/);
+});
+
 test("connects account lifecycle and permanent deletion to account security", () => {
   const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");

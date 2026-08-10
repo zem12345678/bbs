@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,21 @@ func (r *sessionMemoryRepo) RecordSession(_ context.Context, session domain.User
 	return nil
 }
 
+func (r *sessionMemoryRepo) CreateAPIToken(_ context.Context, session domain.UserSession) error {
+	r.recordCall++
+	if r.recordErr != nil {
+		return r.recordErr
+	}
+	if session.LoginMethod != LoginMethodAPIToken {
+		return domain.ErrLoginMethodInvalid
+	}
+	if err := session.Validate(); err != nil {
+		return err
+	}
+	r.sessions = append(r.sessions, session)
+	return nil
+}
+
 func (r *sessionMemoryRepo) RecordLoginEvent(_ context.Context, event domain.LoginEvent) error {
 	if err := event.Validate(); err != nil {
 		return err
@@ -53,7 +69,7 @@ func (r *sessionMemoryRepo) RecordLoginEvent(_ context.Context, event domain.Log
 func (r *sessionMemoryRepo) ListSessions(_ context.Context, userID int64, limit int) ([]domain.UserSession, error) {
 	out := make([]domain.UserSession, 0, len(r.sessions))
 	for _, session := range r.sessions {
-		if session.UserID == userID {
+		if session.UserID == userID && session.LoginMethod != LoginMethodAPIToken {
 			out = append(out, session)
 		}
 	}
@@ -62,6 +78,38 @@ func (r *sessionMemoryRepo) ListSessions(_ context.Context, userID int64, limit 
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+func (r *sessionMemoryRepo) ListAPITokens(_ context.Context, userID int64, limit int, offset int) ([]domain.UserSession, int64, error) {
+	out := make([]domain.UserSession, 0, len(r.sessions))
+	for _, session := range r.sessions {
+		if session.UserID == userID && session.LoginMethod == LoginMethodAPIToken {
+			out = append(out, session)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	total := int64(len(out))
+	if offset > len(out) {
+		offset = len(out)
+	}
+	out = out[offset:]
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, total, nil
+}
+
+func (r *sessionMemoryRepo) RevokeAPIToken(_ context.Context, userID int64, tokenID string, now time.Time) (domain.UserSession, error) {
+	for i := range r.sessions {
+		if r.sessions[i].UserID == userID && r.sessions[i].SessionID == tokenID && r.sessions[i].LoginMethod == LoginMethodAPIToken {
+			if r.sessions[i].RevokedAt == nil {
+				revoked := now
+				r.sessions[i].RevokedAt = &revoked
+			}
+			return r.sessions[i], nil
+		}
+	}
+	return domain.UserSession{}, domain.ErrAPITokenNotFound
 }
 
 func (r *sessionMemoryRepo) GetSession(_ context.Context, userID int64, sessionID string) (domain.UserSession, error) {
@@ -190,6 +238,142 @@ func TestSessionIDMatchesTokenJTI(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no password session recorded")
+	}
+}
+
+func TestCreateAPITokenPersistsScopedRevocableToken(t *testing.T) {
+	repo := newSessionMemoryRepo()
+	svc := newSessionService(repo)
+	ctx := WithSessionClient(context.Background(), domain.SessionClientInfo{IPAddress: "203.0.113.8", UserAgent: "integration-client/1.0"})
+	u := registerSessionUser(t, svc, ctx, "api_alice")
+	loginEventCount := len(repo.events)
+
+	session, token, err := svc.CreateAPIToken(ctx, u.ID, "  Deploy Bot  ", []string{"WRITE", " read ", "read"}, 0)
+	if err != nil {
+		t.Fatalf("create api token: %v", err)
+	}
+	if token.Value == "" || session.SessionID == "" {
+		t.Fatal("create api token returned no secret or id")
+	}
+	if session.APITokenName != "Deploy Bot" {
+		t.Fatalf("name = %q", session.APITokenName)
+	}
+	if got := strings.Join(session.APITokenScopes, ","); got != "read,write" {
+		t.Fatalf("scopes = %q", got)
+	}
+	if !session.APITokenCredentialValid || session.APITokenCredentialVersion == "" {
+		t.Fatalf("credential metadata = %+v", session)
+	}
+	if len(repo.events) != loginEventCount {
+		t.Fatalf("api token creation added login event: %d -> %d", loginEventCount, len(repo.events))
+	}
+	if remaining := token.ExpiresAt.Sub(session.CreatedAt); remaining < 89*24*time.Hour || remaining > 91*24*time.Hour {
+		t.Fatalf("default expiry duration = %v", remaining)
+	}
+
+	parsed, err := jwt.Parse(token.Value, func(*jwt.Token) (any, error) { return []byte("test-secret"), nil })
+	if err != nil || !parsed.Valid {
+		t.Fatalf("parse token: valid=%v err=%v", parsed != nil && parsed.Valid, err)
+	}
+	claims := parsed.Claims.(jwt.MapClaims)
+	if claims["token_type"] != LoginMethodAPIToken {
+		t.Fatalf("token_type = %#v", claims["token_type"])
+	}
+	if claims[credentialVersionClaim] != session.APITokenCredentialVersion {
+		t.Fatalf("credential version = %#v", claims[credentialVersionClaim])
+	}
+	if jti, _ := claims["jti"].(string); jti != session.SessionID {
+		t.Fatalf("jti = %q, id = %q", jti, session.SessionID)
+	}
+	rawScopes, ok := claims["scopes"].([]any)
+	if !ok || len(rawScopes) != 2 || rawScopes[0] != "read" || rawScopes[1] != "write" {
+		t.Fatalf("token scopes = %#v", claims["scopes"])
+	}
+
+	sessions, err := svc.ListSessions(ctx, u.ID, 20)
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("browser sessions = %d, err = %v", len(sessions), err)
+	}
+	tokens, total, err := svc.ListAPITokens(ctx, u.ID, 0, 0)
+	if err != nil || total != 1 || len(tokens) != 1 || tokens[0].SessionID != session.SessionID {
+		t.Fatalf("api tokens = %+v total=%d err=%v", tokens, total, err)
+	}
+}
+
+func TestCreateAPITokenRequiresStrictPersistence(t *testing.T) {
+	repo := newSessionMemoryRepo()
+	svc := newSessionService(repo)
+	u := registerSessionUser(t, svc, context.Background(), "api_strict")
+	repo.recordErr = errors.New("database unavailable")
+
+	session, token, err := svc.CreateAPIToken(context.Background(), u.ID, "CI", []string{"read"}, 30)
+	if err == nil {
+		t.Fatal("create api token succeeded despite persistence failure")
+	}
+	if session.SessionID != "" || token.Value != "" {
+		t.Fatalf("failed create leaked token: session=%+v token=%q", session, token.Value)
+	}
+}
+
+func TestAPITokenValidationCredentialInvalidationAndRevoke(t *testing.T) {
+	repo := newSessionMemoryRepo()
+	svc := newSessionService(repo)
+	ctx := context.Background()
+	u := registerSessionUser(t, svc, ctx, "api_security")
+
+	invalidCases := []struct {
+		name   string
+		scopes []string
+		days   int
+		want   error
+	}{
+		{name: " ", scopes: []string{"read"}, days: 1, want: domain.ErrAPITokenNameRequired},
+		{name: strings.Repeat("界", 129), scopes: []string{"read"}, days: 1, want: domain.ErrAPITokenNameTooLong},
+		{name: "bad scope", scopes: []string{"read:account"}, days: 1, want: domain.ErrAPITokenScopeInvalid},
+		{name: "bad expiry", scopes: []string{"read"}, days: 366, want: domain.ErrAPITokenExpiryInvalid},
+	}
+	for _, test := range invalidCases {
+		if _, _, err := svc.CreateAPIToken(ctx, u.ID, test.name, test.scopes, test.days); !errors.Is(err, test.want) {
+			t.Errorf("create %q error = %v, want %v", test.name, err, test.want)
+		}
+	}
+	if _, _, err := svc.ListAPITokens(ctx, u.ID, 101, 0); !errors.Is(err, domain.ErrAPITokenListInvalid) {
+		t.Fatalf("oversized list error = %v", err)
+	}
+	if _, _, err := svc.ListAPITokens(ctx, u.ID, 30, -1); !errors.Is(err, domain.ErrAPITokenListInvalid) {
+		t.Fatalf("negative offset error = %v", err)
+	}
+
+	session, _, err := svc.CreateAPIToken(ctx, u.ID, "Read client", []string{"read"}, 365)
+	if err != nil {
+		t.Fatalf("create valid token: %v", err)
+	}
+	stored := cloneUser(repo.users[u.ID])
+	stored.CredentialVersion = "rotated-version"
+	repo.users[u.ID] = stored
+	tokens, _, err := svc.ListAPITokens(ctx, u.ID, 30, 0)
+	if err != nil || len(tokens) != 1 {
+		t.Fatalf("list invalidated token: %+v err=%v", tokens, err)
+	}
+	if tokens[0].APITokenCredentialValid {
+		t.Fatal("credential-rotated token still marked valid")
+	}
+
+	browserSessions, err := svc.ListSessions(ctx, u.ID, 20)
+	if err != nil || len(browserSessions) != 1 {
+		t.Fatalf("browser sessions: %+v err=%v", browserSessions, err)
+	}
+	if _, err := svc.RevokeAPIToken(ctx, u.ID, browserSessions[0].SessionID); !errors.Is(err, domain.ErrAPITokenNotFound) {
+		t.Fatalf("revoke browser session as token error = %v", err)
+	}
+	revoked, err := svc.RevokeAPIToken(ctx, u.ID, session.SessionID)
+	if err != nil || revoked.RevokedAt == nil {
+		t.Fatalf("revoke api token: %+v err=%v", revoked, err)
+	}
+	first := *revoked.RevokedAt
+	again, err := svc.RevokeAPIToken(ctx, u.ID, session.SessionID)
+	if err != nil || again.RevokedAt == nil || !again.RevokedAt.Equal(first) {
+		t.Fatalf("idempotent revoke: %+v err=%v", again, err)
 	}
 }
 

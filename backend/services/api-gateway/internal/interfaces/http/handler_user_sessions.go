@@ -146,11 +146,17 @@ func sessionListLimit(c *gin.Context) int32 {
 // revokeSessionToken blocks the revoked session id until the session would
 // have expired anyway. An already expired session needs no Redis entry.
 func (h *Handler) revokeSessionToken(c *gin.Context, session *userpb.SessionInfo) error {
-	sessionID := strings.TrimSpace(session.GetSessionId())
+	if session == nil {
+		return nil
+	}
+	return h.revokeSessionID(c, session.GetSessionId(), session.GetExpiresAt())
+}
+
+func (h *Handler) revokeSessionID(c *gin.Context, sessionID string, expiresAt int64) error {
+	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" || h.tokenRevocations == nil {
 		return nil
 	}
-	expiresAt := session.GetExpiresAt()
 	if expiresAt <= 0 {
 		return nil
 	}

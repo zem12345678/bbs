@@ -305,6 +305,15 @@ export const bbsApi = {
   userLoginEvents(params, token) {
     return request(`/users/me/login-events${buildQuery({ limit: 20, ...params })}`, { token });
   },
+  listAPITokens(token) {
+    return request("/users/me/api-tokens", { token });
+  },
+  createAPIToken(payload, token) {
+    return request("/users/me/api-tokens", { method: "POST", body: payload, token });
+  },
+  revokeAPIToken(tokenId, token) {
+    return request(`/users/me/api-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE", token });
+  },
   uploadAvatar(file, token) {
     const form = new FormData();
     form.append("file", file);

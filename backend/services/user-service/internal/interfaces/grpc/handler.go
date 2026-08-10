@@ -30,7 +30,7 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrPasskeyNotFound), errors.Is(err, domain.ErrFollowRequestNotFound):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrPasskeyNotFound), errors.Is(err, domain.ErrFollowRequestNotFound), errors.Is(err, domain.ErrAPITokenNotFound):
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists), errors.Is(err, domain.ErrPasskeyCredentialExists), errors.Is(err, domain.ErrFollowRequestAlreadyExists):
 		code = codes.AlreadyExists
@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrSessionRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -74,6 +74,12 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrUserListNameTooLong),
 		errors.Is(err, domain.ErrPasskeyNameRequired),
 		errors.Is(err, domain.ErrPasskeyNameTooLong),
+		errors.Is(err, domain.ErrAPITokenNameRequired),
+		errors.Is(err, domain.ErrAPITokenNameTooLong),
+		errors.Is(err, domain.ErrAPITokenScopeInvalid),
+		errors.Is(err, domain.ErrAPITokenExpiryInvalid),
+		errors.Is(err, domain.ErrAPITokenListInvalid),
+		errors.Is(err, domain.ErrSessionIDInvalid),
 		errors.Is(err, domain.ErrUserChartSpanInvalid),
 		errors.Is(err, domain.ErrUserChartLimitInvalid),
 		errors.Is(err, domain.ErrUserChartOffsetInvalid):

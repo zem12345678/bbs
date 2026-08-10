@@ -401,6 +401,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		r.POST("/charts/drive", h.driveChart)
 		r.GET("/charts/user/drive", h.userDriveChart)
 		r.POST("/charts/user/drive", h.userDriveChart)
+		r.POST("/api/tokens/create", h.requireAuth(), h.requireInteractiveAuth(), h.createAPIToken)
+		r.POST("/api/tokens/list", h.requireAuthScope("read"), h.listAPITokens)
+		r.POST("/api/tokens/revoke", h.requireAuth(), h.requireInteractiveAuth(), h.revokeAPIToken)
 		api := r.Group("/api/v1")
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
@@ -431,6 +434,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/announcements/:id", h.optionalAuth(), h.getAnnouncement)
 		api.POST("/announcements/show", h.optionalAuth(), h.showAnnouncement)
 		api.POST("/i/read-announcement", h.requireAuth(), h.readAnnouncement)
+		api.POST("/tokens/create", h.requireAuth(), h.requireInteractiveAuth(), h.createAPIToken)
+		api.POST("/tokens/list", h.requireAuthScope("read"), h.listAPITokens)
+		api.POST("/tokens/revoke", h.requireAuth(), h.requireInteractiveAuth(), h.revokeAPIToken)
 		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
 		api.POST("/auth/login/mfa", h.completeMFALogin)
@@ -483,6 +489,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/me/sessions/:sessionId", h.requireAuth(), h.getCurrentUserSession)
 		api.DELETE("/users/me/sessions/:sessionId", h.requireAuth(), h.revokeCurrentUserSession)
 		api.GET("/users/me/login-events", h.requireAuth(), h.listCurrentUserLoginEvents)
+		api.POST("/users/me/api-tokens", h.requireAuth(), h.requireInteractiveAuth(), h.createAPIToken)
+		api.GET("/users/me/api-tokens", h.requireAuthScope("read"), h.listAPITokens)
+		api.DELETE("/users/me/api-tokens/:tokenId", h.requireAuth(), h.requireInteractiveAuth(), h.revokeAPIToken)
 		api.POST("/users/me/deletion-requests", h.requireAuth(), h.requestAccountDeletion)
 		api.GET("/users/me/articles", h.requireAuth(), h.listCurrentUserArticles)
 		api.GET("/users/me/topics", h.requireAuth(), h.listCurrentUserTopics)
@@ -6057,8 +6066,12 @@ func (h *Handler) reviewAdminMallRefundRequest(c *gin.Context) {
 }
 
 func (h *Handler) requireAuth() gin.HandlerFunc {
+	return h.requireAuthScope("")
+}
+
+func (h *Handler) requireAuthScope(requiredScope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		identity, err := h.authIdentityFromRequest(c)
+		identity, err := h.authIdentityFromRequestWithScope(c, requiredScope)
 		if err != nil {
 			writeAuthenticationError(c, err)
 			c.Abort()
@@ -6067,6 +6080,8 @@ func (h *Handler) requireAuth() gin.HandlerFunc {
 		c.Set("user_id", identity.userID)
 		c.Set("username", identity.username)
 		c.Set("session_id", identity.sessionID)
+		c.Set("auth_token_type", identity.tokenType)
+		c.Set("auth_scopes", identity.scopes)
 		c.Next()
 	}
 }
@@ -6077,7 +6092,7 @@ func (h *Handler) optionalAuth() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		identity, err := h.authIdentityFromRequest(c)
+		identity, err := h.authIdentityFromRequestWithScope(c, "")
 		if err != nil {
 			writeAuthenticationError(c, err)
 			c.Abort()
@@ -6086,6 +6101,8 @@ func (h *Handler) optionalAuth() gin.HandlerFunc {
 		c.Set("user_id", identity.userID)
 		c.Set("username", identity.username)
 		c.Set("session_id", identity.sessionID)
+		c.Set("auth_token_type", identity.tokenType)
+		c.Set("auth_scopes", identity.scopes)
 		c.Next()
 	}
 }
@@ -6175,9 +6192,15 @@ type authIdentity struct {
 	userID    int64
 	username  string
 	sessionID string
+	tokenType string
+	scopes    map[string]bool
 }
 
 func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) {
+	return h.authIdentityFromRequestWithScope(c, "")
+}
+
+func (h *Handler) authIdentityFromRequestWithScope(c *gin.Context, requiredScope string) (authIdentity, error) {
 	accessToken, err := h.authTokenFromRequest(c)
 	if err != nil {
 		return authIdentity{}, err
@@ -6185,6 +6208,10 @@ func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) 
 	claims, err := h.parseAuthToken(accessToken)
 	if err != nil {
 		return authIdentity{}, errors.New("invalid authorization token")
+	}
+	tokenType, scopes, err := parseAPITokenClaims(claims)
+	if err != nil {
+		return authIdentity{}, err
 	}
 	if h.tokenRevocations != nil {
 		ctx, cancel := rpcContext(c)
@@ -6211,12 +6238,15 @@ func (h *Handler) authIdentityFromRequest(c *gin.Context) (authIdentity, error) 
 			return authIdentity{}, errors.New("authorization session revoked")
 		}
 	}
-	identity := authIdentity{username: normalizedClaimString(claims, "username"), sessionID: sessionID}
+	identity := authIdentity{username: normalizedClaimString(claims, "username"), sessionID: sessionID, tokenType: tokenType, scopes: scopes}
 	if id, ok := claimInt64(claims, "sub", "user_id"); ok {
 		if err := h.validateCredentialVersion(c, claims, id); err != nil {
 			return authIdentity{}, err
 		}
 		identity.userID = id
+		if err := authorizeAPITokenScope(c, tokenType, scopes, requiredScope); err != nil {
+			return authIdentity{}, err
+		}
 		return identity, nil
 	}
 	return authIdentity{}, errors.New("missing user id claim")
@@ -6307,6 +6337,10 @@ func credentialVersionUnavailableError(err error) error {
 }
 
 func writeAuthenticationError(c *gin.Context, err error) {
+	if errors.Is(err, errAPITokenScopeDenied) {
+		writeError(c, http.StatusForbidden, err.Error(), "permission_denied")
+		return
+	}
 	if errors.Is(err, errTokenRevocationUnavailable) || errors.Is(err, errCredentialVersionUnavailable) {
 		writeError(c, http.StatusServiceUnavailable, "authorization service unavailable", "service_unavailable")
 		return

@@ -315,6 +315,27 @@ test("maps passkey registration, MFA, passwordless, and management requests", as
   assert.equal(requests.slice(4).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps API token listing, creation, and revocation requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, { service: "api-gateway", code: 0, message: "ok", data: requests.length === 1 ? { items: [], total: 0 } : requests.length === 2 ? { token: "secret", id: "tok-1", api_token: { id: "tok-1" } } : { api_token: { id: "tok-1", revoked_at: 1 } } });
+  };
+
+  await bbsApi.listAPITokens("access-token");
+  await bbsApi.createAPIToken({ name: "Deploy", scopes: ["read", "write"], expires_in_days: 90 }, "access-token");
+  await bbsApi.revokeAPIToken("tok/id", "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/api-tokens");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/users/me/api-tokens");
+  assert.equal(requests[1].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { name: "Deploy", scopes: ["read", "write"], expires_in_days: 90 });
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/users/me/api-tokens/tok%2Fid");
+  assert.equal(requests[2].options.method, "DELETE");
+  assert.equal(requests.slice(0, 3).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("loads public site config without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {

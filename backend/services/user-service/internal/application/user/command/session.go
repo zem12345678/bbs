@@ -3,21 +3,30 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	domain "user-service/internal/domain/user"
 	"user-service/pkg/logger"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Login methods recorded on each issued session.
 const (
-	LoginMethodRegister    = "register"
-	LoginMethodPassword    = "password"
-	LoginMethodOAuth       = "oauth"
-	LoginMethodWebmaster   = "webmaster"
-	LoginMethodMFA         = "mfa"
-	LoginMethodPasskeyMFA  = "passkey_mfa"
-	LoginMethodPasskeyless = "passkey"
+	LoginMethodRegister       = "register"
+	LoginMethodPassword       = "password"
+	LoginMethodOAuth          = "oauth"
+	LoginMethodWebmaster      = "webmaster"
+	LoginMethodMFA            = "mfa"
+	LoginMethodPasskeyMFA     = "passkey_mfa"
+	LoginMethodPasskeyless    = "passkey"
+	LoginMethodAPIToken       = "api_token"
+	DefaultAPITokenExpiryDays = 90
+	MaxAPITokenExpiryDays     = 365
+	DefaultAPITokenListLimit  = 30
+	MaxAPITokenListLimit      = 100
 )
 
 // Login failure reasons recorded against existing accounts.
@@ -122,6 +131,121 @@ func (s *Service) ListSessions(ctx context.Context, userID int64, limit int) ([]
 		return nil, err
 	}
 	return repo.ListSessions(ctx, userID, domain.SessionListLimit(limit))
+}
+
+// CreateAPIToken issues a scoped JWT and persists its revocable session before
+// returning the secret to the caller.
+func (s *Service) CreateAPIToken(ctx context.Context, userID int64, name string, scopes []string, expiresInDays int) (domain.UserSession, AuthToken, error) {
+	if userID <= 0 {
+		return domain.UserSession{}, AuthToken{}, domain.ErrInvalidID
+	}
+	name, err := domain.NormalizeAPITokenName(name)
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	scopes, err = domain.NormalizeAPITokenScopes(scopes)
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	if expiresInDays == 0 {
+		expiresInDays = DefaultAPITokenExpiryDays
+	}
+	if expiresInDays < 1 || expiresInDays > MaxAPITokenExpiryDays {
+		return domain.UserSession{}, AuthToken{}, domain.ErrAPITokenExpiryInvalid
+	}
+	if len(s.jwtSecret) == 0 {
+		return domain.UserSession{}, AuthToken{}, fmt.Errorf("jwt secret required")
+	}
+	u, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	if err := u.EnsureActive(); err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	jti, err := randomToken()
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, fmt.Errorf("generate jwt id: %w", err)
+	}
+	credentialVersion := strings.TrimSpace(u.CredentialVersion)
+	if credentialVersion == "" {
+		credentialVersion = credentialVersionInitial
+	}
+	issuedAt := time.Now()
+	expiresAt := issuedAt.Add(time.Duration(expiresInDays) * 24 * time.Hour)
+	claims := jwt.MapClaims{
+		"sub":                  fmt.Sprintf("%d", u.ID),
+		"user_id":              u.ID,
+		"username":             u.Username,
+		"jti":                  jti,
+		"token_type":           LoginMethodAPIToken,
+		"scopes":               scopes,
+		credentialVersionClaim: credentialVersion,
+		"exp":                  expiresAt.Unix(),
+		"iat":                  issuedAt.Unix(),
+	}
+	value, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	client := sessionClientFromContext(ctx)
+	session := domain.UserSession{
+		SessionID: jti, UserID: u.ID, IPAddress: client.IPAddress, UserAgent: client.UserAgent,
+		LoginMethod: LoginMethodAPIToken, APITokenName: name, APITokenScopes: scopes,
+		APITokenCredentialVersion: credentialVersion, APITokenCredentialValid: true,
+		CreatedAt: issuedAt, ExpiresAt: expiresAt,
+	}
+	repo, err := s.sessionRepository()
+	if err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	if err := repo.CreateAPIToken(ctx, session); err != nil {
+		return domain.UserSession{}, AuthToken{}, err
+	}
+	return session, AuthToken{Value: value, ExpiresAt: expiresAt}, nil
+}
+
+func (s *Service) ListAPITokens(ctx context.Context, userID int64, limit int, offset int) ([]domain.UserSession, int64, error) {
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidID
+	}
+	if limit == 0 {
+		limit = DefaultAPITokenListLimit
+	}
+	if limit < 1 || limit > MaxAPITokenListLimit || offset < 0 {
+		return nil, 0, domain.ErrAPITokenListInvalid
+	}
+	repo, err := s.sessionRepository()
+	if err != nil {
+		return nil, 0, err
+	}
+	u, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	tokens, total, err := repo.ListAPITokens(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	currentCredentialVersion := domain.NormalizeCredentialVersion(u.CredentialVersion)
+	for index := range tokens {
+		tokens[index].APITokenCredentialValid = domain.NormalizeCredentialVersion(tokens[index].APITokenCredentialVersion) == currentCredentialVersion
+	}
+	return tokens, total, nil
+}
+
+func (s *Service) RevokeAPIToken(ctx context.Context, userID int64, tokenID string) (domain.UserSession, error) {
+	if userID <= 0 {
+		return domain.UserSession{}, domain.ErrInvalidID
+	}
+	if !domain.ValidSessionID(tokenID) {
+		return domain.UserSession{}, domain.ErrSessionIDInvalid
+	}
+	repo, err := s.sessionRepository()
+	if err != nil {
+		return domain.UserSession{}, err
+	}
+	return repo.RevokeAPIToken(ctx, userID, tokenID, time.Now())
 }
 
 // GetSession returns a single session owned by the caller.

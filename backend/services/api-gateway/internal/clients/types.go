@@ -137,6 +137,12 @@ type UserSessionClient interface {
 	ListLoginEvents(context.Context, *userpb.ListLoginEventsRequest, ...grpc.CallOption) (*userpb.LoginEventListResponse, error)
 }
 
+type UserAPITokenClient interface {
+	CreateAPIToken(context.Context, *userpb.CreateAPITokenRequest, ...grpc.CallOption) (*userpb.CreateAPITokenResponse, error)
+	ListAPITokens(context.Context, *userpb.ListAPITokensRequest, ...grpc.CallOption) (*userpb.APITokenListResponse, error)
+	RevokeAPIToken(context.Context, *userpb.RevokeAPITokenRequest, ...grpc.CallOption) (*userpb.APITokenResponse, error)
+}
+
 type UserCredentialVersionClient interface {
 	GetCredentialVersion(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.CredentialVersionResponse, error)
 }

@@ -51,5 +51,6 @@ func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
 	c.UserInvites = client
 	c.UserCredentialVersion = client
 	c.UserSessions = client
+	c.UserAPITokens = client
 	return nil
 }

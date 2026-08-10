@@ -12,6 +12,7 @@ import { creditEntryMeta, creditReasonLabel, sameId, timeAgo, timeAgoMillis, toI
 import { describeUserAgent, ipAddressLabel, loginFailureLabel, loginMethodLabel, normalizeLoginEventList, normalizeSessionList, sessionStatus, sessionStatusLabel } from "../lib/sessions";
 import { loadAllListPages } from "../lib/focusedLists";
 import { normalizeMFAStatus, recoveryCodesFromResponse, recoveryCodesText } from "../lib/mfa";
+import { apiTokenScopeLabel, apiTokenStatus, apiTokenStatusLabel, apiTokenTime, normalizeAPITokenCreation, normalizeAPITokenList } from "../lib/apiTokens";
 import { createPasskey, friendlyPasskeyError, normalizePasskeyList, passkeysSupported } from "../lib/passkeys";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import {
@@ -1027,6 +1028,209 @@ function SessionSecuritySection({ token }) {
     </div>
   );
 }
+
+function APITokenSecuritySection({ token }) {
+  const [state, setState] = React.useState({ data: { items: [], total: 0 }, loading: false, error: "" });
+  const [form, setForm] = React.useState({ name: "", read: true, write: false, expiresInDays: "90" });
+  const [secret, setSecret] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+  const [action, setAction] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [error, setError] = React.useState("");
+  const requestRef = React.useRef(0);
+
+  const loadAPITokens = React.useCallback(async () => {
+    const requestID = requestRef.current + 1;
+    requestRef.current = requestID;
+    if (!token) {
+      setState({ data: { items: [], total: 0 }, loading: false, error: "" });
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = normalizeAPITokenList(await bbsApi.listAPITokens(token));
+      if (requestRef.current !== requestID) return;
+      setState({ data, loading: false, error: "" });
+    } catch (loadError) {
+      if (requestRef.current !== requestID) return;
+      setState((current) => ({ ...current, loading: false, error: loadError.message || "API 访问令牌加载失败" }));
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    setForm({ name: "", read: true, write: false, expiresInDays: "90" });
+    setSecret("");
+    setCopied(false);
+    setAction("");
+    setNotice("");
+    setError("");
+    loadAPITokens();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadAPITokens]);
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function createToken(event) {
+    event.preventDefault();
+    const name = form.name.trim();
+    const scopes = [form.read && "read", form.write && "write"].filter(Boolean);
+    const requestID = requestRef.current;
+    if (!name || name.length > 128) {
+      setError("令牌名称需要 1–128 个字符。");
+      return;
+    }
+    if (scopes.length === 0) {
+      setError("至少选择一项权限。");
+      return;
+    }
+    setAction("create");
+    setSecret("");
+    setCopied(false);
+    setError("");
+    setNotice("");
+    try {
+      const result = normalizeAPITokenCreation(await bbsApi.createAPIToken({ name, scopes, expires_in_days: Number(form.expiresInDays) }, token));
+      if (requestRef.current !== requestID) return;
+      setSecret(result.token);
+      setCopied(false);
+      setForm((current) => ({ ...current, name: "" }));
+      setNotice("令牌已创建。明文只会显示这一次，请立即复制并妥善保存。");
+      setAction("");
+      await loadAPITokens();
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "API 访问令牌创建失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function revokeToken(item) {
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(`确定撤销 API 访问令牌“${item.name}”吗？`)) return;
+    const requestID = requestRef.current;
+    setAction(`revoke:${item.id}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.revokeAPIToken(item.id, token);
+      if (requestRef.current !== requestID) return;
+      setNotice("API 访问令牌已撤销。");
+      setAction("");
+      await loadAPITokens();
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "API 访问令牌撤销失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function copySecret() {
+    if (!secret || typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setError("当前浏览器无法访问剪贴板，请手动复制令牌。");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopied(true);
+      setError("");
+      setNotice("令牌已复制。");
+    } catch {
+      setError("令牌复制失败，请手动复制。");
+    }
+  }
+
+  return (
+    <div className="account-security-section api-token-security-section">
+      <div className="account-security-section-heading">
+        <KeyRound size={20} aria-hidden="true" />
+        <div>
+          <strong>API 访问令牌</strong>
+          <p>为脚本或第三方工具创建可撤销的账号访问凭据。</p>
+        </div>
+      </div>
+      {secret && (
+        <div className="mfa-recovery-codes api-token-secret" role="status">
+          <div className="mfa-recovery-heading">
+            <div><strong>新令牌明文</strong><p>离开此页面后将无法再次查看，请立即复制。</p></div>
+            <div className="mfa-recovery-actions">
+              <button type="button" title="复制访问令牌" aria-label="复制访问令牌" onClick={copySecret}>{copied ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}</button>
+              <button type="button" title="清除屏幕上的访问令牌" aria-label="清除屏幕上的访问令牌" onClick={() => { setSecret(""); setCopied(false); setNotice(""); }}><X size={17} aria-hidden="true" /></button>
+            </div>
+          </div>
+          <code>{secret}</code>
+        </div>
+      )}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="form-success" role="status">{notice}</p>}
+      {state.loading && <p className="form-muted">正在读取 API 访问令牌...</p>}
+      {state.error && (
+        <div className="mfa-inline-feedback">
+          <p className="form-error" role="alert">{state.error}</p>
+          <button className="account-security-secondary" type="button" onClick={loadAPITokens}>重新加载</button>
+        </div>
+      )}
+      {!state.loading && !state.error && (
+        <>
+          {state.data.items.length === 0 ? <p className="form-muted">暂无 API 访问令牌。</p> : (
+            <div className="passkey-list">
+              {state.data.items.map((item) => {
+                const status = apiTokenStatus(item);
+                return (
+                  <div className="passkey-row" key={item.id}>
+                    <div className="passkey-row-meta">
+                      <KeyRound size={18} aria-hidden="true" />
+                      <div>
+                        <strong>{item.name || "未命名令牌"}</strong>
+                        <span>{apiTokenStatusLabel(status)} · {item.scopes.map(apiTokenScopeLabel).join("、") || "无权限"} · 创建于 {apiTokenTime(item.createdAt)} · 到期 {item.expiresAt ? apiTokenTime(item.expiresAt) : "永不过期"}</span>
+                      </div>
+                    </div>
+                    <div className="passkey-row-actions">
+                      {status === "active" ? (
+                        <button className="account-security-danger" type="button" disabled={Boolean(action)} onClick={() => revokeToken(item)}>
+                          <Trash2 size={16} aria-hidden="true" />
+                          {action === `revoke:${item.id}` ? "撤销中" : "撤销"}
+                        </button>
+                      ) : <span className="form-muted">{apiTokenStatusLabel(status)}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <form className="api-token-form" onSubmit={createToken}>
+            <label>
+              令牌名称
+              <input maxLength={128} required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="例如：部署脚本" />
+            </label>
+            <fieldset className="api-token-scope-options">
+              <legend>权限</legend>
+              <label><input type="checkbox" checked={form.read} onChange={(event) => updateField("read", event.target.checked)} />读取</label>
+              <label><input type="checkbox" checked={form.write} onChange={(event) => updateField("write", event.target.checked)} />写入</label>
+            </fieldset>
+            <label>
+              有效期
+              <select value={form.expiresInDays} onChange={(event) => updateField("expiresInDays", event.target.value)}>
+                <option value="30">30 天</option>
+                <option value="90">90 天</option>
+                <option value="180">180 天</option>
+                <option value="365">365 天</option>
+              </select>
+            </label>
+            <div className="account-security-actions">
+              <button type="submit" disabled={Boolean(action)}><KeyRound size={17} aria-hidden="true" />{action === "create" ? "创建中..." : "创建访问令牌"}</button>
+            </div>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AccountDeletionSection({ token, username, mfaEnabled, verificationReady, onAuthInvalidated }) {
   const navigate = useNavigate();
   const [lifecycle, setLifecycle] = React.useState({ data: null, loading: Boolean(token), error: "" });
@@ -1585,6 +1789,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
       </div>
 
       <PasskeySecuritySection token={token} mfaEnabled={mfaState.status.enabled} />
+
+      <APITokenSecuritySection token={token} />
 
       <SessionSecuritySection token={token} />
 

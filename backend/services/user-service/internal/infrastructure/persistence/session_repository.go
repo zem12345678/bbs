@@ -13,14 +13,17 @@ import (
 )
 
 type userSessionPO struct {
-	SessionID   string `gorm:"primaryKey;size:128"`
-	UserID      int64
-	IPAddress   string
-	UserAgent   string
-	LoginMethod string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
-	RevokedAt   *time.Time
+	SessionID                 string `gorm:"primaryKey;size:128"`
+	UserID                    int64
+	IPAddress                 string
+	UserAgent                 string
+	LoginMethod               string
+	APITokenName              string
+	APITokenScopes            string
+	APITokenCredentialVersion string
+	CreatedAt                 time.Time
+	ExpiresAt                 time.Time
+	RevokedAt                 *time.Time
 }
 
 func (userSessionPO) TableName() string { return "user_sessions" }
@@ -63,6 +66,17 @@ func (r *Repo) RecordSession(ctx context.Context, session domain.UserSession, ev
 	})
 }
 
+func (r *Repo) CreateAPIToken(ctx context.Context, session domain.UserSession) error {
+	if domain.NormalizeLoginMethod(session.LoginMethod) != "api_token" {
+		return domain.ErrLoginMethodInvalid
+	}
+	if err := session.Validate(); err != nil {
+		return err
+	}
+	row := toUserSessionPO(session)
+	return r.db.WithContext(ctx).Create(&row).Error
+}
+
 func (r *Repo) RecordLoginEvent(ctx context.Context, event domain.LoginEvent) error {
 	// A tracked session only exists for successful logins; failures are stored
 	// without one so the schema's shape constraint stays satisfied.
@@ -86,7 +100,7 @@ func (r *Repo) ListSessions(ctx context.Context, userID int64, limit int) ([]dom
 	}
 	var rows []userSessionPO
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND login_method <> ?", userID, "api_token").
 		Order("created_at DESC, session_id").
 		Limit(domain.SessionListLimit(limit)).
 		Find(&rows).Error; err != nil {
@@ -97,6 +111,70 @@ func (r *Repo) ListSessions(ctx context.Context, userID int64, limit int) ([]dom
 		sessions = append(sessions, toUserSession(row))
 	}
 	return sessions, nil
+}
+
+func (r *Repo) ListAPITokens(ctx context.Context, userID int64, limit int, offset int) ([]domain.UserSession, int64, error) {
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidID
+	}
+	query := r.db.WithContext(ctx).Model(&userSessionPO{}).
+		Where("user_id = ? AND login_method = ?", userID, "api_token")
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []userSessionPO
+	if err := query.
+		Order("created_at DESC, session_id").
+		Limit(domain.SessionListLimit(limit)).
+		Offset(offset).
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	tokens := make([]domain.UserSession, 0, len(rows))
+	for _, row := range rows {
+		tokens = append(tokens, toUserSession(row))
+	}
+	return tokens, total, nil
+}
+
+func (r *Repo) RevokeAPIToken(ctx context.Context, userID int64, tokenID string, now time.Time) (domain.UserSession, error) {
+	if userID <= 0 {
+		return domain.UserSession{}, domain.ErrInvalidID
+	}
+	tokenID = strings.TrimSpace(tokenID)
+	if !domain.ValidSessionID(tokenID) {
+		return domain.UserSession{}, domain.ErrSessionIDInvalid
+	}
+	var result domain.UserSession
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row userSessionPO
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&row, "user_id = ? AND session_id = ? AND login_method = ?", userID, tokenID, "api_token").Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrAPITokenNotFound
+			}
+			return err
+		}
+		if row.RevokedAt == nil {
+			revokedAt := now
+			if revokedAt.Before(row.CreatedAt) {
+				revokedAt = row.CreatedAt
+			}
+			if err := tx.Model(&userSessionPO{}).
+				Where("session_id = ? AND login_method = ? AND revoked_at IS NULL", row.SessionID, "api_token").
+				Update("revoked_at", revokedAt).Error; err != nil {
+				return err
+			}
+			row.RevokedAt = &revokedAt
+		}
+		result = toUserSession(row)
+		return nil
+	})
+	if err != nil {
+		return domain.UserSession{}, err
+	}
+	return result, nil
 }
 
 func (r *Repo) GetSession(ctx context.Context, userID int64, sessionID string) (domain.UserSession, error) {
@@ -183,15 +261,22 @@ func toUserSessionPO(session domain.UserSession) userSessionPO {
 		IPAddress: session.IPAddress,
 		UserAgent: session.UserAgent,
 	})
+	scopes := ""
+	if domain.NormalizeLoginMethod(session.LoginMethod) == "api_token" {
+		scopes, _ = domain.APITokenScopesValue(session.APITokenScopes)
+	}
 	return userSessionPO{
-		SessionID:   strings.TrimSpace(session.SessionID),
-		UserID:      session.UserID,
-		IPAddress:   client.IPAddress,
-		UserAgent:   client.UserAgent,
-		LoginMethod: domain.NormalizeLoginMethod(session.LoginMethod),
-		CreatedAt:   session.CreatedAt,
-		ExpiresAt:   session.ExpiresAt,
-		RevokedAt:   session.RevokedAt,
+		SessionID:                 strings.TrimSpace(session.SessionID),
+		UserID:                    session.UserID,
+		IPAddress:                 client.IPAddress,
+		UserAgent:                 client.UserAgent,
+		LoginMethod:               domain.NormalizeLoginMethod(session.LoginMethod),
+		APITokenName:              strings.TrimSpace(session.APITokenName),
+		APITokenScopes:            scopes,
+		APITokenCredentialVersion: strings.TrimSpace(session.APITokenCredentialVersion),
+		CreatedAt:                 session.CreatedAt,
+		ExpiresAt:                 session.ExpiresAt,
+		RevokedAt:                 session.RevokedAt,
 	}
 }
 
@@ -220,14 +305,17 @@ func toUserLoginEventPO(event domain.LoginEvent) userLoginEventPO {
 
 func toUserSession(row userSessionPO) domain.UserSession {
 	return domain.UserSession{
-		SessionID:   row.SessionID,
-		UserID:      row.UserID,
-		IPAddress:   row.IPAddress,
-		UserAgent:   row.UserAgent,
-		LoginMethod: row.LoginMethod,
-		CreatedAt:   row.CreatedAt,
-		ExpiresAt:   row.ExpiresAt,
-		RevokedAt:   row.RevokedAt,
+		SessionID:                 row.SessionID,
+		UserID:                    row.UserID,
+		IPAddress:                 row.IPAddress,
+		UserAgent:                 row.UserAgent,
+		LoginMethod:               row.LoginMethod,
+		APITokenName:              row.APITokenName,
+		APITokenScopes:            domain.ParseAPITokenScopes(row.APITokenScopes),
+		APITokenCredentialVersion: row.APITokenCredentialVersion,
+		CreatedAt:                 row.CreatedAt,
+		ExpiresAt:                 row.ExpiresAt,
+		RevokedAt:                 row.RevokedAt,
 	}
 }
 

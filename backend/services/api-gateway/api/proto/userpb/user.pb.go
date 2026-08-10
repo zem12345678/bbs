@@ -5327,6 +5327,442 @@ func (x *LoginEventListResponse) GetTotal() int64 {
 	return 0
 }
 
+type APITokenInfo struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId          int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name            string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Scopes          []string               `protobuf:"bytes,4,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	CreatedAt       int64                  `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ExpiresAt       int64                  `protobuf:"varint,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	RevokedAt       int64                  `protobuf:"varint,7,opt,name=revoked_at,json=revokedAt,proto3" json:"revoked_at,omitempty"`
+	CredentialValid bool                   `protobuf:"varint,8,opt,name=credential_valid,json=credentialValid,proto3" json:"credential_valid,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *APITokenInfo) Reset() {
+	*x = APITokenInfo{}
+	mi := &file_user_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APITokenInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APITokenInfo) ProtoMessage() {}
+
+func (x *APITokenInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APITokenInfo.ProtoReflect.Descriptor instead.
+func (*APITokenInfo) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *APITokenInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *APITokenInfo) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *APITokenInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *APITokenInfo) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
+func (x *APITokenInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *APITokenInfo) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *APITokenInfo) GetRevokedAt() int64 {
+	if x != nil {
+		return x.RevokedAt
+	}
+	return 0
+}
+
+func (x *APITokenInfo) GetCredentialValid() bool {
+	if x != nil {
+		return x.CredentialValid
+	}
+	return false
+}
+
+type CreateAPITokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Scopes        []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	ExpiresInDays int32                  `protobuf:"varint,4,opt,name=expires_in_days,json=expiresInDays,proto3" json:"expires_in_days,omitempty"`
+	Client        *SessionClientInfo     `protobuf:"bytes,5,opt,name=client,proto3" json:"client,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAPITokenRequest) Reset() {
+	*x = CreateAPITokenRequest{}
+	mi := &file_user_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAPITokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAPITokenRequest) ProtoMessage() {}
+
+func (x *CreateAPITokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAPITokenRequest.ProtoReflect.Descriptor instead.
+func (*CreateAPITokenRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *CreateAPITokenRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *CreateAPITokenRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateAPITokenRequest) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
+func (x *CreateAPITokenRequest) GetExpiresInDays() int32 {
+	if x != nil {
+		return x.ExpiresInDays
+	}
+	return 0
+}
+
+func (x *CreateAPITokenRequest) GetClient() *SessionClientInfo {
+	if x != nil {
+		return x.Client
+	}
+	return nil
+}
+
+type CreateAPITokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	ApiToken      *APITokenInfo          `protobuf:"bytes,2,opt,name=api_token,json=apiToken,proto3" json:"api_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAPITokenResponse) Reset() {
+	*x = CreateAPITokenResponse{}
+	mi := &file_user_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAPITokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAPITokenResponse) ProtoMessage() {}
+
+func (x *CreateAPITokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAPITokenResponse.ProtoReflect.Descriptor instead.
+func (*CreateAPITokenResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *CreateAPITokenResponse) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *CreateAPITokenResponse) GetApiToken() *APITokenInfo {
+	if x != nil {
+		return x.ApiToken
+	}
+	return nil
+}
+
+type ListAPITokensRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAPITokensRequest) Reset() {
+	*x = ListAPITokensRequest{}
+	mi := &file_user_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAPITokensRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAPITokensRequest) ProtoMessage() {}
+
+func (x *ListAPITokensRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAPITokensRequest.ProtoReflect.Descriptor instead.
+func (*ListAPITokensRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *ListAPITokensRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListAPITokensRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAPITokensRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type RevokeAPITokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	TokenId       string                 `protobuf:"bytes,2,opt,name=token_id,json=tokenId,proto3" json:"token_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeAPITokenRequest) Reset() {
+	*x = RevokeAPITokenRequest{}
+	mi := &file_user_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeAPITokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeAPITokenRequest) ProtoMessage() {}
+
+func (x *RevokeAPITokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeAPITokenRequest.ProtoReflect.Descriptor instead.
+func (*RevokeAPITokenRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *RevokeAPITokenRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *RevokeAPITokenRequest) GetTokenId() string {
+	if x != nil {
+		return x.TokenId
+	}
+	return ""
+}
+
+type APITokenListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*APITokenInfo        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APITokenListResponse) Reset() {
+	*x = APITokenListResponse{}
+	mi := &file_user_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APITokenListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APITokenListResponse) ProtoMessage() {}
+
+func (x *APITokenListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APITokenListResponse.ProtoReflect.Descriptor instead.
+func (*APITokenListResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *APITokenListResponse) GetItems() []*APITokenInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *APITokenListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type APITokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiToken      *APITokenInfo          `protobuf:"bytes,1,opt,name=api_token,json=apiToken,proto3" json:"api_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *APITokenResponse) Reset() {
+	*x = APITokenResponse{}
+	mi := &file_user_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *APITokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*APITokenResponse) ProtoMessage() {}
+
+func (x *APITokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use APITokenResponse.ProtoReflect.Descriptor instead.
+func (*APITokenResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *APITokenResponse) GetApiToken() *APITokenInfo {
+	if x != nil {
+		return x.ApiToken
+	}
+	return nil
+}
+
 type SimpleResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -5337,7 +5773,7 @@ type SimpleResponse struct {
 
 func (x *SimpleResponse) Reset() {
 	*x = SimpleResponse{}
-	mi := &file_user_proto_msgTypes[83]
+	mi := &file_user_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5349,7 +5785,7 @@ func (x *SimpleResponse) String() string {
 func (*SimpleResponse) ProtoMessage() {}
 
 func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[83]
+	mi := &file_user_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5362,7 +5798,7 @@ func (x *SimpleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SimpleResponse.ProtoReflect.Descriptor instead.
 func (*SimpleResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{83}
+	return file_user_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *SimpleResponse) GetSuccess() bool {
@@ -5390,7 +5826,7 @@ type UserChartRequest struct {
 
 func (x *UserChartRequest) Reset() {
 	*x = UserChartRequest{}
-	mi := &file_user_proto_msgTypes[84]
+	mi := &file_user_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5402,7 +5838,7 @@ func (x *UserChartRequest) String() string {
 func (*UserChartRequest) ProtoMessage() {}
 
 func (x *UserChartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[84]
+	mi := &file_user_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5415,7 +5851,7 @@ func (x *UserChartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserChartRequest.ProtoReflect.Descriptor instead.
 func (*UserChartRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{84}
+	return file_user_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *UserChartRequest) GetSpan() string {
@@ -5450,7 +5886,7 @@ type UserChartSeries struct {
 
 func (x *UserChartSeries) Reset() {
 	*x = UserChartSeries{}
-	mi := &file_user_proto_msgTypes[85]
+	mi := &file_user_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5462,7 +5898,7 @@ func (x *UserChartSeries) String() string {
 func (*UserChartSeries) ProtoMessage() {}
 
 func (x *UserChartSeries) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[85]
+	mi := &file_user_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5475,7 +5911,7 @@ func (x *UserChartSeries) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserChartSeries.ProtoReflect.Descriptor instead.
 func (*UserChartSeries) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{85}
+	return file_user_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *UserChartSeries) GetTotal() []int64 {
@@ -5509,7 +5945,7 @@ type UserChartResponse struct {
 
 func (x *UserChartResponse) Reset() {
 	*x = UserChartResponse{}
-	mi := &file_user_proto_msgTypes[86]
+	mi := &file_user_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5521,7 +5957,7 @@ func (x *UserChartResponse) String() string {
 func (*UserChartResponse) ProtoMessage() {}
 
 func (x *UserChartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[86]
+	mi := &file_user_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5534,7 +5970,7 @@ func (x *UserChartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserChartResponse.ProtoReflect.Descriptor instead.
 func (*UserChartResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{86}
+	return file_user_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *UserChartResponse) GetLocal() *UserChartSeries {
@@ -5563,7 +5999,7 @@ type UserFollowingChartRequest struct {
 
 func (x *UserFollowingChartRequest) Reset() {
 	*x = UserFollowingChartRequest{}
-	mi := &file_user_proto_msgTypes[87]
+	mi := &file_user_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5575,7 +6011,7 @@ func (x *UserFollowingChartRequest) String() string {
 func (*UserFollowingChartRequest) ProtoMessage() {}
 
 func (x *UserFollowingChartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[87]
+	mi := &file_user_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5588,7 +6024,7 @@ func (x *UserFollowingChartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserFollowingChartRequest.ProtoReflect.Descriptor instead.
 func (*UserFollowingChartRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{87}
+	return file_user_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *UserFollowingChartRequest) GetSpan() string {
@@ -5629,7 +6065,7 @@ type UserFollowingChartScope struct {
 
 func (x *UserFollowingChartScope) Reset() {
 	*x = UserFollowingChartScope{}
-	mi := &file_user_proto_msgTypes[88]
+	mi := &file_user_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5641,7 +6077,7 @@ func (x *UserFollowingChartScope) String() string {
 func (*UserFollowingChartScope) ProtoMessage() {}
 
 func (x *UserFollowingChartScope) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[88]
+	mi := &file_user_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5654,7 +6090,7 @@ func (x *UserFollowingChartScope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserFollowingChartScope.ProtoReflect.Descriptor instead.
 func (*UserFollowingChartScope) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{88}
+	return file_user_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *UserFollowingChartScope) GetFollowings() *UserChartSeries {
@@ -5681,7 +6117,7 @@ type UserFollowingChartResponse struct {
 
 func (x *UserFollowingChartResponse) Reset() {
 	*x = UserFollowingChartResponse{}
-	mi := &file_user_proto_msgTypes[89]
+	mi := &file_user_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5693,7 +6129,7 @@ func (x *UserFollowingChartResponse) String() string {
 func (*UserFollowingChartResponse) ProtoMessage() {}
 
 func (x *UserFollowingChartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[89]
+	mi := &file_user_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5706,7 +6142,7 @@ func (x *UserFollowingChartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserFollowingChartResponse.ProtoReflect.Descriptor instead.
 func (*UserFollowingChartResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{89}
+	return file_user_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *UserFollowingChartResponse) GetLocal() *UserFollowingChartScope {
@@ -5734,7 +6170,7 @@ type ActiveUsersChartRequest struct {
 
 func (x *ActiveUsersChartRequest) Reset() {
 	*x = ActiveUsersChartRequest{}
-	mi := &file_user_proto_msgTypes[90]
+	mi := &file_user_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5746,7 +6182,7 @@ func (x *ActiveUsersChartRequest) String() string {
 func (*ActiveUsersChartRequest) ProtoMessage() {}
 
 func (x *ActiveUsersChartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[90]
+	mi := &file_user_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5759,7 +6195,7 @@ func (x *ActiveUsersChartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveUsersChartRequest.ProtoReflect.Descriptor instead.
 func (*ActiveUsersChartRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{90}
+	return file_user_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *ActiveUsersChartRequest) GetSpan() string {
@@ -5798,7 +6234,7 @@ type ActiveUsersChartBucket struct {
 
 func (x *ActiveUsersChartBucket) Reset() {
 	*x = ActiveUsersChartBucket{}
-	mi := &file_user_proto_msgTypes[91]
+	mi := &file_user_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5810,7 +6246,7 @@ func (x *ActiveUsersChartBucket) String() string {
 func (*ActiveUsersChartBucket) ProtoMessage() {}
 
 func (x *ActiveUsersChartBucket) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[91]
+	mi := &file_user_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5823,7 +6259,7 @@ func (x *ActiveUsersChartBucket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveUsersChartBucket.ProtoReflect.Descriptor instead.
 func (*ActiveUsersChartBucket) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{91}
+	return file_user_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *ActiveUsersChartBucket) GetReadUserIds() []int64 {
@@ -5884,7 +6320,7 @@ type ActiveUsersChartResponse struct {
 
 func (x *ActiveUsersChartResponse) Reset() {
 	*x = ActiveUsersChartResponse{}
-	mi := &file_user_proto_msgTypes[92]
+	mi := &file_user_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5896,7 +6332,7 @@ func (x *ActiveUsersChartResponse) String() string {
 func (*ActiveUsersChartResponse) ProtoMessage() {}
 
 func (x *ActiveUsersChartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[92]
+	mi := &file_user_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5909,7 +6345,7 @@ func (x *ActiveUsersChartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveUsersChartResponse.ProtoReflect.Descriptor instead.
 func (*ActiveUsersChartResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{92}
+	return file_user_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *ActiveUsersChartResponse) GetBuckets() []*ActiveUsersChartBucket {
@@ -6342,7 +6778,40 @@ const file_user_proto_rawDesc = "" +
 	"\asession\x18\x01 \x01(\v2\x18.bbs.user.v1.SessionInfoR\asession\"a\n" +
 	"\x16LoginEventListResponse\x121\n" +
 	"\x05items\x18\x01 \x03(\v2\x1b.bbs.user.v1.LoginEventInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total\"D\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"\xeb\x01\n" +
+	"\fAPITokenInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
+	"\x06scopes\x18\x04 \x03(\tR\x06scopes\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x06 \x01(\x03R\texpiresAt\x12\x1d\n" +
+	"\n" +
+	"revoked_at\x18\a \x01(\x03R\trevokedAt\x12)\n" +
+	"\x10credential_valid\x18\b \x01(\bR\x0fcredentialValid\"\xbc\x01\n" +
+	"\x15CreateAPITokenRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
+	"\x06scopes\x18\x03 \x03(\tR\x06scopes\x12&\n" +
+	"\x0fexpires_in_days\x18\x04 \x01(\x05R\rexpiresInDays\x126\n" +
+	"\x06client\x18\x05 \x01(\v2\x1e.bbs.user.v1.SessionClientInfoR\x06client\"f\n" +
+	"\x16CreateAPITokenResponse\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
+	"\tapi_token\x18\x02 \x01(\v2\x19.bbs.user.v1.APITokenInfoR\bapiToken\"]\n" +
+	"\x14ListAPITokensRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"K\n" +
+	"\x15RevokeAPITokenRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
+	"\btoken_id\x18\x02 \x01(\tR\atokenId\"]\n" +
+	"\x14APITokenListResponse\x12/\n" +
+	"\x05items\x18\x01 \x03(\v2\x19.bbs.user.v1.APITokenInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"J\n" +
+	"\x10APITokenResponse\x126\n" +
+	"\tapi_token\x18\x01 \x01(\v2\x19.bbs.user.v1.APITokenInfoR\bapiToken\"D\n" +
 	"\x0eSimpleResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"d\n" +
@@ -6386,7 +6855,7 @@ const file_user_proto_rawDesc = "" +
 	"\x18registered_outside_month\x18\x06 \x01(\x03R\x16registeredOutsideMonth\x126\n" +
 	"\x17registered_outside_year\x18\a \x01(\x03R\x15registeredOutsideYear\"Y\n" +
 	"\x18ActiveUsersChartResponse\x12=\n" +
-	"\abuckets\x18\x01 \x03(\v2#.bbs.user.v1.ActiveUsersChartBucketR\abuckets2\xb02\n" +
+	"\abuckets\x18\x01 \x03(\v2#.bbs.user.v1.ActiveUsersChartBucketR\abuckets2\xb74\n" +
 	"\vUserService\x12C\n" +
 	"\bRegister\x12\x1c.bbs.user.v1.RegisterRequest\x1a\x19.bbs.user.v1.AuthResponse\x12=\n" +
 	"\x05Login\x12\x19.bbs.user.v1.LoginRequest\x1a\x19.bbs.user.v1.AuthResponse\x12G\n" +
@@ -6459,7 +6928,10 @@ const file_user_proto_rawDesc = "" +
 	"\n" +
 	"GetSession\x12\x1e.bbs.user.v1.GetSessionRequest\x1a\x1c.bbs.user.v1.SessionResponse\x12P\n" +
 	"\rRevokeSession\x12!.bbs.user.v1.RevokeSessionRequest\x1a\x1c.bbs.user.v1.SessionResponse\x12[\n" +
-	"\x0fListLoginEvents\x12#.bbs.user.v1.ListLoginEventsRequest\x1a#.bbs.user.v1.LoginEventListResponse\x12M\n" +
+	"\x0fListLoginEvents\x12#.bbs.user.v1.ListLoginEventsRequest\x1a#.bbs.user.v1.LoginEventListResponse\x12Y\n" +
+	"\x0eCreateAPIToken\x12\".bbs.user.v1.CreateAPITokenRequest\x1a#.bbs.user.v1.CreateAPITokenResponse\x12U\n" +
+	"\rListAPITokens\x12!.bbs.user.v1.ListAPITokensRequest\x1a!.bbs.user.v1.APITokenListResponse\x12S\n" +
+	"\x0eRevokeAPIToken\x12\".bbs.user.v1.RevokeAPITokenRequest\x1a\x1d.bbs.user.v1.APITokenResponse\x12M\n" +
 	"\fGetUserChart\x12\x1d.bbs.user.v1.UserChartRequest\x1a\x1e.bbs.user.v1.UserChartResponse\x12h\n" +
 	"\x15GetUserFollowingChart\x12&.bbs.user.v1.UserFollowingChartRequest\x1a'.bbs.user.v1.UserFollowingChartResponse\x12b\n" +
 	"\x13GetActiveUsersChart\x12$.bbs.user.v1.ActiveUsersChartRequest\x1a%.bbs.user.v1.ActiveUsersChartResponseB%Z#api-gateway/api/proto/userpb;userpbb\x06proto3"
@@ -6476,7 +6948,7 @@ func file_user_proto_rawDescGZIP() []byte {
 	return file_user_proto_rawDescData
 }
 
-var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
+var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 100)
 var file_user_proto_goTypes = []any{
 	(*UserInfo)(nil),                          // 0: bbs.user.v1.UserInfo
 	(*RegisterRequest)(nil),                   // 1: bbs.user.v1.RegisterRequest
@@ -6561,16 +7033,23 @@ var file_user_proto_goTypes = []any{
 	(*SessionListResponse)(nil),               // 80: bbs.user.v1.SessionListResponse
 	(*SessionResponse)(nil),                   // 81: bbs.user.v1.SessionResponse
 	(*LoginEventListResponse)(nil),            // 82: bbs.user.v1.LoginEventListResponse
-	(*SimpleResponse)(nil),                    // 83: bbs.user.v1.SimpleResponse
-	(*UserChartRequest)(nil),                  // 84: bbs.user.v1.UserChartRequest
-	(*UserChartSeries)(nil),                   // 85: bbs.user.v1.UserChartSeries
-	(*UserChartResponse)(nil),                 // 86: bbs.user.v1.UserChartResponse
-	(*UserFollowingChartRequest)(nil),         // 87: bbs.user.v1.UserFollowingChartRequest
-	(*UserFollowingChartScope)(nil),           // 88: bbs.user.v1.UserFollowingChartScope
-	(*UserFollowingChartResponse)(nil),        // 89: bbs.user.v1.UserFollowingChartResponse
-	(*ActiveUsersChartRequest)(nil),           // 90: bbs.user.v1.ActiveUsersChartRequest
-	(*ActiveUsersChartBucket)(nil),            // 91: bbs.user.v1.ActiveUsersChartBucket
-	(*ActiveUsersChartResponse)(nil),          // 92: bbs.user.v1.ActiveUsersChartResponse
+	(*APITokenInfo)(nil),                      // 83: bbs.user.v1.APITokenInfo
+	(*CreateAPITokenRequest)(nil),             // 84: bbs.user.v1.CreateAPITokenRequest
+	(*CreateAPITokenResponse)(nil),            // 85: bbs.user.v1.CreateAPITokenResponse
+	(*ListAPITokensRequest)(nil),              // 86: bbs.user.v1.ListAPITokensRequest
+	(*RevokeAPITokenRequest)(nil),             // 87: bbs.user.v1.RevokeAPITokenRequest
+	(*APITokenListResponse)(nil),              // 88: bbs.user.v1.APITokenListResponse
+	(*APITokenResponse)(nil),                  // 89: bbs.user.v1.APITokenResponse
+	(*SimpleResponse)(nil),                    // 90: bbs.user.v1.SimpleResponse
+	(*UserChartRequest)(nil),                  // 91: bbs.user.v1.UserChartRequest
+	(*UserChartSeries)(nil),                   // 92: bbs.user.v1.UserChartSeries
+	(*UserChartResponse)(nil),                 // 93: bbs.user.v1.UserChartResponse
+	(*UserFollowingChartRequest)(nil),         // 94: bbs.user.v1.UserFollowingChartRequest
+	(*UserFollowingChartScope)(nil),           // 95: bbs.user.v1.UserFollowingChartScope
+	(*UserFollowingChartResponse)(nil),        // 96: bbs.user.v1.UserFollowingChartResponse
+	(*ActiveUsersChartRequest)(nil),           // 97: bbs.user.v1.ActiveUsersChartRequest
+	(*ActiveUsersChartBucket)(nil),            // 98: bbs.user.v1.ActiveUsersChartBucket
+	(*ActiveUsersChartResponse)(nil),          // 99: bbs.user.v1.ActiveUsersChartResponse
 }
 var file_user_proto_depIdxs = []int32{
 	73,  // 0: bbs.user.v1.RegisterRequest.client:type_name -> bbs.user.v1.SessionClientInfo
@@ -6593,164 +7072,174 @@ var file_user_proto_depIdxs = []int32{
 	74,  // 17: bbs.user.v1.SessionListResponse.items:type_name -> bbs.user.v1.SessionInfo
 	74,  // 18: bbs.user.v1.SessionResponse.session:type_name -> bbs.user.v1.SessionInfo
 	75,  // 19: bbs.user.v1.LoginEventListResponse.items:type_name -> bbs.user.v1.LoginEventInfo
-	85,  // 20: bbs.user.v1.UserChartResponse.local:type_name -> bbs.user.v1.UserChartSeries
-	85,  // 21: bbs.user.v1.UserChartResponse.remote:type_name -> bbs.user.v1.UserChartSeries
-	85,  // 22: bbs.user.v1.UserFollowingChartScope.followings:type_name -> bbs.user.v1.UserChartSeries
-	85,  // 23: bbs.user.v1.UserFollowingChartScope.followers:type_name -> bbs.user.v1.UserChartSeries
-	88,  // 24: bbs.user.v1.UserFollowingChartResponse.local:type_name -> bbs.user.v1.UserFollowingChartScope
-	88,  // 25: bbs.user.v1.UserFollowingChartResponse.remote:type_name -> bbs.user.v1.UserFollowingChartScope
-	91,  // 26: bbs.user.v1.ActiveUsersChartResponse.buckets:type_name -> bbs.user.v1.ActiveUsersChartBucket
-	1,   // 27: bbs.user.v1.UserService.Register:input_type -> bbs.user.v1.RegisterRequest
-	2,   // 28: bbs.user.v1.UserService.Login:input_type -> bbs.user.v1.LoginRequest
-	16,  // 29: bbs.user.v1.UserService.OAuthLogin:input_type -> bbs.user.v1.OAuthLoginRequest
-	30,  // 30: bbs.user.v1.UserService.WebmasterLogin:input_type -> bbs.user.v1.WebmasterLoginRequest
-	50,  // 31: bbs.user.v1.UserService.ListUsers:input_type -> bbs.user.v1.ListUsersRequest
-	38,  // 32: bbs.user.v1.UserService.GetUser:input_type -> bbs.user.v1.UserIDRequest
-	39,  // 33: bbs.user.v1.UserService.GetUserByUsername:input_type -> bbs.user.v1.UsernameRequest
-	38,  // 34: bbs.user.v1.UserService.GetCredentialVersion:input_type -> bbs.user.v1.UserIDRequest
-	31,  // 35: bbs.user.v1.UserService.UpdateProfile:input_type -> bbs.user.v1.UpdateProfileRequest
-	37,  // 36: bbs.user.v1.UserService.UpdateStatus:input_type -> bbs.user.v1.UpdateStatusRequest
-	32,  // 37: bbs.user.v1.UserService.ChangePassword:input_type -> bbs.user.v1.ChangePasswordRequest
-	33,  // 38: bbs.user.v1.UserService.RequestPasswordReset:input_type -> bbs.user.v1.PasswordResetRequest
-	34,  // 39: bbs.user.v1.UserService.ResetPassword:input_type -> bbs.user.v1.ResetPasswordRequest
-	35,  // 40: bbs.user.v1.UserService.RequestEmailVerification:input_type -> bbs.user.v1.EmailVerificationRequest
-	36,  // 41: bbs.user.v1.UserService.VerifyEmail:input_type -> bbs.user.v1.VerifyEmailRequest
-	38,  // 42: bbs.user.v1.UserService.GetMFAStatus:input_type -> bbs.user.v1.UserIDRequest
-	3,   // 43: bbs.user.v1.UserService.BeginTOTPEnrollment:input_type -> bbs.user.v1.BeginTOTPEnrollmentRequest
-	4,   // 44: bbs.user.v1.UserService.ConfirmTOTPEnrollment:input_type -> bbs.user.v1.ConfirmTOTPEnrollmentRequest
-	5,   // 45: bbs.user.v1.UserService.RegenerateMFARecoveryCodes:input_type -> bbs.user.v1.MFAReauthenticateRequest
-	5,   // 46: bbs.user.v1.UserService.DisableTOTP:input_type -> bbs.user.v1.MFAReauthenticateRequest
-	6,   // 47: bbs.user.v1.UserService.CompleteMFALogin:input_type -> bbs.user.v1.CompleteMFALoginRequest
-	38,  // 48: bbs.user.v1.UserService.ListPasskeys:input_type -> bbs.user.v1.UserIDRequest
-	7,   // 49: bbs.user.v1.UserService.BeginPasskeyRegistration:input_type -> bbs.user.v1.BeginPasskeyRegistrationRequest
-	8,   // 50: bbs.user.v1.UserService.FinishPasskeyRegistration:input_type -> bbs.user.v1.FinishPasskeyRegistrationRequest
-	9,   // 51: bbs.user.v1.UserService.UpdatePasskey:input_type -> bbs.user.v1.UpdatePasskeyRequest
-	10,  // 52: bbs.user.v1.UserService.DeletePasskey:input_type -> bbs.user.v1.DeletePasskeyRequest
-	11,  // 53: bbs.user.v1.UserService.SetPasskeyPasswordless:input_type -> bbs.user.v1.SetPasskeyPasswordlessRequest
-	12,  // 54: bbs.user.v1.UserService.BeginPasskeyMFALogin:input_type -> bbs.user.v1.BeginPasskeyMFALoginRequest
-	14,  // 55: bbs.user.v1.UserService.CompletePasskeyMFALogin:input_type -> bbs.user.v1.CompletePasskeyLoginRequest
-	13,  // 56: bbs.user.v1.UserService.BeginPasswordlessPasskeyLogin:input_type -> bbs.user.v1.PasswordlessPasskeyOptionsRequest
-	14,  // 57: bbs.user.v1.UserService.CompletePasswordlessPasskeyLogin:input_type -> bbs.user.v1.CompletePasskeyLoginRequest
-	38,  // 58: bbs.user.v1.UserService.GetAccountLifecycle:input_type -> bbs.user.v1.UserIDRequest
-	15,  // 59: bbs.user.v1.UserService.RequestAccountDeletion:input_type -> bbs.user.v1.RequestAccountDeletionRequest
-	40,  // 60: bbs.user.v1.UserService.Follow:input_type -> bbs.user.v1.FollowRequest
-	44,  // 61: bbs.user.v1.UserService.ListReceivedFollowRequests:input_type -> bbs.user.v1.ListFollowRequestsRequest
-	44,  // 62: bbs.user.v1.UserService.ListSentFollowRequests:input_type -> bbs.user.v1.ListFollowRequestsRequest
-	43,  // 63: bbs.user.v1.UserService.AcceptFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
-	43,  // 64: bbs.user.v1.UserService.RejectFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
-	43,  // 65: bbs.user.v1.UserService.CancelFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
-	47,  // 66: bbs.user.v1.UserService.SetFollowApprovalRequired:input_type -> bbs.user.v1.SetFollowApprovalRequest
-	40,  // 67: bbs.user.v1.UserService.Unfollow:input_type -> bbs.user.v1.FollowRequest
-	40,  // 68: bbs.user.v1.UserService.IsFollowing:input_type -> bbs.user.v1.FollowRequest
-	41,  // 69: bbs.user.v1.UserService.ListFollowers:input_type -> bbs.user.v1.ListFollowsRequest
-	41,  // 70: bbs.user.v1.UserService.ListFollowing:input_type -> bbs.user.v1.ListFollowsRequest
-	48,  // 71: bbs.user.v1.UserService.Block:input_type -> bbs.user.v1.UserRelationRequest
-	48,  // 72: bbs.user.v1.UserService.Unblock:input_type -> bbs.user.v1.UserRelationRequest
-	48,  // 73: bbs.user.v1.UserService.Mute:input_type -> bbs.user.v1.UserRelationRequest
-	48,  // 74: bbs.user.v1.UserService.Unmute:input_type -> bbs.user.v1.UserRelationRequest
-	48,  // 75: bbs.user.v1.UserService.GetSafetyRelation:input_type -> bbs.user.v1.UserRelationRequest
-	49,  // 76: bbs.user.v1.UserService.ListBlockedUsers:input_type -> bbs.user.v1.ListUserRelationsRequest
-	49,  // 77: bbs.user.v1.UserService.ListMutedUsers:input_type -> bbs.user.v1.ListUserRelationsRequest
-	17,  // 78: bbs.user.v1.UserService.CreateInviteCodes:input_type -> bbs.user.v1.CreateInviteCodesRequest
-	18,  // 79: bbs.user.v1.UserService.ListInviteCodes:input_type -> bbs.user.v1.ListInviteCodesRequest
-	19,  // 80: bbs.user.v1.UserService.RevokeInviteCode:input_type -> bbs.user.v1.RevokeInviteCodeRequest
-	20,  // 81: bbs.user.v1.UserService.CreateUserList:input_type -> bbs.user.v1.CreateUserListRequest
-	21,  // 82: bbs.user.v1.UserService.UpdateUserList:input_type -> bbs.user.v1.UpdateUserListRequest
-	22,  // 83: bbs.user.v1.UserService.DeleteUserList:input_type -> bbs.user.v1.DeleteUserListRequest
-	23,  // 84: bbs.user.v1.UserService.GetUserList:input_type -> bbs.user.v1.GetUserListRequest
-	24,  // 85: bbs.user.v1.UserService.ListUserLists:input_type -> bbs.user.v1.ListUserListsRequest
-	25,  // 86: bbs.user.v1.UserService.ListFavoriteUserLists:input_type -> bbs.user.v1.ListFavoriteUserListsRequest
-	26,  // 87: bbs.user.v1.UserService.AddUserListMember:input_type -> bbs.user.v1.UserListMemberRequest
-	26,  // 88: bbs.user.v1.UserService.RemoveUserListMember:input_type -> bbs.user.v1.UserListMemberRequest
-	27,  // 89: bbs.user.v1.UserService.ListUserListMembers:input_type -> bbs.user.v1.ListUserListMembersRequest
-	28,  // 90: bbs.user.v1.UserService.CopyUserList:input_type -> bbs.user.v1.CopyUserListRequest
-	29,  // 91: bbs.user.v1.UserService.FavoriteUserList:input_type -> bbs.user.v1.UserListFavoriteRequest
-	29,  // 92: bbs.user.v1.UserService.UnfavoriteUserList:input_type -> bbs.user.v1.UserListFavoriteRequest
-	76,  // 93: bbs.user.v1.UserService.ListSessions:input_type -> bbs.user.v1.ListSessionsRequest
-	77,  // 94: bbs.user.v1.UserService.GetSession:input_type -> bbs.user.v1.GetSessionRequest
-	78,  // 95: bbs.user.v1.UserService.RevokeSession:input_type -> bbs.user.v1.RevokeSessionRequest
-	79,  // 96: bbs.user.v1.UserService.ListLoginEvents:input_type -> bbs.user.v1.ListLoginEventsRequest
-	84,  // 97: bbs.user.v1.UserService.GetUserChart:input_type -> bbs.user.v1.UserChartRequest
-	87,  // 98: bbs.user.v1.UserService.GetUserFollowingChart:input_type -> bbs.user.v1.UserFollowingChartRequest
-	90,  // 99: bbs.user.v1.UserService.GetActiveUsersChart:input_type -> bbs.user.v1.ActiveUsersChartRequest
-	57,  // 100: bbs.user.v1.UserService.Register:output_type -> bbs.user.v1.AuthResponse
-	57,  // 101: bbs.user.v1.UserService.Login:output_type -> bbs.user.v1.AuthResponse
-	57,  // 102: bbs.user.v1.UserService.OAuthLogin:output_type -> bbs.user.v1.AuthResponse
-	57,  // 103: bbs.user.v1.UserService.WebmasterLogin:output_type -> bbs.user.v1.AuthResponse
-	53,  // 104: bbs.user.v1.UserService.ListUsers:output_type -> bbs.user.v1.UserListResponse
-	51,  // 105: bbs.user.v1.UserService.GetUser:output_type -> bbs.user.v1.UserResponse
-	51,  // 106: bbs.user.v1.UserService.GetUserByUsername:output_type -> bbs.user.v1.UserResponse
-	52,  // 107: bbs.user.v1.UserService.GetCredentialVersion:output_type -> bbs.user.v1.CredentialVersionResponse
-	51,  // 108: bbs.user.v1.UserService.UpdateProfile:output_type -> bbs.user.v1.UserResponse
-	51,  // 109: bbs.user.v1.UserService.UpdateStatus:output_type -> bbs.user.v1.UserResponse
-	83,  // 110: bbs.user.v1.UserService.ChangePassword:output_type -> bbs.user.v1.SimpleResponse
-	67,  // 111: bbs.user.v1.UserService.RequestPasswordReset:output_type -> bbs.user.v1.PasswordResetResponse
-	83,  // 112: bbs.user.v1.UserService.ResetPassword:output_type -> bbs.user.v1.SimpleResponse
-	68,  // 113: bbs.user.v1.UserService.RequestEmailVerification:output_type -> bbs.user.v1.EmailVerificationResponse
-	51,  // 114: bbs.user.v1.UserService.VerifyEmail:output_type -> bbs.user.v1.UserResponse
-	58,  // 115: bbs.user.v1.UserService.GetMFAStatus:output_type -> bbs.user.v1.MFAStatusResponse
-	59,  // 116: bbs.user.v1.UserService.BeginTOTPEnrollment:output_type -> bbs.user.v1.TOTPEnrollmentResponse
-	60,  // 117: bbs.user.v1.UserService.ConfirmTOTPEnrollment:output_type -> bbs.user.v1.MFARecoveryCodesResponse
-	60,  // 118: bbs.user.v1.UserService.RegenerateMFARecoveryCodes:output_type -> bbs.user.v1.MFARecoveryCodesResponse
-	83,  // 119: bbs.user.v1.UserService.DisableTOTP:output_type -> bbs.user.v1.SimpleResponse
-	57,  // 120: bbs.user.v1.UserService.CompleteMFALogin:output_type -> bbs.user.v1.AuthResponse
-	62,  // 121: bbs.user.v1.UserService.ListPasskeys:output_type -> bbs.user.v1.PasskeyListResponse
-	64,  // 122: bbs.user.v1.UserService.BeginPasskeyRegistration:output_type -> bbs.user.v1.PasskeyOptionsResponse
-	63,  // 123: bbs.user.v1.UserService.FinishPasskeyRegistration:output_type -> bbs.user.v1.PasskeyInfoResponse
-	63,  // 124: bbs.user.v1.UserService.UpdatePasskey:output_type -> bbs.user.v1.PasskeyInfoResponse
-	83,  // 125: bbs.user.v1.UserService.DeletePasskey:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 126: bbs.user.v1.UserService.SetPasskeyPasswordless:output_type -> bbs.user.v1.SimpleResponse
-	64,  // 127: bbs.user.v1.UserService.BeginPasskeyMFALogin:output_type -> bbs.user.v1.PasskeyOptionsResponse
-	57,  // 128: bbs.user.v1.UserService.CompletePasskeyMFALogin:output_type -> bbs.user.v1.AuthResponse
-	64,  // 129: bbs.user.v1.UserService.BeginPasswordlessPasskeyLogin:output_type -> bbs.user.v1.PasskeyOptionsResponse
-	57,  // 130: bbs.user.v1.UserService.CompletePasswordlessPasskeyLogin:output_type -> bbs.user.v1.AuthResponse
-	66,  // 131: bbs.user.v1.UserService.GetAccountLifecycle:output_type -> bbs.user.v1.AccountLifecycleResponse
-	66,  // 132: bbs.user.v1.UserService.RequestAccountDeletion:output_type -> bbs.user.v1.AccountLifecycleResponse
-	42,  // 133: bbs.user.v1.UserService.Follow:output_type -> bbs.user.v1.FollowResponse
-	46,  // 134: bbs.user.v1.UserService.ListReceivedFollowRequests:output_type -> bbs.user.v1.FollowRequestListResponse
-	46,  // 135: bbs.user.v1.UserService.ListSentFollowRequests:output_type -> bbs.user.v1.FollowRequestListResponse
-	83,  // 136: bbs.user.v1.UserService.AcceptFollowRequest:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 137: bbs.user.v1.UserService.RejectFollowRequest:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 138: bbs.user.v1.UserService.CancelFollowRequest:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 139: bbs.user.v1.UserService.SetFollowApprovalRequired:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 140: bbs.user.v1.UserService.Unfollow:output_type -> bbs.user.v1.SimpleResponse
-	69,  // 141: bbs.user.v1.UserService.IsFollowing:output_type -> bbs.user.v1.IsFollowingResponse
-	53,  // 142: bbs.user.v1.UserService.ListFollowers:output_type -> bbs.user.v1.UserListResponse
-	53,  // 143: bbs.user.v1.UserService.ListFollowing:output_type -> bbs.user.v1.UserListResponse
-	83,  // 144: bbs.user.v1.UserService.Block:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 145: bbs.user.v1.UserService.Unblock:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 146: bbs.user.v1.UserService.Mute:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 147: bbs.user.v1.UserService.Unmute:output_type -> bbs.user.v1.SimpleResponse
-	70,  // 148: bbs.user.v1.UserService.GetSafetyRelation:output_type -> bbs.user.v1.SafetyRelationResponse
-	53,  // 149: bbs.user.v1.UserService.ListBlockedUsers:output_type -> bbs.user.v1.UserListResponse
-	53,  // 150: bbs.user.v1.UserService.ListMutedUsers:output_type -> bbs.user.v1.UserListResponse
-	72,  // 151: bbs.user.v1.UserService.CreateInviteCodes:output_type -> bbs.user.v1.InviteCodeListResponse
-	72,  // 152: bbs.user.v1.UserService.ListInviteCodes:output_type -> bbs.user.v1.InviteCodeListResponse
-	83,  // 153: bbs.user.v1.UserService.RevokeInviteCode:output_type -> bbs.user.v1.SimpleResponse
-	55,  // 154: bbs.user.v1.UserService.CreateUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	55,  // 155: bbs.user.v1.UserService.UpdateUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	83,  // 156: bbs.user.v1.UserService.DeleteUserList:output_type -> bbs.user.v1.SimpleResponse
-	55,  // 157: bbs.user.v1.UserService.GetUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	56,  // 158: bbs.user.v1.UserService.ListUserLists:output_type -> bbs.user.v1.UserListsResponse
-	56,  // 159: bbs.user.v1.UserService.ListFavoriteUserLists:output_type -> bbs.user.v1.UserListsResponse
-	83,  // 160: bbs.user.v1.UserService.AddUserListMember:output_type -> bbs.user.v1.SimpleResponse
-	83,  // 161: bbs.user.v1.UserService.RemoveUserListMember:output_type -> bbs.user.v1.SimpleResponse
-	53,  // 162: bbs.user.v1.UserService.ListUserListMembers:output_type -> bbs.user.v1.UserListResponse
-	55,  // 163: bbs.user.v1.UserService.CopyUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	55,  // 164: bbs.user.v1.UserService.FavoriteUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	55,  // 165: bbs.user.v1.UserService.UnfavoriteUserList:output_type -> bbs.user.v1.UserListInfoResponse
-	80,  // 166: bbs.user.v1.UserService.ListSessions:output_type -> bbs.user.v1.SessionListResponse
-	81,  // 167: bbs.user.v1.UserService.GetSession:output_type -> bbs.user.v1.SessionResponse
-	81,  // 168: bbs.user.v1.UserService.RevokeSession:output_type -> bbs.user.v1.SessionResponse
-	82,  // 169: bbs.user.v1.UserService.ListLoginEvents:output_type -> bbs.user.v1.LoginEventListResponse
-	86,  // 170: bbs.user.v1.UserService.GetUserChart:output_type -> bbs.user.v1.UserChartResponse
-	89,  // 171: bbs.user.v1.UserService.GetUserFollowingChart:output_type -> bbs.user.v1.UserFollowingChartResponse
-	92,  // 172: bbs.user.v1.UserService.GetActiveUsersChart:output_type -> bbs.user.v1.ActiveUsersChartResponse
-	100, // [100:173] is the sub-list for method output_type
-	27,  // [27:100] is the sub-list for method input_type
-	27,  // [27:27] is the sub-list for extension type_name
-	27,  // [27:27] is the sub-list for extension extendee
-	0,   // [0:27] is the sub-list for field type_name
+	73,  // 20: bbs.user.v1.CreateAPITokenRequest.client:type_name -> bbs.user.v1.SessionClientInfo
+	83,  // 21: bbs.user.v1.CreateAPITokenResponse.api_token:type_name -> bbs.user.v1.APITokenInfo
+	83,  // 22: bbs.user.v1.APITokenListResponse.items:type_name -> bbs.user.v1.APITokenInfo
+	83,  // 23: bbs.user.v1.APITokenResponse.api_token:type_name -> bbs.user.v1.APITokenInfo
+	92,  // 24: bbs.user.v1.UserChartResponse.local:type_name -> bbs.user.v1.UserChartSeries
+	92,  // 25: bbs.user.v1.UserChartResponse.remote:type_name -> bbs.user.v1.UserChartSeries
+	92,  // 26: bbs.user.v1.UserFollowingChartScope.followings:type_name -> bbs.user.v1.UserChartSeries
+	92,  // 27: bbs.user.v1.UserFollowingChartScope.followers:type_name -> bbs.user.v1.UserChartSeries
+	95,  // 28: bbs.user.v1.UserFollowingChartResponse.local:type_name -> bbs.user.v1.UserFollowingChartScope
+	95,  // 29: bbs.user.v1.UserFollowingChartResponse.remote:type_name -> bbs.user.v1.UserFollowingChartScope
+	98,  // 30: bbs.user.v1.ActiveUsersChartResponse.buckets:type_name -> bbs.user.v1.ActiveUsersChartBucket
+	1,   // 31: bbs.user.v1.UserService.Register:input_type -> bbs.user.v1.RegisterRequest
+	2,   // 32: bbs.user.v1.UserService.Login:input_type -> bbs.user.v1.LoginRequest
+	16,  // 33: bbs.user.v1.UserService.OAuthLogin:input_type -> bbs.user.v1.OAuthLoginRequest
+	30,  // 34: bbs.user.v1.UserService.WebmasterLogin:input_type -> bbs.user.v1.WebmasterLoginRequest
+	50,  // 35: bbs.user.v1.UserService.ListUsers:input_type -> bbs.user.v1.ListUsersRequest
+	38,  // 36: bbs.user.v1.UserService.GetUser:input_type -> bbs.user.v1.UserIDRequest
+	39,  // 37: bbs.user.v1.UserService.GetUserByUsername:input_type -> bbs.user.v1.UsernameRequest
+	38,  // 38: bbs.user.v1.UserService.GetCredentialVersion:input_type -> bbs.user.v1.UserIDRequest
+	31,  // 39: bbs.user.v1.UserService.UpdateProfile:input_type -> bbs.user.v1.UpdateProfileRequest
+	37,  // 40: bbs.user.v1.UserService.UpdateStatus:input_type -> bbs.user.v1.UpdateStatusRequest
+	32,  // 41: bbs.user.v1.UserService.ChangePassword:input_type -> bbs.user.v1.ChangePasswordRequest
+	33,  // 42: bbs.user.v1.UserService.RequestPasswordReset:input_type -> bbs.user.v1.PasswordResetRequest
+	34,  // 43: bbs.user.v1.UserService.ResetPassword:input_type -> bbs.user.v1.ResetPasswordRequest
+	35,  // 44: bbs.user.v1.UserService.RequestEmailVerification:input_type -> bbs.user.v1.EmailVerificationRequest
+	36,  // 45: bbs.user.v1.UserService.VerifyEmail:input_type -> bbs.user.v1.VerifyEmailRequest
+	38,  // 46: bbs.user.v1.UserService.GetMFAStatus:input_type -> bbs.user.v1.UserIDRequest
+	3,   // 47: bbs.user.v1.UserService.BeginTOTPEnrollment:input_type -> bbs.user.v1.BeginTOTPEnrollmentRequest
+	4,   // 48: bbs.user.v1.UserService.ConfirmTOTPEnrollment:input_type -> bbs.user.v1.ConfirmTOTPEnrollmentRequest
+	5,   // 49: bbs.user.v1.UserService.RegenerateMFARecoveryCodes:input_type -> bbs.user.v1.MFAReauthenticateRequest
+	5,   // 50: bbs.user.v1.UserService.DisableTOTP:input_type -> bbs.user.v1.MFAReauthenticateRequest
+	6,   // 51: bbs.user.v1.UserService.CompleteMFALogin:input_type -> bbs.user.v1.CompleteMFALoginRequest
+	38,  // 52: bbs.user.v1.UserService.ListPasskeys:input_type -> bbs.user.v1.UserIDRequest
+	7,   // 53: bbs.user.v1.UserService.BeginPasskeyRegistration:input_type -> bbs.user.v1.BeginPasskeyRegistrationRequest
+	8,   // 54: bbs.user.v1.UserService.FinishPasskeyRegistration:input_type -> bbs.user.v1.FinishPasskeyRegistrationRequest
+	9,   // 55: bbs.user.v1.UserService.UpdatePasskey:input_type -> bbs.user.v1.UpdatePasskeyRequest
+	10,  // 56: bbs.user.v1.UserService.DeletePasskey:input_type -> bbs.user.v1.DeletePasskeyRequest
+	11,  // 57: bbs.user.v1.UserService.SetPasskeyPasswordless:input_type -> bbs.user.v1.SetPasskeyPasswordlessRequest
+	12,  // 58: bbs.user.v1.UserService.BeginPasskeyMFALogin:input_type -> bbs.user.v1.BeginPasskeyMFALoginRequest
+	14,  // 59: bbs.user.v1.UserService.CompletePasskeyMFALogin:input_type -> bbs.user.v1.CompletePasskeyLoginRequest
+	13,  // 60: bbs.user.v1.UserService.BeginPasswordlessPasskeyLogin:input_type -> bbs.user.v1.PasswordlessPasskeyOptionsRequest
+	14,  // 61: bbs.user.v1.UserService.CompletePasswordlessPasskeyLogin:input_type -> bbs.user.v1.CompletePasskeyLoginRequest
+	38,  // 62: bbs.user.v1.UserService.GetAccountLifecycle:input_type -> bbs.user.v1.UserIDRequest
+	15,  // 63: bbs.user.v1.UserService.RequestAccountDeletion:input_type -> bbs.user.v1.RequestAccountDeletionRequest
+	40,  // 64: bbs.user.v1.UserService.Follow:input_type -> bbs.user.v1.FollowRequest
+	44,  // 65: bbs.user.v1.UserService.ListReceivedFollowRequests:input_type -> bbs.user.v1.ListFollowRequestsRequest
+	44,  // 66: bbs.user.v1.UserService.ListSentFollowRequests:input_type -> bbs.user.v1.ListFollowRequestsRequest
+	43,  // 67: bbs.user.v1.UserService.AcceptFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
+	43,  // 68: bbs.user.v1.UserService.RejectFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
+	43,  // 69: bbs.user.v1.UserService.CancelFollowRequest:input_type -> bbs.user.v1.FollowRequestActionRequest
+	47,  // 70: bbs.user.v1.UserService.SetFollowApprovalRequired:input_type -> bbs.user.v1.SetFollowApprovalRequest
+	40,  // 71: bbs.user.v1.UserService.Unfollow:input_type -> bbs.user.v1.FollowRequest
+	40,  // 72: bbs.user.v1.UserService.IsFollowing:input_type -> bbs.user.v1.FollowRequest
+	41,  // 73: bbs.user.v1.UserService.ListFollowers:input_type -> bbs.user.v1.ListFollowsRequest
+	41,  // 74: bbs.user.v1.UserService.ListFollowing:input_type -> bbs.user.v1.ListFollowsRequest
+	48,  // 75: bbs.user.v1.UserService.Block:input_type -> bbs.user.v1.UserRelationRequest
+	48,  // 76: bbs.user.v1.UserService.Unblock:input_type -> bbs.user.v1.UserRelationRequest
+	48,  // 77: bbs.user.v1.UserService.Mute:input_type -> bbs.user.v1.UserRelationRequest
+	48,  // 78: bbs.user.v1.UserService.Unmute:input_type -> bbs.user.v1.UserRelationRequest
+	48,  // 79: bbs.user.v1.UserService.GetSafetyRelation:input_type -> bbs.user.v1.UserRelationRequest
+	49,  // 80: bbs.user.v1.UserService.ListBlockedUsers:input_type -> bbs.user.v1.ListUserRelationsRequest
+	49,  // 81: bbs.user.v1.UserService.ListMutedUsers:input_type -> bbs.user.v1.ListUserRelationsRequest
+	17,  // 82: bbs.user.v1.UserService.CreateInviteCodes:input_type -> bbs.user.v1.CreateInviteCodesRequest
+	18,  // 83: bbs.user.v1.UserService.ListInviteCodes:input_type -> bbs.user.v1.ListInviteCodesRequest
+	19,  // 84: bbs.user.v1.UserService.RevokeInviteCode:input_type -> bbs.user.v1.RevokeInviteCodeRequest
+	20,  // 85: bbs.user.v1.UserService.CreateUserList:input_type -> bbs.user.v1.CreateUserListRequest
+	21,  // 86: bbs.user.v1.UserService.UpdateUserList:input_type -> bbs.user.v1.UpdateUserListRequest
+	22,  // 87: bbs.user.v1.UserService.DeleteUserList:input_type -> bbs.user.v1.DeleteUserListRequest
+	23,  // 88: bbs.user.v1.UserService.GetUserList:input_type -> bbs.user.v1.GetUserListRequest
+	24,  // 89: bbs.user.v1.UserService.ListUserLists:input_type -> bbs.user.v1.ListUserListsRequest
+	25,  // 90: bbs.user.v1.UserService.ListFavoriteUserLists:input_type -> bbs.user.v1.ListFavoriteUserListsRequest
+	26,  // 91: bbs.user.v1.UserService.AddUserListMember:input_type -> bbs.user.v1.UserListMemberRequest
+	26,  // 92: bbs.user.v1.UserService.RemoveUserListMember:input_type -> bbs.user.v1.UserListMemberRequest
+	27,  // 93: bbs.user.v1.UserService.ListUserListMembers:input_type -> bbs.user.v1.ListUserListMembersRequest
+	28,  // 94: bbs.user.v1.UserService.CopyUserList:input_type -> bbs.user.v1.CopyUserListRequest
+	29,  // 95: bbs.user.v1.UserService.FavoriteUserList:input_type -> bbs.user.v1.UserListFavoriteRequest
+	29,  // 96: bbs.user.v1.UserService.UnfavoriteUserList:input_type -> bbs.user.v1.UserListFavoriteRequest
+	76,  // 97: bbs.user.v1.UserService.ListSessions:input_type -> bbs.user.v1.ListSessionsRequest
+	77,  // 98: bbs.user.v1.UserService.GetSession:input_type -> bbs.user.v1.GetSessionRequest
+	78,  // 99: bbs.user.v1.UserService.RevokeSession:input_type -> bbs.user.v1.RevokeSessionRequest
+	79,  // 100: bbs.user.v1.UserService.ListLoginEvents:input_type -> bbs.user.v1.ListLoginEventsRequest
+	84,  // 101: bbs.user.v1.UserService.CreateAPIToken:input_type -> bbs.user.v1.CreateAPITokenRequest
+	86,  // 102: bbs.user.v1.UserService.ListAPITokens:input_type -> bbs.user.v1.ListAPITokensRequest
+	87,  // 103: bbs.user.v1.UserService.RevokeAPIToken:input_type -> bbs.user.v1.RevokeAPITokenRequest
+	91,  // 104: bbs.user.v1.UserService.GetUserChart:input_type -> bbs.user.v1.UserChartRequest
+	94,  // 105: bbs.user.v1.UserService.GetUserFollowingChart:input_type -> bbs.user.v1.UserFollowingChartRequest
+	97,  // 106: bbs.user.v1.UserService.GetActiveUsersChart:input_type -> bbs.user.v1.ActiveUsersChartRequest
+	57,  // 107: bbs.user.v1.UserService.Register:output_type -> bbs.user.v1.AuthResponse
+	57,  // 108: bbs.user.v1.UserService.Login:output_type -> bbs.user.v1.AuthResponse
+	57,  // 109: bbs.user.v1.UserService.OAuthLogin:output_type -> bbs.user.v1.AuthResponse
+	57,  // 110: bbs.user.v1.UserService.WebmasterLogin:output_type -> bbs.user.v1.AuthResponse
+	53,  // 111: bbs.user.v1.UserService.ListUsers:output_type -> bbs.user.v1.UserListResponse
+	51,  // 112: bbs.user.v1.UserService.GetUser:output_type -> bbs.user.v1.UserResponse
+	51,  // 113: bbs.user.v1.UserService.GetUserByUsername:output_type -> bbs.user.v1.UserResponse
+	52,  // 114: bbs.user.v1.UserService.GetCredentialVersion:output_type -> bbs.user.v1.CredentialVersionResponse
+	51,  // 115: bbs.user.v1.UserService.UpdateProfile:output_type -> bbs.user.v1.UserResponse
+	51,  // 116: bbs.user.v1.UserService.UpdateStatus:output_type -> bbs.user.v1.UserResponse
+	90,  // 117: bbs.user.v1.UserService.ChangePassword:output_type -> bbs.user.v1.SimpleResponse
+	67,  // 118: bbs.user.v1.UserService.RequestPasswordReset:output_type -> bbs.user.v1.PasswordResetResponse
+	90,  // 119: bbs.user.v1.UserService.ResetPassword:output_type -> bbs.user.v1.SimpleResponse
+	68,  // 120: bbs.user.v1.UserService.RequestEmailVerification:output_type -> bbs.user.v1.EmailVerificationResponse
+	51,  // 121: bbs.user.v1.UserService.VerifyEmail:output_type -> bbs.user.v1.UserResponse
+	58,  // 122: bbs.user.v1.UserService.GetMFAStatus:output_type -> bbs.user.v1.MFAStatusResponse
+	59,  // 123: bbs.user.v1.UserService.BeginTOTPEnrollment:output_type -> bbs.user.v1.TOTPEnrollmentResponse
+	60,  // 124: bbs.user.v1.UserService.ConfirmTOTPEnrollment:output_type -> bbs.user.v1.MFARecoveryCodesResponse
+	60,  // 125: bbs.user.v1.UserService.RegenerateMFARecoveryCodes:output_type -> bbs.user.v1.MFARecoveryCodesResponse
+	90,  // 126: bbs.user.v1.UserService.DisableTOTP:output_type -> bbs.user.v1.SimpleResponse
+	57,  // 127: bbs.user.v1.UserService.CompleteMFALogin:output_type -> bbs.user.v1.AuthResponse
+	62,  // 128: bbs.user.v1.UserService.ListPasskeys:output_type -> bbs.user.v1.PasskeyListResponse
+	64,  // 129: bbs.user.v1.UserService.BeginPasskeyRegistration:output_type -> bbs.user.v1.PasskeyOptionsResponse
+	63,  // 130: bbs.user.v1.UserService.FinishPasskeyRegistration:output_type -> bbs.user.v1.PasskeyInfoResponse
+	63,  // 131: bbs.user.v1.UserService.UpdatePasskey:output_type -> bbs.user.v1.PasskeyInfoResponse
+	90,  // 132: bbs.user.v1.UserService.DeletePasskey:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 133: bbs.user.v1.UserService.SetPasskeyPasswordless:output_type -> bbs.user.v1.SimpleResponse
+	64,  // 134: bbs.user.v1.UserService.BeginPasskeyMFALogin:output_type -> bbs.user.v1.PasskeyOptionsResponse
+	57,  // 135: bbs.user.v1.UserService.CompletePasskeyMFALogin:output_type -> bbs.user.v1.AuthResponse
+	64,  // 136: bbs.user.v1.UserService.BeginPasswordlessPasskeyLogin:output_type -> bbs.user.v1.PasskeyOptionsResponse
+	57,  // 137: bbs.user.v1.UserService.CompletePasswordlessPasskeyLogin:output_type -> bbs.user.v1.AuthResponse
+	66,  // 138: bbs.user.v1.UserService.GetAccountLifecycle:output_type -> bbs.user.v1.AccountLifecycleResponse
+	66,  // 139: bbs.user.v1.UserService.RequestAccountDeletion:output_type -> bbs.user.v1.AccountLifecycleResponse
+	42,  // 140: bbs.user.v1.UserService.Follow:output_type -> bbs.user.v1.FollowResponse
+	46,  // 141: bbs.user.v1.UserService.ListReceivedFollowRequests:output_type -> bbs.user.v1.FollowRequestListResponse
+	46,  // 142: bbs.user.v1.UserService.ListSentFollowRequests:output_type -> bbs.user.v1.FollowRequestListResponse
+	90,  // 143: bbs.user.v1.UserService.AcceptFollowRequest:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 144: bbs.user.v1.UserService.RejectFollowRequest:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 145: bbs.user.v1.UserService.CancelFollowRequest:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 146: bbs.user.v1.UserService.SetFollowApprovalRequired:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 147: bbs.user.v1.UserService.Unfollow:output_type -> bbs.user.v1.SimpleResponse
+	69,  // 148: bbs.user.v1.UserService.IsFollowing:output_type -> bbs.user.v1.IsFollowingResponse
+	53,  // 149: bbs.user.v1.UserService.ListFollowers:output_type -> bbs.user.v1.UserListResponse
+	53,  // 150: bbs.user.v1.UserService.ListFollowing:output_type -> bbs.user.v1.UserListResponse
+	90,  // 151: bbs.user.v1.UserService.Block:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 152: bbs.user.v1.UserService.Unblock:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 153: bbs.user.v1.UserService.Mute:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 154: bbs.user.v1.UserService.Unmute:output_type -> bbs.user.v1.SimpleResponse
+	70,  // 155: bbs.user.v1.UserService.GetSafetyRelation:output_type -> bbs.user.v1.SafetyRelationResponse
+	53,  // 156: bbs.user.v1.UserService.ListBlockedUsers:output_type -> bbs.user.v1.UserListResponse
+	53,  // 157: bbs.user.v1.UserService.ListMutedUsers:output_type -> bbs.user.v1.UserListResponse
+	72,  // 158: bbs.user.v1.UserService.CreateInviteCodes:output_type -> bbs.user.v1.InviteCodeListResponse
+	72,  // 159: bbs.user.v1.UserService.ListInviteCodes:output_type -> bbs.user.v1.InviteCodeListResponse
+	90,  // 160: bbs.user.v1.UserService.RevokeInviteCode:output_type -> bbs.user.v1.SimpleResponse
+	55,  // 161: bbs.user.v1.UserService.CreateUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	55,  // 162: bbs.user.v1.UserService.UpdateUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	90,  // 163: bbs.user.v1.UserService.DeleteUserList:output_type -> bbs.user.v1.SimpleResponse
+	55,  // 164: bbs.user.v1.UserService.GetUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	56,  // 165: bbs.user.v1.UserService.ListUserLists:output_type -> bbs.user.v1.UserListsResponse
+	56,  // 166: bbs.user.v1.UserService.ListFavoriteUserLists:output_type -> bbs.user.v1.UserListsResponse
+	90,  // 167: bbs.user.v1.UserService.AddUserListMember:output_type -> bbs.user.v1.SimpleResponse
+	90,  // 168: bbs.user.v1.UserService.RemoveUserListMember:output_type -> bbs.user.v1.SimpleResponse
+	53,  // 169: bbs.user.v1.UserService.ListUserListMembers:output_type -> bbs.user.v1.UserListResponse
+	55,  // 170: bbs.user.v1.UserService.CopyUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	55,  // 171: bbs.user.v1.UserService.FavoriteUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	55,  // 172: bbs.user.v1.UserService.UnfavoriteUserList:output_type -> bbs.user.v1.UserListInfoResponse
+	80,  // 173: bbs.user.v1.UserService.ListSessions:output_type -> bbs.user.v1.SessionListResponse
+	81,  // 174: bbs.user.v1.UserService.GetSession:output_type -> bbs.user.v1.SessionResponse
+	81,  // 175: bbs.user.v1.UserService.RevokeSession:output_type -> bbs.user.v1.SessionResponse
+	82,  // 176: bbs.user.v1.UserService.ListLoginEvents:output_type -> bbs.user.v1.LoginEventListResponse
+	85,  // 177: bbs.user.v1.UserService.CreateAPIToken:output_type -> bbs.user.v1.CreateAPITokenResponse
+	88,  // 178: bbs.user.v1.UserService.ListAPITokens:output_type -> bbs.user.v1.APITokenListResponse
+	89,  // 179: bbs.user.v1.UserService.RevokeAPIToken:output_type -> bbs.user.v1.APITokenResponse
+	93,  // 180: bbs.user.v1.UserService.GetUserChart:output_type -> bbs.user.v1.UserChartResponse
+	96,  // 181: bbs.user.v1.UserService.GetUserFollowingChart:output_type -> bbs.user.v1.UserFollowingChartResponse
+	99,  // 182: bbs.user.v1.UserService.GetActiveUsersChart:output_type -> bbs.user.v1.ActiveUsersChartResponse
+	107, // [107:183] is the sub-list for method output_type
+	31,  // [31:107] is the sub-list for method input_type
+	31,  // [31:31] is the sub-list for extension type_name
+	31,  // [31:31] is the sub-list for extension extendee
+	0,   // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_user_proto_init() }
@@ -6758,16 +7247,16 @@ func file_user_proto_init() {
 	if File_user_proto != nil {
 		return
 	}
-	file_user_proto_msgTypes[84].OneofWrappers = []any{}
-	file_user_proto_msgTypes[87].OneofWrappers = []any{}
-	file_user_proto_msgTypes[90].OneofWrappers = []any{}
+	file_user_proto_msgTypes[91].OneofWrappers = []any{}
+	file_user_proto_msgTypes[94].OneofWrappers = []any{}
+	file_user_proto_msgTypes[97].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_proto_rawDesc), len(file_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   93,
+			NumMessages:   100,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

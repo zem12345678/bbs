@@ -7,11 +7,14 @@ import (
 )
 
 const (
-	MaxSessionListLimit = 100
-	maxClientIPRunes    = 64
-	maxUserAgentRunes   = 512
-	maxLoginMethodRunes = 32
-	maxFailureRunes     = 64
+	MaxSessionListLimit  = 100
+	MaxAPITokenNameRunes = 128
+	APITokenScopeRead    = "read"
+	APITokenScopeWrite   = "write"
+	maxClientIPRunes     = 64
+	maxUserAgentRunes    = 512
+	maxLoginMethodRunes  = 32
+	maxFailureRunes      = 64
 )
 
 type SessionClientInfo struct {
@@ -20,14 +23,18 @@ type SessionClientInfo struct {
 }
 
 type UserSession struct {
-	SessionID   string
-	UserID      int64
-	IPAddress   string
-	UserAgent   string
-	LoginMethod string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
-	RevokedAt   *time.Time
+	SessionID                 string
+	UserID                    int64
+	IPAddress                 string
+	UserAgent                 string
+	LoginMethod               string
+	APITokenName              string
+	APITokenScopes            []string
+	APITokenCredentialVersion string
+	APITokenCredentialValid   bool
+	CreatedAt                 time.Time
+	ExpiresAt                 time.Time
+	RevokedAt                 *time.Time
 }
 
 type LoginEvent struct {
@@ -43,8 +50,11 @@ type LoginEvent struct {
 
 type SessionRepository interface {
 	RecordSession(context.Context, UserSession, LoginEvent) error
+	CreateAPIToken(context.Context, UserSession) error
 	RecordLoginEvent(context.Context, LoginEvent) error
 	ListSessions(context.Context, int64, int) ([]UserSession, error)
+	ListAPITokens(context.Context, int64, int, int) ([]UserSession, int64, error)
+	RevokeAPIToken(context.Context, int64, string, time.Time) (UserSession, error)
 	GetSession(context.Context, int64, string) (UserSession, error)
 	RevokeSession(context.Context, int64, string, time.Time) (UserSession, error)
 	ListLoginEvents(context.Context, int64, int) ([]LoginEvent, error)
@@ -63,6 +73,58 @@ func NormalizeLoginMethod(value string) string {
 
 func NormalizeLoginFailureReason(value string) string {
 	return strings.ToLower(truncateRunes(strings.TrimSpace(value), maxFailureRunes))
+}
+
+func NormalizeAPITokenName(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ErrAPITokenNameRequired
+	}
+	if len([]rune(value)) > MaxAPITokenNameRunes {
+		return "", ErrAPITokenNameTooLong
+	}
+	return value, nil
+}
+
+func NormalizeAPITokenScopes(values []string) ([]string, error) {
+	seen := make(map[string]bool, len(values))
+	for _, value := range values {
+		scope := strings.ToLower(strings.TrimSpace(value))
+		if scope != APITokenScopeRead && scope != APITokenScopeWrite {
+			return nil, ErrAPITokenScopeInvalid
+		}
+		seen[scope] = true
+	}
+	if len(seen) == 0 {
+		return nil, ErrAPITokenScopeInvalid
+	}
+	scopes := make([]string, 0, len(seen))
+	if seen[APITokenScopeRead] {
+		scopes = append(scopes, APITokenScopeRead)
+	}
+	if seen[APITokenScopeWrite] {
+		scopes = append(scopes, APITokenScopeWrite)
+	}
+	return scopes, nil
+}
+
+func APITokenScopesValue(scopes []string) (string, error) {
+	normalized, err := NormalizeAPITokenScopes(scopes)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(normalized, ","), nil
+}
+
+func ParseAPITokenScopes(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	scopes, err := NormalizeAPITokenScopes(strings.Split(value, ","))
+	if err != nil {
+		return nil
+	}
+	return scopes
 }
 
 func ValidSessionID(value string) bool {
@@ -88,6 +150,17 @@ func (session UserSession) Validate() error {
 	}
 	if NormalizeLoginMethod(session.LoginMethod) == "" {
 		return ErrLoginMethodInvalid
+	}
+	if NormalizeLoginMethod(session.LoginMethod) == "api_token" {
+		if _, err := NormalizeAPITokenName(session.APITokenName); err != nil {
+			return err
+		}
+		if _, err := NormalizeAPITokenScopes(session.APITokenScopes); err != nil {
+			return err
+		}
+		if strings.TrimSpace(session.APITokenCredentialVersion) == "" {
+			return ErrInvalidCredentialVersion
+		}
 	}
 	if session.CreatedAt.IsZero() || !session.ExpiresAt.After(session.CreatedAt) {
 		return ErrSessionExpiryInvalid
