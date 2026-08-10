@@ -228,6 +228,37 @@ test("maps notification preference read and update requests", async () => {
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps browser push config and subscription requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: requests.length === 1 ? { enabled: true, public_key: "vapid-key" } : { registered: true }
+    });
+  };
+
+  const subscription = { endpoint: "https://push.example.test/1", auth: "auth-key", publickey: "public-key", sendReadMessage: false };
+  await bbsApi.webPushConfig();
+  await bbsApi.registerWebPush(subscription, "access-token");
+  await bbsApi.webPushRegistration(subscription.endpoint, "access-token");
+  await bbsApi.unregisterWebPush(subscription.endpoint, "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/sw/config");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/sw/register");
+  assert.deepEqual(JSON.parse(requests[1].options.body), subscription);
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/sw/show-registration");
+  assert.deepEqual(JSON.parse(requests[2].options.body), { endpoint: subscription.endpoint });
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/sw/unregister");
+  assert.deepEqual(JSON.parse(requests[3].options.body), { endpoint: subscription.endpoint });
+  assert.equal(requests.slice(1).every(({ options }) => options.method === "POST" && options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("maps passkey registration, MFA, passwordless, and management requests", async () => {
   const requests = [];
   globalThis.fetch = async (url, options = {}) => {

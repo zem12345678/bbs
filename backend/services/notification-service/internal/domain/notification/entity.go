@@ -15,6 +15,13 @@ const (
 )
 
 const (
+	WebPushSubscriptionStateActive = "active"
+	WebPushMaxEndpointBytes        = 2048
+	WebPushMaxKeyBytes             = 512
+	WebPushMaxSubscriptionsPerUser = 10
+)
+
+const (
 	NotificationTypeFollow                        = "follow"
 	NotificationTypeFollowRequestReceived         = "follow_request_received"
 	NotificationTypeFollowRequestAccepted         = "follow_request_accepted"
@@ -37,6 +44,9 @@ var (
 	ErrInvalidSystemNotification      = errors.New("invalid system notification")
 	ErrInvalidUserErasure             = errors.New("invalid user erasure")
 	ErrInvalidNotificationPreferences = errors.New("invalid notification preferences")
+	ErrInvalidWebPushSubscription     = errors.New("invalid web push subscription")
+	ErrWebPushDisabled                = errors.New("web push is disabled")
+	ErrWebPushSubscriptionLimit       = errors.New("web push subscription limit reached")
 )
 
 type Notification struct {
@@ -56,6 +66,52 @@ type Notification struct {
 type NotificationPreference struct {
 	Type    string
 	Enabled bool
+}
+
+type WebPushConfig struct {
+	Enabled    bool
+	Subject    string
+	PublicKey  string
+	PrivateKey string
+}
+
+type WebPushSubscription struct {
+	ID                int64
+	UserID            int64
+	Endpoint          string
+	Auth              string
+	PublicKey         string
+	State             string
+	RegistrationState string
+	SendReadMessage   bool
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type WebPushDelivery struct {
+	ID             int64
+	NotificationID int64
+	SubscriptionID int64
+	AttemptCount   int32
+	Endpoint       string
+	Auth           string
+	PublicKey      string
+	Notification   Notification
+}
+
+type WebPushRepository interface {
+	UpsertWebPushSubscription(ctx context.Context, subscription WebPushSubscription, maxPerUser int) (WebPushSubscription, error)
+	GetWebPushSubscription(ctx context.Context, userID int64, endpoint string) (WebPushSubscription, error)
+	DeleteWebPushSubscription(ctx context.Context, userID int64, endpoint string) error
+}
+
+type WebPushOutboxRepository interface {
+	ClaimWebPushDeliveries(ctx context.Context, limit int, now time.Time, lockTimeout time.Duration) ([]WebPushDelivery, error)
+	ReleaseWebPushDeliveries(ctx context.Context, deliveryIDs []int64) error
+	CompleteWebPushDelivery(ctx context.Context, deliveryID int64, now time.Time) error
+	ExpireWebPushSubscription(ctx context.Context, deliveryID, subscriptionID int64, now time.Time) error
+	RetryWebPushDelivery(ctx context.Context, deliveryID int64, attemptCount int32, nextAttempt time.Time, message string, exhausted bool) error
+	CleanupCompletedWebPushDeliveries(ctx context.Context, before time.Time, limit int) (int64, error)
 }
 
 // DefaultNotificationPreferences defines the user-visible in-app notification

@@ -849,6 +849,18 @@ export const bbsApi = {
   updateNotificationPreferences(items, token) {
     return request("/users/me/notification-preferences", { method: "PUT", body: { items }, token });
   },
+  webPushConfig() {
+    return request("/sw/config");
+  },
+  registerWebPush(payload, token) {
+    return request("/sw/register", { method: "POST", body: payload, token });
+  },
+  webPushRegistration(endpoint, token) {
+    return request("/sw/show-registration", { method: "POST", body: { endpoint }, token });
+  },
+  unregisterWebPush(endpoint, token) {
+    return request("/sw/unregister", { method: "POST", body: { endpoint }, token });
+  },
   creditBalance(token) {
     return request("/credits/balance", { token });
   },

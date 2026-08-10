@@ -657,6 +657,366 @@ func (x *PreferencesResponse) GetItems() []*NotificationPreference {
 	return nil
 }
 
+type GetWebPushConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWebPushConfigRequest) Reset() {
+	*x = GetWebPushConfigRequest{}
+	mi := &file_notification_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWebPushConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWebPushConfigRequest) ProtoMessage() {}
+
+func (x *GetWebPushConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWebPushConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetWebPushConfigRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{11}
+}
+
+type WebPushConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebPushConfigResponse) Reset() {
+	*x = WebPushConfigResponse{}
+	mi := &file_notification_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebPushConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebPushConfigResponse) ProtoMessage() {}
+
+func (x *WebPushConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebPushConfigResponse.ProtoReflect.Descriptor instead.
+func (*WebPushConfigResponse) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *WebPushConfigResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *WebPushConfigResponse) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+type RegisterWebPushSubscriptionRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Endpoint        string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Auth            string                 `protobuf:"bytes,3,opt,name=auth,proto3" json:"auth,omitempty"`
+	PublicKey       string                 `protobuf:"bytes,4,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	SendReadMessage bool                   `protobuf:"varint,5,opt,name=send_read_message,json=sendReadMessage,proto3" json:"send_read_message,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RegisterWebPushSubscriptionRequest) Reset() {
+	*x = RegisterWebPushSubscriptionRequest{}
+	mi := &file_notification_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterWebPushSubscriptionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterWebPushSubscriptionRequest) ProtoMessage() {}
+
+func (x *RegisterWebPushSubscriptionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterWebPushSubscriptionRequest.ProtoReflect.Descriptor instead.
+func (*RegisterWebPushSubscriptionRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RegisterWebPushSubscriptionRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *RegisterWebPushSubscriptionRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *RegisterWebPushSubscriptionRequest) GetAuth() string {
+	if x != nil {
+		return x.Auth
+	}
+	return ""
+}
+
+func (x *RegisterWebPushSubscriptionRequest) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *RegisterWebPushSubscriptionRequest) GetSendReadMessage() bool {
+	if x != nil {
+		return x.SendReadMessage
+	}
+	return false
+}
+
+type GetWebPushSubscriptionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Endpoint      string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWebPushSubscriptionRequest) Reset() {
+	*x = GetWebPushSubscriptionRequest{}
+	mi := &file_notification_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWebPushSubscriptionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWebPushSubscriptionRequest) ProtoMessage() {}
+
+func (x *GetWebPushSubscriptionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWebPushSubscriptionRequest.ProtoReflect.Descriptor instead.
+func (*GetWebPushSubscriptionRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetWebPushSubscriptionRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *GetWebPushSubscriptionRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+type UnregisterWebPushSubscriptionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Endpoint      string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnregisterWebPushSubscriptionRequest) Reset() {
+	*x = UnregisterWebPushSubscriptionRequest{}
+	mi := &file_notification_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnregisterWebPushSubscriptionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnregisterWebPushSubscriptionRequest) ProtoMessage() {}
+
+func (x *UnregisterWebPushSubscriptionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnregisterWebPushSubscriptionRequest.ProtoReflect.Descriptor instead.
+func (*UnregisterWebPushSubscriptionRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *UnregisterWebPushSubscriptionRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *UnregisterWebPushSubscriptionRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+type WebPushSubscriptionResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Registered      bool                   `protobuf:"varint,1,opt,name=registered,proto3" json:"registered,omitempty"`
+	State           string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	UserId          int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Endpoint        string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	SendReadMessage bool                   `protobuf:"varint,5,opt,name=send_read_message,json=sendReadMessage,proto3" json:"send_read_message,omitempty"`
+	CreatedAt       int64                  `protobuf:"varint,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       int64                  `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *WebPushSubscriptionResponse) Reset() {
+	*x = WebPushSubscriptionResponse{}
+	mi := &file_notification_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebPushSubscriptionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebPushSubscriptionResponse) ProtoMessage() {}
+
+func (x *WebPushSubscriptionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebPushSubscriptionResponse.ProtoReflect.Descriptor instead.
+func (*WebPushSubscriptionResponse) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *WebPushSubscriptionResponse) GetRegistered() bool {
+	if x != nil {
+		return x.Registered
+	}
+	return false
+}
+
+func (x *WebPushSubscriptionResponse) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *WebPushSubscriptionResponse) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *WebPushSubscriptionResponse) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *WebPushSubscriptionResponse) GetSendReadMessage() bool {
+	if x != nil {
+		return x.SendReadMessage
+	}
+	return false
+}
+
+func (x *WebPushSubscriptionResponse) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *WebPushSubscriptionResponse) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
 type MutationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -667,7 +1027,7 @@ type MutationResponse struct {
 
 func (x *MutationResponse) Reset() {
 	*x = MutationResponse{}
-	mi := &file_notification_proto_msgTypes[11]
+	mi := &file_notification_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +1039,7 @@ func (x *MutationResponse) String() string {
 func (*MutationResponse) ProtoMessage() {}
 
 func (x *MutationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[11]
+	mi := &file_notification_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +1052,7 @@ func (x *MutationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MutationResponse.ProtoReflect.Descriptor instead.
 func (*MutationResponse) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{11}
+	return file_notification_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *MutationResponse) GetSuccess() bool {
@@ -758,17 +1118,51 @@ const file_notification_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12A\n" +
 	"\x05items\x18\x02 \x03(\v2+.bbs.notification.v1.NotificationPreferenceR\x05items\"X\n" +
 	"\x13PreferencesResponse\x12A\n" +
-	"\x05items\x18\x01 \x03(\v2+.bbs.notification.v1.NotificationPreferenceR\x05items\"F\n" +
+	"\x05items\x18\x01 \x03(\v2+.bbs.notification.v1.NotificationPreferenceR\x05items\"\x19\n" +
+	"\x17GetWebPushConfigRequest\"P\n" +
+	"\x15WebPushConfigResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x02 \x01(\tR\tpublicKey\"\xb8\x01\n" +
+	"\"RegisterWebPushSubscriptionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x12\n" +
+	"\x04auth\x18\x03 \x01(\tR\x04auth\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x04 \x01(\tR\tpublicKey\x12*\n" +
+	"\x11send_read_message\x18\x05 \x01(\bR\x0fsendReadMessage\"T\n" +
+	"\x1dGetWebPushSubscriptionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\"[\n" +
+	"$UnregisterWebPushSubscriptionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\"\xf2\x01\n" +
+	"\x1bWebPushSubscriptionResponse\x12\x1e\n" +
+	"\n" +
+	"registered\x18\x01 \x01(\bR\n" +
+	"registered\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x12*\n" +
+	"\x11send_read_message\x18\x05 \x01(\bR\x0fsendReadMessage\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\x03R\tupdatedAt\"F\n" +
 	"\x10MutationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xf9\x04\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xf6\b\n" +
 	"\x13NotificationService\x12r\n" +
 	"\x11ListNotifications\x12-.bbs.notification.v1.ListNotificationsRequest\x1a..bbs.notification.v1.ListNotificationsResponse\x12`\n" +
 	"\vCountUnread\x12'.bbs.notification.v1.CountUnreadRequest\x1a(.bbs.notification.v1.CountUnreadResponse\x12W\n" +
 	"\bMarkRead\x12$.bbs.notification.v1.MarkReadRequest\x1a%.bbs.notification.v1.MutationResponse\x12]\n" +
 	"\vMarkAllRead\x12'.bbs.notification.v1.MarkAllReadRequest\x1a%.bbs.notification.v1.MutationResponse\x12f\n" +
 	"\x0eGetPreferences\x12*.bbs.notification.v1.GetPreferencesRequest\x1a(.bbs.notification.v1.PreferencesResponse\x12l\n" +
-	"\x11UpdatePreferences\x12-.bbs.notification.v1.UpdatePreferencesRequest\x1a(.bbs.notification.v1.PreferencesResponseB5Z3api-gateway/api/proto/notificationpb;notificationpbb\x06proto3"
+	"\x11UpdatePreferences\x12-.bbs.notification.v1.UpdatePreferencesRequest\x1a(.bbs.notification.v1.PreferencesResponse\x12l\n" +
+	"\x10GetWebPushConfig\x12,.bbs.notification.v1.GetWebPushConfigRequest\x1a*.bbs.notification.v1.WebPushConfigResponse\x12\x88\x01\n" +
+	"\x1bRegisterWebPushSubscription\x127.bbs.notification.v1.RegisterWebPushSubscriptionRequest\x1a0.bbs.notification.v1.WebPushSubscriptionResponse\x12~\n" +
+	"\x16GetWebPushSubscription\x122.bbs.notification.v1.GetWebPushSubscriptionRequest\x1a0.bbs.notification.v1.WebPushSubscriptionResponse\x12\x81\x01\n" +
+	"\x1dUnregisterWebPushSubscription\x129.bbs.notification.v1.UnregisterWebPushSubscriptionRequest\x1a%.bbs.notification.v1.MutationResponseB5Z3api-gateway/api/proto/notificationpb;notificationpbb\x06proto3"
 
 var (
 	file_notification_proto_rawDescOnce sync.Once
@@ -782,20 +1176,26 @@ func file_notification_proto_rawDescGZIP() []byte {
 	return file_notification_proto_rawDescData
 }
 
-var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_notification_proto_goTypes = []any{
-	(*Notification)(nil),              // 0: bbs.notification.v1.Notification
-	(*ListNotificationsRequest)(nil),  // 1: bbs.notification.v1.ListNotificationsRequest
-	(*ListNotificationsResponse)(nil), // 2: bbs.notification.v1.ListNotificationsResponse
-	(*CountUnreadRequest)(nil),        // 3: bbs.notification.v1.CountUnreadRequest
-	(*CountUnreadResponse)(nil),       // 4: bbs.notification.v1.CountUnreadResponse
-	(*MarkReadRequest)(nil),           // 5: bbs.notification.v1.MarkReadRequest
-	(*MarkAllReadRequest)(nil),        // 6: bbs.notification.v1.MarkAllReadRequest
-	(*NotificationPreference)(nil),    // 7: bbs.notification.v1.NotificationPreference
-	(*GetPreferencesRequest)(nil),     // 8: bbs.notification.v1.GetPreferencesRequest
-	(*UpdatePreferencesRequest)(nil),  // 9: bbs.notification.v1.UpdatePreferencesRequest
-	(*PreferencesResponse)(nil),       // 10: bbs.notification.v1.PreferencesResponse
-	(*MutationResponse)(nil),          // 11: bbs.notification.v1.MutationResponse
+	(*Notification)(nil),                         // 0: bbs.notification.v1.Notification
+	(*ListNotificationsRequest)(nil),             // 1: bbs.notification.v1.ListNotificationsRequest
+	(*ListNotificationsResponse)(nil),            // 2: bbs.notification.v1.ListNotificationsResponse
+	(*CountUnreadRequest)(nil),                   // 3: bbs.notification.v1.CountUnreadRequest
+	(*CountUnreadResponse)(nil),                  // 4: bbs.notification.v1.CountUnreadResponse
+	(*MarkReadRequest)(nil),                      // 5: bbs.notification.v1.MarkReadRequest
+	(*MarkAllReadRequest)(nil),                   // 6: bbs.notification.v1.MarkAllReadRequest
+	(*NotificationPreference)(nil),               // 7: bbs.notification.v1.NotificationPreference
+	(*GetPreferencesRequest)(nil),                // 8: bbs.notification.v1.GetPreferencesRequest
+	(*UpdatePreferencesRequest)(nil),             // 9: bbs.notification.v1.UpdatePreferencesRequest
+	(*PreferencesResponse)(nil),                  // 10: bbs.notification.v1.PreferencesResponse
+	(*GetWebPushConfigRequest)(nil),              // 11: bbs.notification.v1.GetWebPushConfigRequest
+	(*WebPushConfigResponse)(nil),                // 12: bbs.notification.v1.WebPushConfigResponse
+	(*RegisterWebPushSubscriptionRequest)(nil),   // 13: bbs.notification.v1.RegisterWebPushSubscriptionRequest
+	(*GetWebPushSubscriptionRequest)(nil),        // 14: bbs.notification.v1.GetWebPushSubscriptionRequest
+	(*UnregisterWebPushSubscriptionRequest)(nil), // 15: bbs.notification.v1.UnregisterWebPushSubscriptionRequest
+	(*WebPushSubscriptionResponse)(nil),          // 16: bbs.notification.v1.WebPushSubscriptionResponse
+	(*MutationResponse)(nil),                     // 17: bbs.notification.v1.MutationResponse
 }
 var file_notification_proto_depIdxs = []int32{
 	0,  // 0: bbs.notification.v1.ListNotificationsResponse.items:type_name -> bbs.notification.v1.Notification
@@ -807,14 +1207,22 @@ var file_notification_proto_depIdxs = []int32{
 	6,  // 6: bbs.notification.v1.NotificationService.MarkAllRead:input_type -> bbs.notification.v1.MarkAllReadRequest
 	8,  // 7: bbs.notification.v1.NotificationService.GetPreferences:input_type -> bbs.notification.v1.GetPreferencesRequest
 	9,  // 8: bbs.notification.v1.NotificationService.UpdatePreferences:input_type -> bbs.notification.v1.UpdatePreferencesRequest
-	2,  // 9: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
-	4,  // 10: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
-	11, // 11: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
-	11, // 12: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
-	10, // 13: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	10, // 14: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
+	11, // 9: bbs.notification.v1.NotificationService.GetWebPushConfig:input_type -> bbs.notification.v1.GetWebPushConfigRequest
+	13, // 10: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:input_type -> bbs.notification.v1.RegisterWebPushSubscriptionRequest
+	14, // 11: bbs.notification.v1.NotificationService.GetWebPushSubscription:input_type -> bbs.notification.v1.GetWebPushSubscriptionRequest
+	15, // 12: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:input_type -> bbs.notification.v1.UnregisterWebPushSubscriptionRequest
+	2,  // 13: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
+	4,  // 14: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
+	17, // 15: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
+	17, // 16: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
+	10, // 17: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	10, // 18: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	12, // 19: bbs.notification.v1.NotificationService.GetWebPushConfig:output_type -> bbs.notification.v1.WebPushConfigResponse
+	16, // 20: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	16, // 21: bbs.notification.v1.NotificationService.GetWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	17, // 22: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:output_type -> bbs.notification.v1.MutationResponse
+	13, // [13:23] is the sub-list for method output_type
+	3,  // [3:13] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -831,7 +1239,7 @@ func file_notification_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_notification_proto_rawDesc), len(file_notification_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

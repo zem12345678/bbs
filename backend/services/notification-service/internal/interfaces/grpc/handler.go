@@ -76,6 +76,48 @@ func (h *Handler) UpdatePreferences(ctx context.Context, req *pb.UpdatePreferenc
 	return &pb.PreferencesResponse{Items: toPBPreferences(preferences)}, nil
 }
 
+func (h *Handler) GetWebPushConfig(context.Context, *pb.GetWebPushConfigRequest) (*pb.WebPushConfigResponse, error) {
+	config := h.service.GetWebPushConfig()
+	return &pb.WebPushConfigResponse{Enabled: config.Enabled, PublicKey: config.PublicKey}, nil
+}
+
+func (h *Handler) RegisterWebPushSubscription(ctx context.Context, req *pb.RegisterWebPushSubscriptionRequest) (*pb.WebPushSubscriptionResponse, error) {
+	subscription, err := h.service.RegisterWebPushSubscription(ctx, domain.WebPushSubscription{
+		UserID:          req.GetUserId(),
+		Endpoint:        req.GetEndpoint(),
+		Auth:            req.GetAuth(),
+		PublicKey:       req.GetPublicKey(),
+		SendReadMessage: req.GetSendReadMessage(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toPBWebPushSubscription(subscription, true), nil
+}
+
+func (h *Handler) GetWebPushSubscription(ctx context.Context, req *pb.GetWebPushSubscriptionRequest) (*pb.WebPushSubscriptionResponse, error) {
+	subscription, err := h.service.GetWebPushSubscription(ctx, req.GetUserId(), req.GetEndpoint())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	if subscription.ID == 0 {
+		return &pb.WebPushSubscriptionResponse{
+			Registered: false,
+			State:      "unregistered",
+			UserId:     req.GetUserId(),
+			Endpoint:   req.GetEndpoint(),
+		}, nil
+	}
+	return toPBWebPushSubscription(subscription, subscription.State == domain.WebPushSubscriptionStateActive), nil
+}
+
+func (h *Handler) UnregisterWebPushSubscription(ctx context.Context, req *pb.UnregisterWebPushSubscriptionRequest) (*pb.MutationResponse, error) {
+	if err := h.service.UnregisterWebPushSubscription(ctx, req.GetUserId(), req.GetEndpoint()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.DispatchSystemNotificationsRequest) (*pb.DispatchSystemNotificationsResponse, error) {
 	delivered, err := h.service.DispatchSystemNotifications(ctx, domain.SystemNotificationCommand{
 		RecipientIDs:   req.GetRecipientIds(),
@@ -124,6 +166,26 @@ func toPBPreferences(items []domain.NotificationPreference) []*pb.NotificationPr
 		preferences = append(preferences, &pb.NotificationPreference{Type: item.Type, Enabled: item.Enabled})
 	}
 	return preferences
+}
+
+func toPBWebPushSubscription(subscription domain.WebPushSubscription, registered bool) *pb.WebPushSubscriptionResponse {
+	state := subscription.RegistrationState
+	if state == "" {
+		if registered {
+			state = "subscribed"
+		} else {
+			state = "unregistered"
+		}
+	}
+	return &pb.WebPushSubscriptionResponse{
+		Registered:      registered,
+		State:           state,
+		UserId:          subscription.UserID,
+		Endpoint:        subscription.Endpoint,
+		SendReadMessage: subscription.SendReadMessage,
+		CreatedAt:       millis(subscription.CreatedAt),
+		UpdatedAt:       millis(subscription.UpdatedAt),
+	}
 }
 
 func millis(t time.Time) int64 {

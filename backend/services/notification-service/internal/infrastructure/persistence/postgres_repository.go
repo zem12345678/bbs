@@ -77,6 +77,40 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
   CONSTRAINT chk_notification_preferences_type CHECK (notification_type <> '')
 );
 
+CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  endpoint TEXT NOT NULL UNIQUE,
+  auth TEXT NOT NULL,
+  public_key TEXT NOT NULL,
+  state VARCHAR(32) NOT NULL DEFAULT 'active',
+  send_read_message BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_web_push_subscriptions_user_id CHECK (user_id > 0),
+  CONSTRAINT chk_web_push_subscriptions_endpoint CHECK (endpoint <> '' AND octet_length(endpoint) <= 2048),
+  CONSTRAINT chk_web_push_subscriptions_auth CHECK (auth <> '' AND octet_length(auth) <= 512),
+  CONSTRAINT chk_web_push_subscriptions_public_key CHECK (public_key <> '' AND octet_length(public_key) <= 512),
+  CONSTRAINT chk_web_push_subscriptions_state CHECK (state IN ('active'))
+);
+
+CREATE TABLE IF NOT EXISTS web_push_outbox (
+  id BIGSERIAL PRIMARY KEY,
+  notification_id BIGINT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  subscription_id BIGINT NOT NULL REFERENCES web_push_subscriptions(id) ON DELETE CASCADE,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  result VARCHAR(32) NOT NULL DEFAULT 'pending',
+  last_error TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(notification_id, subscription_id),
+  CONSTRAINT chk_web_push_outbox_attempt_count CHECK (attempt_count >= 0),
+  CONSTRAINT chk_web_push_outbox_result CHECK (result IN ('pending', 'delivered', 'gone', 'failed'))
+);
+
 CREATE TABLE IF NOT EXISTS pending_article_notifications (
   event_id VARCHAR(128) PRIMARY KEY,
   type VARCHAR(64) NOT NULL,
@@ -167,6 +201,17 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
 CREATE INDEX IF NOT EXISTS idx_notification_preferences_user
   ON notification_preferences(user_id);
 
+CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user
+  ON web_push_subscriptions(user_id, id);
+
+CREATE INDEX IF NOT EXISTS idx_web_push_outbox_pending
+  ON web_push_outbox(available_at, id)
+  WHERE completed_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_web_push_outbox_completed
+  ON web_push_outbox(completed_at, id)
+  WHERE completed_at IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_notification_erased_users_job
   ON notification_erased_users(job_id);
 
@@ -175,6 +220,25 @@ CREATE INDEX IF NOT EXISTS idx_notification_erased_content_job
 
 CREATE INDEX IF NOT EXISTS idx_notification_erased_comments_job
   ON notification_erased_comments(job_id);
+
+CREATE OR REPLACE FUNCTION enqueue_web_push_notification()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO web_push_outbox(notification_id, subscription_id)
+  SELECT NEW.id, subscriptions.id
+  FROM web_push_subscriptions subscriptions
+  WHERE subscriptions.user_id = NEW.user_id
+    AND subscriptions.state = 'active'
+  ON CONFLICT(notification_id, subscription_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS notifications_enqueue_web_push ON notifications;
+
+CREATE TRIGGER notifications_enqueue_web_push
+AFTER INSERT ON notifications
+FOR EACH ROW EXECUTE FUNCTION enqueue_web_push_notification();
 `)
 	return err
 }
@@ -239,6 +303,10 @@ WHERE EXCLUDED.policy_version > notification_erased_comments.policy_version
 		}
 
 		statements := []string{
+			`DELETE FROM web_push_outbox
+WHERE subscription_id IN (SELECT id FROM web_push_subscriptions WHERE user_id = $1)
+   OR notification_id IN (SELECT id FROM notifications WHERE user_id = $1 OR actor_id = $1)`,
+			`DELETE FROM web_push_subscriptions WHERE user_id = $1`,
 			`DELETE FROM notifications WHERE user_id = $1 OR actor_id = $1`,
 			`DELETE FROM notification_preferences WHERE user_id = $1`,
 			`DELETE FROM pending_article_notifications p
@@ -830,6 +898,311 @@ WHERE NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = $1)
 		}
 		return nil
 	})
+}
+
+func (r *PostgresRepository) UpsertWebPushSubscription(ctx context.Context, subscription domain.WebPushSubscription, maxPerUser int) (domain.WebPushSubscription, error) {
+	if maxPerUser <= 0 {
+		maxPerUser = domain.WebPushMaxSubscriptionsPerUser
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockNotificationSubjects(ctx, tx, []string{"web_push_endpoint:" + subscription.Endpoint}); err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	var previousUserID int64
+	lookupErr := tx.QueryRow(ctx, `SELECT user_id FROM web_push_subscriptions WHERE endpoint = $1`, subscription.Endpoint).Scan(&previousUserID)
+	if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+		return domain.WebPushSubscription{}, lookupErr
+	}
+	userIDs := []int64{subscription.UserID}
+	if previousUserID > 0 {
+		userIDs = append(userIDs, previousUserID)
+	}
+	if err := lockNotificationUsers(ctx, tx, userIDs); err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	var previousSubscriptionID int64
+	previousUserID = 0
+	lookupErr = tx.QueryRow(ctx, `
+SELECT id, user_id
+FROM web_push_subscriptions
+WHERE endpoint = $1
+FOR UPDATE
+`, subscription.Endpoint).Scan(&previousSubscriptionID, &previousUserID)
+	if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+		return domain.WebPushSubscription{}, lookupErr
+	}
+	if previousSubscriptionID > 0 && previousUserID != subscription.UserID {
+		if _, err := tx.Exec(ctx, `DELETE FROM web_push_outbox WHERE subscription_id = $1`, previousSubscriptionID); err != nil {
+			return domain.WebPushSubscription{}, err
+		}
+	}
+	alreadySubscribed := previousSubscriptionID > 0 && previousUserID == subscription.UserID
+	var count int
+	if err := tx.QueryRow(ctx, `
+SELECT COUNT(*)
+FROM web_push_subscriptions
+WHERE user_id = $1 AND endpoint <> $2
+`, subscription.UserID, subscription.Endpoint).Scan(&count); err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	if count >= maxPerUser {
+		return domain.WebPushSubscription{}, domain.ErrWebPushSubscriptionLimit
+	}
+
+	var stored domain.WebPushSubscription
+	err = tx.QueryRow(ctx, `
+INSERT INTO web_push_subscriptions(user_id, endpoint, auth, public_key, state, send_read_message)
+SELECT $1, $2, $3, $4, $5, $6
+WHERE NOT EXISTS (SELECT 1 FROM notification_erased_users WHERE user_id = $1)
+ON CONFLICT(endpoint) DO UPDATE SET
+  user_id = EXCLUDED.user_id,
+  auth = EXCLUDED.auth,
+  public_key = EXCLUDED.public_key,
+  state = EXCLUDED.state,
+  send_read_message = EXCLUDED.send_read_message,
+  updated_at = NOW()
+RETURNING id, user_id, endpoint, auth, public_key, state, send_read_message, created_at, updated_at
+`, subscription.UserID, subscription.Endpoint, subscription.Auth, subscription.PublicKey, domain.WebPushSubscriptionStateActive, subscription.SendReadMessage).Scan(
+		&stored.ID,
+		&stored.UserID,
+		&stored.Endpoint,
+		&stored.Auth,
+		&stored.PublicKey,
+		&stored.State,
+		&stored.SendReadMessage,
+		&stored.CreatedAt,
+		&stored.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.WebPushSubscription{}, domain.ErrInvalidWebPushSubscription
+	}
+	if err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	if alreadySubscribed {
+		stored.RegistrationState = "already-subscribed"
+	} else {
+		stored.RegistrationState = "subscribed"
+	}
+	return stored, nil
+}
+
+func (r *PostgresRepository) GetWebPushSubscription(ctx context.Context, userID int64, endpoint string) (domain.WebPushSubscription, error) {
+	var subscription domain.WebPushSubscription
+	err := r.pool.QueryRow(ctx, `
+SELECT id, user_id, endpoint, auth, public_key, state, send_read_message, created_at, updated_at
+FROM web_push_subscriptions
+WHERE user_id = $1 AND endpoint = $2
+`, userID, endpoint).Scan(
+		&subscription.ID,
+		&subscription.UserID,
+		&subscription.Endpoint,
+		&subscription.Auth,
+		&subscription.PublicKey,
+		&subscription.State,
+		&subscription.SendReadMessage,
+		&subscription.CreatedAt,
+		&subscription.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.WebPushSubscription{}, nil
+	}
+	return subscription, err
+}
+
+func (r *PostgresRepository) DeleteWebPushSubscription(ctx context.Context, userID int64, endpoint string) error {
+	return r.withUserLocks(ctx, []int64{userID}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM web_push_subscriptions WHERE user_id = $1 AND endpoint = $2`, userID, endpoint)
+		return err
+	})
+}
+
+func (r *PostgresRepository) ClaimWebPushDeliveries(ctx context.Context, limit int, now time.Time, lockTimeout time.Duration) ([]domain.WebPushDelivery, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `
+SELECT
+  outbox.id,
+  outbox.notification_id,
+  outbox.subscription_id,
+  outbox.attempt_count,
+  subscriptions.endpoint,
+  subscriptions.auth,
+  subscriptions.public_key,
+  notifications.user_id,
+  notifications.type,
+  notifications.title,
+  notifications.content,
+  notifications.created_at
+FROM web_push_outbox outbox
+JOIN web_push_subscriptions subscriptions ON subscriptions.id = outbox.subscription_id
+JOIN notifications ON notifications.id = outbox.notification_id
+WHERE outbox.completed_at IS NULL
+  AND outbox.available_at <= $1
+  AND (outbox.locked_at IS NULL OR outbox.locked_at < $2)
+  AND subscriptions.state = 'active'
+ORDER BY outbox.available_at, outbox.id
+FOR UPDATE OF outbox SKIP LOCKED
+LIMIT $3
+`, now, now.Add(-lockTimeout), limit)
+	if err != nil {
+		return nil, err
+	}
+	deliveries := make([]domain.WebPushDelivery, 0, limit)
+	ids := make([]int64, 0, limit)
+	for rows.Next() {
+		var delivery domain.WebPushDelivery
+		if err := rows.Scan(
+			&delivery.ID,
+			&delivery.NotificationID,
+			&delivery.SubscriptionID,
+			&delivery.AttemptCount,
+			&delivery.Endpoint,
+			&delivery.Auth,
+			&delivery.PublicKey,
+			&delivery.Notification.UserID,
+			&delivery.Notification.Type,
+			&delivery.Notification.Title,
+			&delivery.Notification.Content,
+			&delivery.Notification.CreatedAt,
+		); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		delivery.Notification.ID = delivery.NotificationID
+		deliveries = append(deliveries, delivery)
+		ids = append(ids, delivery.ID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	if len(ids) > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE web_push_outbox SET locked_at = $2, updated_at = $2 WHERE id = ANY($1::BIGINT[])`, ids, now); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return deliveries, nil
+}
+
+func (r *PostgresRepository) ReleaseWebPushDeliveries(ctx context.Context, deliveryIDs []int64) error {
+	if len(deliveryIDs) == 0 {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+UPDATE web_push_outbox
+SET locked_at = NULL,
+    updated_at = NOW()
+WHERE id = ANY($1::BIGINT[])
+  AND completed_at IS NULL
+`, deliveryIDs)
+	return err
+}
+
+func (r *PostgresRepository) CompleteWebPushDelivery(ctx context.Context, deliveryID int64, now time.Time) error {
+	_, err := r.pool.Exec(ctx, `
+UPDATE web_push_outbox
+SET attempt_count = attempt_count + 1,
+    completed_at = $2,
+    locked_at = NULL,
+    result = 'delivered',
+    last_error = '',
+    updated_at = $2
+WHERE id = $1
+`, deliveryID, now)
+	return err
+}
+
+func (r *PostgresRepository) ExpireWebPushSubscription(ctx context.Context, deliveryID, subscriptionID int64, now time.Time) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+UPDATE web_push_outbox
+SET attempt_count = attempt_count + 1,
+    completed_at = $2,
+    locked_at = NULL,
+    result = 'gone',
+    updated_at = $2
+WHERE id = $1
+`, deliveryID, now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM web_push_subscriptions WHERE id = $1`, subscriptionID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *PostgresRepository) RetryWebPushDelivery(ctx context.Context, deliveryID int64, attemptCount int32, nextAttempt time.Time, message string, exhausted bool) error {
+	if exhausted {
+		_, err := r.pool.Exec(ctx, `
+UPDATE web_push_outbox
+SET attempt_count = $2,
+    completed_at = NOW(),
+    locked_at = NULL,
+    result = 'failed',
+    last_error = $3,
+    updated_at = NOW()
+WHERE id = $1
+`, deliveryID, attemptCount, message)
+		return err
+	}
+	_, err := r.pool.Exec(ctx, `
+UPDATE web_push_outbox
+SET attempt_count = $2,
+    available_at = $3,
+    locked_at = NULL,
+    result = 'pending',
+    last_error = $4,
+    updated_at = NOW()
+WHERE id = $1
+`, deliveryID, attemptCount, nextAttempt, message)
+	return err
+}
+
+func (r *PostgresRepository) CleanupCompletedWebPushDeliveries(ctx context.Context, before time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		return 0, nil
+	}
+	var deleted int64
+	err := r.pool.QueryRow(ctx, `
+WITH candidates AS (
+  SELECT id
+  FROM web_push_outbox
+  WHERE completed_at IS NOT NULL
+    AND completed_at < $1
+  ORDER BY completed_at, id
+  FOR UPDATE SKIP LOCKED
+  LIMIT $2
+), deleted AS (
+  DELETE FROM web_push_outbox outbox
+  USING candidates
+  WHERE outbox.id = candidates.id
+  RETURNING 1
+)
+SELECT COUNT(*) FROM deleted
+`, before, limit).Scan(&deleted)
+	return deleted, err
 }
 
 func systemNotificationSourceEventID(command domain.SystemNotificationCommand) string {

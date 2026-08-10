@@ -26,6 +26,13 @@ postgres:
   debug: false
   max_open_conns: 1
 
+webPush:
+  # Supply all three values through BBS_NOTIFICATION_WEB_PUSH_* before enabling.
+  enabled: false
+  subject: ""
+  publicKey: ""
+  privateKey: ""
+
 kafka:
   # Override in production with comma-separated BBS_NOTIFICATION_KAFKA_BROKERS.
   brokers:

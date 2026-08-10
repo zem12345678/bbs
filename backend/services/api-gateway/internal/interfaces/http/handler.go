@@ -631,6 +631,10 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/notifications/:id/read", h.requireAuth(), h.markNotificationRead)
 		api.GET("/users/me/notification-preferences", h.requireAuth(), h.getNotificationPreferences)
 		api.PUT("/users/me/notification-preferences", h.requireAuth(), h.updateNotificationPreferences)
+		api.GET("/sw/config", h.webPushConfig)
+		api.POST("/sw/register", h.requireAuth(), h.registerWebPushSubscription)
+		api.POST("/sw/show-registration", h.requireAuth(), h.showWebPushSubscription)
+		api.POST("/sw/unregister", h.requireAuth(), h.unregisterWebPushSubscription)
 
 		api.GET("/credits/balance", h.requireAuth(), h.getCreditBalance)
 		api.GET("/credits/ledger", h.requireAuth(), h.listCreditLedger)

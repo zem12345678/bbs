@@ -101,6 +101,14 @@ test("keeps chat, return, and logout actions in the current app shell", () => {
   assert.match(chatSidebarSource, /onClick=\{\(\) => setTheme\(toggleTheme\(\)\)\}/);
 });
 
+test("clears browser push without blocking session invalidation", () => {
+  const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /void Promise\.allSettled\(\[\s*bbsApi\.logout\(accessToken\),\s*bestEffortRemoveWebPushSubscription\(accessToken, bbsApi\.unregisterWebPush\)\s*\]\)/);
+  assert.match(appSource, /clearAuth\(\);\s*void bestEffortRemoveWebPushSubscription\(failedToken, bbsApi\.unregisterWebPush\)/);
+  assert.match(appSource, /clearAuth\(\);\s*void bestEffortRemoveWebPushSubscription\(auth\.accessToken, bbsApi\.unregisterWebPush\)/);
+});
+
 test("keeps public announcements and hashtag search connected to the app shell", () => {
   const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   const announcementSource = fs.readFileSync(new URL("./components/SiteAnnouncements.jsx", import.meta.url), "utf8");

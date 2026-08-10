@@ -1,6 +1,9 @@
 package config
 
 import (
+	"bytes"
+	"crypto/elliptic"
+	"encoding/base64"
 	"reflect"
 	"testing"
 
@@ -15,6 +18,62 @@ func TestSkipNacos(t *testing.T) {
 	t.Setenv("BBS_NOTIFICATION_SKIP_NACOS", "true")
 	if !skipNacos() {
 		t.Fatal("skipNacos() = false with BBS_NOTIFICATION_SKIP_NACOS=true")
+	}
+}
+
+func TestValidateWebPushRequiresCompleteValidVAPIDConfig(t *testing.T) {
+	v := viper.New()
+	v.Set("webPush.enabled", true)
+	if err := validateWebPush(v); err == nil {
+		t.Fatal("enabled incomplete web push config was accepted")
+	}
+	privateBytes := make([]byte, 32)
+	privateBytes[31] = 2
+	publicX, publicY := elliptic.P256().ScalarBaseMult(privateBytes)
+	publicBytes := elliptic.Marshal(elliptic.P256(), publicX, publicY)
+	v.Set("webPush.subject", "mailto:admin@example.com")
+	v.Set("webPush.publicKey", base64.RawURLEncoding.EncodeToString(publicBytes))
+	v.Set("webPush.privateKey", base64.RawURLEncoding.EncodeToString(privateBytes))
+	if err := validateWebPush(v); err != nil {
+		t.Fatalf("valid web push config: %v", err)
+	}
+	v.Set("webPush.subject", "http://example.com")
+	if err := validateWebPush(v); err == nil {
+		t.Fatal("invalid web push subject was accepted")
+	}
+}
+
+func TestValidateVAPIDKeyPairRejectsInvalidAndMismatchedKeys(t *testing.T) {
+	privateKey := make([]byte, 32)
+	privateKey[31] = 3
+	publicX, publicY := elliptic.P256().ScalarBaseMult(privateKey)
+	publicKey := elliptic.Marshal(elliptic.P256(), publicX, publicY)
+	if err := validateVAPIDKeyPair(publicKey, privateKey); err != nil {
+		t.Fatalf("valid key pair: %v", err)
+	}
+	if err := validateVAPIDKeyPair(append([]byte{4}, bytes.Repeat([]byte{1}, 64)...), privateKey); err == nil {
+		t.Fatal("invalid public curve point was accepted")
+	}
+	if err := validateVAPIDKeyPair(publicKey, make([]byte, 32)); err == nil {
+		t.Fatal("zero private scalar was accepted")
+	}
+	mismatchedPrivateKey := make([]byte, 32)
+	mismatchedPrivateKey[31] = 4
+	if err := validateVAPIDKeyPair(publicKey, mismatchedPrivateKey); err == nil {
+		t.Fatal("mismatched key pair was accepted")
+	}
+}
+
+func TestApplyEnvOverridesSetsWebPushConfig(t *testing.T) {
+	t.Setenv("BBS_NOTIFICATION_WEB_PUSH_ENABLED", "true")
+	t.Setenv("BBS_NOTIFICATION_WEB_PUSH_SUBJECT", "mailto:push@example.com")
+	t.Setenv("BBS_NOTIFICATION_WEB_PUSH_PUBLIC_KEY", "public")
+	t.Setenv("BBS_NOTIFICATION_WEB_PUSH_PRIVATE_KEY", "private")
+	v := viper.New()
+	applyEnvOverrides(v)
+	if !v.GetBool("webPush.enabled") || v.GetString("webPush.subject") != "mailto:push@example.com" ||
+		v.GetString("webPush.publicKey") != "public" || v.GetString("webPush.privateKey") != "private" {
+		t.Fatalf("web push env config = %#v", v.GetStringMap("webPush"))
 	}
 }
 

@@ -11,6 +11,10 @@ service NotificationService {
   rpc MarkAllRead(MarkAllReadRequest) returns (MutationResponse);
   rpc GetPreferences(GetPreferencesRequest) returns (PreferencesResponse);
   rpc UpdatePreferences(UpdatePreferencesRequest) returns (PreferencesResponse);
+  rpc GetWebPushConfig(GetWebPushConfigRequest) returns (WebPushConfigResponse);
+  rpc RegisterWebPushSubscription(RegisterWebPushSubscriptionRequest) returns (WebPushSubscriptionResponse);
+  rpc GetWebPushSubscription(GetWebPushSubscriptionRequest) returns (WebPushSubscriptionResponse);
+  rpc UnregisterWebPushSubscription(UnregisterWebPushSubscriptionRequest) returns (MutationResponse);
 }
 
 message Notification {
@@ -74,6 +78,41 @@ message UpdatePreferencesRequest {
 
 message PreferencesResponse {
   repeated NotificationPreference items = 1;
+}
+
+message GetWebPushConfigRequest {}
+
+message WebPushConfigResponse {
+  bool enabled = 1;
+  string public_key = 2;
+}
+
+message RegisterWebPushSubscriptionRequest {
+  int64 user_id = 1;
+  string endpoint = 2;
+  string auth = 3;
+  string public_key = 4;
+  bool send_read_message = 5;
+}
+
+message GetWebPushSubscriptionRequest {
+  int64 user_id = 1;
+  string endpoint = 2;
+}
+
+message UnregisterWebPushSubscriptionRequest {
+  int64 user_id = 1;
+  string endpoint = 2;
+}
+
+message WebPushSubscriptionResponse {
+  bool registered = 1;
+  string state = 2;
+  int64 user_id = 3;
+  string endpoint = 4;
+  bool send_read_message = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
 }
 
 message MutationResponse {

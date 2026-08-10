@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	notificationservice "notification-service/internal/application/notification"
 	domain "notification-service/internal/domain/notification"
 	"notification-service/internal/infrastructure/messaging"
 	"notification-service/internal/infrastructure/persistence"
+	"notification-service/internal/infrastructure/webpush"
 	datasource "notification-service/internal/ioc/db/postgres"
 	iockafka "notification-service/internal/ioc/kafka"
 	"notification-service/pkg/logger"
@@ -41,12 +43,28 @@ func ProvideRepository(ctx context.Context, pool *pgxpool.Pool) (*persistence.Po
 	return persistence.NewPostgresRepository(pool), nil
 }
 
-func ProvideNotificationService(repo domain.Repository) *notificationservice.Service {
-	return notificationservice.NewService(repo)
+func ProvideWebPushConfig(v *viper.Viper) domain.WebPushConfig {
+	return domain.WebPushConfig{
+		Enabled:    v.GetBool("webPush.enabled"),
+		Subject:    strings.TrimSpace(v.GetString("webPush.subject")),
+		PublicKey:  strings.TrimSpace(v.GetString("webPush.publicKey")),
+		PrivateKey: strings.TrimSpace(v.GetString("webPush.privateKey")),
+	}
+}
+
+func ProvideNotificationService(repo domain.Repository, webPushConfig domain.WebPushConfig) *notificationservice.Service {
+	return notificationservice.NewService(repo, webPushConfig)
 }
 
 func ProvideProjector(service *notificationservice.Service) *messaging.Projector {
 	return messaging.NewProjector(service)
+}
+
+func ProvideWebPushDispatcher(repo *persistence.PostgresRepository, config domain.WebPushConfig, log logger.Logger) *webpush.Dispatcher {
+	if !config.Enabled {
+		return nil
+	}
+	return webpush.NewDispatcher(repo, webpush.NewSender(config), log)
 }
 
 func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOptions, projector *messaging.Projector, log logger.Logger) (*ConsumerRunner, error) {
@@ -136,8 +154,10 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideZapLogger,
 	ProvidePostgresPool,
 	ProvideRepository,
+	ProvideWebPushConfig,
 	ProvideNotificationService,
 	ProvideProjector,
+	ProvideWebPushDispatcher,
 	ProvideConsumerRunner,
 )
 

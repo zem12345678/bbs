@@ -515,6 +515,22 @@ a {
   color: var(--muted);
 }
 
+.notification-preference-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+
+.browser-push-preference {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.browser-push-preference .form-error {
+  margin: 0;
+}
+
 .notification-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

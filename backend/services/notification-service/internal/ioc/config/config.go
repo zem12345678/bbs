@@ -2,7 +2,11 @@ package config
 
 import (
 	"bytes"
+	"crypto/elliptic"
+	"encoding/base64"
 	"fmt"
+	"math/big"
+	"net/url"
 	"notification-service/pkg/uuid"
 	"os"
 	"strconv"
@@ -131,6 +135,10 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "postgres.dsn", "BBS_NOTIFICATION_POSTGRES_DSN")
 	bindEnv(v, "postgres.debug", "BBS_NOTIFICATION_POSTGRES_DEBUG")
 	bindEnv(v, "postgres.max_open_conns", "BBS_NOTIFICATION_POSTGRES_MAX_OPEN_CONNS")
+	bindEnv(v, "webPush.enabled", "BBS_NOTIFICATION_WEB_PUSH_ENABLED")
+	bindEnv(v, "webPush.subject", "BBS_NOTIFICATION_WEB_PUSH_SUBJECT")
+	bindEnv(v, "webPush.publicKey", "BBS_NOTIFICATION_WEB_PUSH_PUBLIC_KEY")
+	bindEnv(v, "webPush.privateKey", "BBS_NOTIFICATION_WEB_PUSH_PRIVATE_KEY")
 	bindEnv(v, "kafka.brokers", "BBS_NOTIFICATION_KAFKA_BROKERS")
 	bindEnv(v, "kafka.username", "BBS_NOTIFICATION_KAFKA_USERNAME")
 	bindEnv(v, "kafka.password", "BBS_NOTIFICATION_KAFKA_PASSWORD")
@@ -166,6 +174,10 @@ func applyEnvOverrides(v *viper.Viper) {
 	setStringEnv(v, "postgres.dsn", "BBS_NOTIFICATION_POSTGRES_DSN")
 	setStringEnv(v, "postgres.debug", "BBS_NOTIFICATION_POSTGRES_DEBUG")
 	setStringEnv(v, "postgres.max_open_conns", "BBS_NOTIFICATION_POSTGRES_MAX_OPEN_CONNS")
+	setStringEnv(v, "webPush.enabled", "BBS_NOTIFICATION_WEB_PUSH_ENABLED")
+	setStringEnv(v, "webPush.subject", "BBS_NOTIFICATION_WEB_PUSH_SUBJECT")
+	setStringEnv(v, "webPush.publicKey", "BBS_NOTIFICATION_WEB_PUSH_PUBLIC_KEY")
+	setStringEnv(v, "webPush.privateKey", "BBS_NOTIFICATION_WEB_PUSH_PRIVATE_KEY")
 	if value := strings.TrimSpace(os.Getenv("BBS_NOTIFICATION_KAFKA_BROKERS")); value != "" {
 		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(value))
 	}
@@ -233,11 +245,69 @@ func setInternalAuthDefault(v *viper.Viper) {
 }
 
 func validate(v *viper.Viper) error {
+	if err := validateWebPush(v); err != nil {
+		return err
+	}
 	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
 	if environment != "production" && environment != "prod" {
 		return nil
 	}
 	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+}
+
+func validateWebPush(v *viper.Viper) error {
+	if !v.GetBool("webPush.enabled") {
+		return nil
+	}
+	subject := strings.TrimSpace(v.GetString("webPush.subject"))
+	publicKey := strings.TrimSpace(v.GetString("webPush.publicKey"))
+	privateKey := strings.TrimSpace(v.GetString("webPush.privateKey"))
+	if subject == "" || publicKey == "" || privateKey == "" {
+		return errors.New("webPush.subject, webPush.publicKey and webPush.privateKey are required when web push is enabled")
+	}
+	parsedSubject, err := url.Parse(subject)
+	if err != nil || (parsedSubject.Scheme != "mailto" && parsedSubject.Scheme != "https") ||
+		(parsedSubject.Scheme == "mailto" && parsedSubject.Opaque == "") ||
+		(parsedSubject.Scheme == "https" && parsedSubject.Host == "") {
+		return errors.New("webPush.subject must be a mailto or https URI")
+	}
+	decodedPublic, err := decodeWebPushKey(publicKey)
+	if err != nil {
+		return errors.New("webPush.publicKey must be a valid uncompressed P-256 public key")
+	}
+	decodedPrivate, err := decodeWebPushKey(privateKey)
+	if err != nil {
+		return errors.New("webPush.privateKey must be a valid P-256 private key")
+	}
+	if err := validateVAPIDKeyPair(decodedPublic, decodedPrivate); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateVAPIDKeyPair(publicKey, privateKey []byte) error {
+	curve := elliptic.P256()
+	publicX, publicY := elliptic.Unmarshal(curve, publicKey)
+	if publicX == nil || publicY == nil {
+		return errors.New("webPush.publicKey must be a valid uncompressed P-256 public key")
+	}
+	privateScalar := new(big.Int).SetBytes(privateKey)
+	if len(privateKey) != 32 || privateScalar.Sign() <= 0 || privateScalar.Cmp(curve.Params().N) >= 0 {
+		return errors.New("webPush.privateKey must be a valid P-256 private key")
+	}
+	expectedX, expectedY := curve.ScalarBaseMult(privateKey)
+	if publicX.Cmp(expectedX) != 0 || publicY.Cmp(expectedY) != 0 {
+		return errors.New("webPush.publicKey and webPush.privateKey must be a matching P-256 key pair")
+	}
+	return nil
+}
+
+func decodeWebPushKey(value string) ([]byte, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err == nil {
+		return decoded, nil
+	}
+	return base64.URLEncoding.DecodeString(value)
 }
 
 func validateProductionInternalAuthToken(value string) error {

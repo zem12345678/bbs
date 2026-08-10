@@ -3,6 +3,8 @@ package notification
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -11,7 +13,9 @@ import (
 )
 
 type Service struct {
-	repo domain.Repository
+	repo          domain.Repository
+	webPushRepo   domain.WebPushRepository
+	webPushConfig domain.WebPushConfig
 }
 
 type MallDigitalEntitlement struct {
@@ -26,8 +30,93 @@ type MallDigitalEntitlement struct {
 	RefundID        int64
 }
 
-func NewService(repo domain.Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo domain.Repository, configs ...domain.WebPushConfig) *Service {
+	service := &Service{repo: repo}
+	if webPushRepo, ok := repo.(domain.WebPushRepository); ok {
+		service.webPushRepo = webPushRepo
+	}
+	if len(configs) > 0 {
+		service.webPushConfig = configs[0]
+	}
+	return service
+}
+
+func (s *Service) GetWebPushConfig() domain.WebPushConfig {
+	return domain.WebPushConfig{Enabled: s.webPushConfig.Enabled, PublicKey: s.webPushConfig.PublicKey}
+}
+
+func (s *Service) RegisterWebPushSubscription(ctx context.Context, subscription domain.WebPushSubscription) (domain.WebPushSubscription, error) {
+	if !s.webPushConfig.Enabled {
+		return domain.WebPushSubscription{}, domain.ErrWebPushDisabled
+	}
+	normalized, err := normalizeWebPushSubscription(subscription)
+	if err != nil || s.webPushRepo == nil {
+		return domain.WebPushSubscription{}, domain.ErrInvalidWebPushSubscription
+	}
+	return s.webPushRepo.UpsertWebPushSubscription(ctx, normalized, domain.WebPushMaxSubscriptionsPerUser)
+}
+
+func (s *Service) GetWebPushSubscription(ctx context.Context, userID int64, endpoint string) (domain.WebPushSubscription, error) {
+	endpoint, err := normalizeWebPushSubscriptionEndpoint(userID, endpoint)
+	if err != nil || s.webPushRepo == nil {
+		return domain.WebPushSubscription{}, domain.ErrInvalidWebPushSubscription
+	}
+	return s.webPushRepo.GetWebPushSubscription(ctx, userID, endpoint)
+}
+
+func (s *Service) UnregisterWebPushSubscription(ctx context.Context, userID int64, endpoint string) error {
+	endpoint, err := normalizeWebPushSubscriptionEndpoint(userID, endpoint)
+	if err != nil || s.webPushRepo == nil {
+		return domain.ErrInvalidWebPushSubscription
+	}
+	return s.webPushRepo.DeleteWebPushSubscription(ctx, userID, endpoint)
+}
+
+func normalizeWebPushSubscription(subscription domain.WebPushSubscription) (domain.WebPushSubscription, error) {
+	endpoint, err := normalizeWebPushSubscriptionEndpoint(subscription.UserID, subscription.Endpoint)
+	if err != nil {
+		return domain.WebPushSubscription{}, err
+	}
+	subscription.Auth = strings.TrimSpace(subscription.Auth)
+	subscription.PublicKey = strings.TrimSpace(subscription.PublicKey)
+	if subscription.Auth == "" || subscription.PublicKey == "" ||
+		len(subscription.Auth) > domain.WebPushMaxKeyBytes || len(subscription.PublicKey) > domain.WebPushMaxKeyBytes ||
+		strings.ContainsRune(subscription.Auth, '\x00') || strings.ContainsRune(subscription.PublicKey, '\x00') {
+		return domain.WebPushSubscription{}, domain.ErrInvalidWebPushSubscription
+	}
+	subscription.Endpoint = endpoint
+	subscription.State = domain.WebPushSubscriptionStateActive
+	return subscription, nil
+}
+
+func normalizeWebPushSubscriptionEndpoint(userID int64, endpoint string) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if userID <= 0 || endpoint == "" || len(endpoint) > domain.WebPushMaxEndpointBytes || strings.ContainsRune(endpoint, '\x00') {
+		return "", domain.ErrInvalidWebPushSubscription
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return "", domain.ErrInvalidWebPushSubscription
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "https":
+	case "http":
+		if !isLocalWebPushHost(parsed.Hostname()) {
+			return "", domain.ErrInvalidWebPushSubscription
+		}
+	default:
+		return "", domain.ErrInvalidWebPushSubscription
+	}
+	return parsed.String(), nil
+}
+
+func isLocalWebPushHost(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *Service) List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]domain.Notification, int64, int64, error) {

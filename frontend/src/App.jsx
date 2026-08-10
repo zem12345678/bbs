@@ -9,6 +9,7 @@ import { authInvalidationRedirect } from "./lib/authRedirect";
 import { AppSessionContext } from "./lib/appSession";
 import { normalizeCategoriesResponse, normalizeHashtagsResponse, normalizeTagsResponse } from "./lib/catalog";
 import { defaultSiteConfig, normalizeSiteConfig } from "./lib/siteConfig";
+import { bestEffortRemoveWebPushSubscription } from "./lib/webPush";
 import { defaultPage, pageRoutes, pageToPath, pathToPage } from "./routes";
 
 function lazyNamed(loader, exportName) {
@@ -101,7 +102,10 @@ function RoutedApp() {
     const accessToken = authRef.current?.accessToken;
     clearAuth();
     if (accessToken) {
-      void bbsApi.logout(accessToken).catch(() => {});
+      void Promise.allSettled([
+        bbsApi.logout(accessToken),
+        bestEffortRemoveWebPushSubscription(accessToken, bbsApi.unregisterWebPush)
+      ]);
     }
   }, [clearAuth]);
 
@@ -111,6 +115,7 @@ function RoutedApp() {
       const failedToken = event?.detail?.accessToken;
       if (!failedToken || failedToken !== authRef.current?.accessToken) return;
       clearAuth();
+      void bestEffortRemoveWebPushSubscription(failedToken, bbsApi.unregisterWebPush);
       const currentLocation = locationRef.current;
       navigate(authInvalidationRedirect(`${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}`), { replace: true });
     }
@@ -137,6 +142,7 @@ function RoutedApp() {
       .catch((error) => {
         if (!alive || !isUnauthorizedError(error) || authRef.current?.accessToken !== auth.accessToken) return;
         clearAuth();
+        void bestEffortRemoveWebPushSubscription(auth.accessToken, bbsApi.unregisterWebPush);
       });
     return () => {
       alive = false;

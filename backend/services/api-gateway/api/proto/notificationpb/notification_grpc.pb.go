@@ -19,12 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NotificationService_ListNotifications_FullMethodName = "/bbs.notification.v1.NotificationService/ListNotifications"
-	NotificationService_CountUnread_FullMethodName       = "/bbs.notification.v1.NotificationService/CountUnread"
-	NotificationService_MarkRead_FullMethodName          = "/bbs.notification.v1.NotificationService/MarkRead"
-	NotificationService_MarkAllRead_FullMethodName       = "/bbs.notification.v1.NotificationService/MarkAllRead"
-	NotificationService_GetPreferences_FullMethodName    = "/bbs.notification.v1.NotificationService/GetPreferences"
-	NotificationService_UpdatePreferences_FullMethodName = "/bbs.notification.v1.NotificationService/UpdatePreferences"
+	NotificationService_ListNotifications_FullMethodName             = "/bbs.notification.v1.NotificationService/ListNotifications"
+	NotificationService_CountUnread_FullMethodName                   = "/bbs.notification.v1.NotificationService/CountUnread"
+	NotificationService_MarkRead_FullMethodName                      = "/bbs.notification.v1.NotificationService/MarkRead"
+	NotificationService_MarkAllRead_FullMethodName                   = "/bbs.notification.v1.NotificationService/MarkAllRead"
+	NotificationService_GetPreferences_FullMethodName                = "/bbs.notification.v1.NotificationService/GetPreferences"
+	NotificationService_UpdatePreferences_FullMethodName             = "/bbs.notification.v1.NotificationService/UpdatePreferences"
+	NotificationService_GetWebPushConfig_FullMethodName              = "/bbs.notification.v1.NotificationService/GetWebPushConfig"
+	NotificationService_RegisterWebPushSubscription_FullMethodName   = "/bbs.notification.v1.NotificationService/RegisterWebPushSubscription"
+	NotificationService_GetWebPushSubscription_FullMethodName        = "/bbs.notification.v1.NotificationService/GetWebPushSubscription"
+	NotificationService_UnregisterWebPushSubscription_FullMethodName = "/bbs.notification.v1.NotificationService/UnregisterWebPushSubscription"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
@@ -37,6 +41,10 @@ type NotificationServiceClient interface {
 	MarkAllRead(ctx context.Context, in *MarkAllReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 	GetPreferences(ctx context.Context, in *GetPreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
 	UpdatePreferences(ctx context.Context, in *UpdatePreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
+	GetWebPushConfig(ctx context.Context, in *GetWebPushConfigRequest, opts ...grpc.CallOption) (*WebPushConfigResponse, error)
+	RegisterWebPushSubscription(ctx context.Context, in *RegisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error)
+	GetWebPushSubscription(ctx context.Context, in *GetWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error)
+	UnregisterWebPushSubscription(ctx context.Context, in *UnregisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 }
 
 type notificationServiceClient struct {
@@ -107,6 +115,46 @@ func (c *notificationServiceClient) UpdatePreferences(ctx context.Context, in *U
 	return out, nil
 }
 
+func (c *notificationServiceClient) GetWebPushConfig(ctx context.Context, in *GetWebPushConfigRequest, opts ...grpc.CallOption) (*WebPushConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebPushConfigResponse)
+	err := c.cc.Invoke(ctx, NotificationService_GetWebPushConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) RegisterWebPushSubscription(ctx context.Context, in *RegisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebPushSubscriptionResponse)
+	err := c.cc.Invoke(ctx, NotificationService_RegisterWebPushSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) GetWebPushSubscription(ctx context.Context, in *GetWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebPushSubscriptionResponse)
+	err := c.cc.Invoke(ctx, NotificationService_GetWebPushSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) UnregisterWebPushSubscription(ctx context.Context, in *UnregisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_UnregisterWebPushSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility.
@@ -117,6 +165,10 @@ type NotificationServiceServer interface {
 	MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error)
 	GetPreferences(context.Context, *GetPreferencesRequest) (*PreferencesResponse, error)
 	UpdatePreferences(context.Context, *UpdatePreferencesRequest) (*PreferencesResponse, error)
+	GetWebPushConfig(context.Context, *GetWebPushConfigRequest) (*WebPushConfigResponse, error)
+	RegisterWebPushSubscription(context.Context, *RegisterWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error)
+	GetWebPushSubscription(context.Context, *GetWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error)
+	UnregisterWebPushSubscription(context.Context, *UnregisterWebPushSubscriptionRequest) (*MutationResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }
 
@@ -144,6 +196,18 @@ func (UnimplementedNotificationServiceServer) GetPreferences(context.Context, *G
 }
 func (UnimplementedNotificationServiceServer) UpdatePreferences(context.Context, *UpdatePreferencesRequest) (*PreferencesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdatePreferences not implemented")
+}
+func (UnimplementedNotificationServiceServer) GetWebPushConfig(context.Context, *GetWebPushConfigRequest) (*WebPushConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWebPushConfig not implemented")
+}
+func (UnimplementedNotificationServiceServer) RegisterWebPushSubscription(context.Context, *RegisterWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterWebPushSubscription not implemented")
+}
+func (UnimplementedNotificationServiceServer) GetWebPushSubscription(context.Context, *GetWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetWebPushSubscription not implemented")
+}
+func (UnimplementedNotificationServiceServer) UnregisterWebPushSubscription(context.Context, *UnregisterWebPushSubscriptionRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnregisterWebPushSubscription not implemented")
 }
 func (UnimplementedNotificationServiceServer) mustEmbedUnimplementedNotificationServiceServer() {}
 func (UnimplementedNotificationServiceServer) testEmbeddedByValue()                             {}
@@ -274,6 +338,78 @@ func _NotificationService_UpdatePreferences_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotificationService_GetWebPushConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWebPushConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).GetWebPushConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_GetWebPushConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).GetWebPushConfig(ctx, req.(*GetWebPushConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_RegisterWebPushSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterWebPushSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).RegisterWebPushSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_RegisterWebPushSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).RegisterWebPushSubscription(ctx, req.(*RegisterWebPushSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_GetWebPushSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWebPushSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).GetWebPushSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_GetWebPushSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).GetWebPushSubscription(ctx, req.(*GetWebPushSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_UnregisterWebPushSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnregisterWebPushSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).UnregisterWebPushSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_UnregisterWebPushSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).UnregisterWebPushSubscription(ctx, req.(*UnregisterWebPushSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NotificationService_ServiceDesc is the grpc.ServiceDesc for NotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +440,22 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdatePreferences",
 			Handler:    _NotificationService_UpdatePreferences_Handler,
+		},
+		{
+			MethodName: "GetWebPushConfig",
+			Handler:    _NotificationService_GetWebPushConfig_Handler,
+		},
+		{
+			MethodName: "RegisterWebPushSubscription",
+			Handler:    _NotificationService_RegisterWebPushSubscription_Handler,
+		},
+		{
+			MethodName: "GetWebPushSubscription",
+			Handler:    _NotificationService_GetWebPushSubscription_Handler,
+		},
+		{
+			MethodName: "UnregisterWebPushSubscription",
+			Handler:    _NotificationService_UnregisterWebPushSubscription_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

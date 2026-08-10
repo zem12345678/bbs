@@ -52,8 +52,10 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	service := notificationapp.ProvideNotificationService(repo)
+	webPushConfig := notificationapp.ProvideWebPushConfig(v)
+	service := notificationapp.ProvideNotificationService(repo, webPushConfig)
 	projector := notificationapp.ProvideProjector(service)
+	webPushDispatcher := notificationapp.ProvideWebPushDispatcher(repo, webPushConfig, log)
 	kafkaOptions, err := iockafka.NewConsumerOptions(v, log)
 	if err != nil {
 		return nil, err
@@ -78,5 +80,5 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return notificationapp.NewApp(appOptions, zapLogger, transportServer, runner)
+	return notificationapp.NewApp(appOptions, zapLogger, transportServer, runner, webPushDispatcher)
 }
