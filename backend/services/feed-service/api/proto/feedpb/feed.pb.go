@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v5.29.1
-// source: feed.proto
+// source: api/proto/feed.proto
 
 package feedpb
 
@@ -32,7 +32,7 @@ type PurgeAccountFeedRequest struct {
 
 func (x *PurgeAccountFeedRequest) Reset() {
 	*x = PurgeAccountFeedRequest{}
-	mi := &file_feed_proto_msgTypes[0]
+	mi := &file_api_proto_feed_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +44,7 @@ func (x *PurgeAccountFeedRequest) String() string {
 func (*PurgeAccountFeedRequest) ProtoMessage() {}
 
 func (x *PurgeAccountFeedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[0]
+	mi := &file_api_proto_feed_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *PurgeAccountFeedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PurgeAccountFeedRequest.ProtoReflect.Descriptor instead.
 func (*PurgeAccountFeedRequest) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PurgeAccountFeedRequest) GetUserId() int64 {
@@ -91,7 +91,7 @@ type PurgeAccountFeedResponse struct {
 
 func (x *PurgeAccountFeedResponse) Reset() {
 	*x = PurgeAccountFeedResponse{}
-	mi := &file_feed_proto_msgTypes[1]
+	mi := &file_api_proto_feed_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -103,7 +103,7 @@ func (x *PurgeAccountFeedResponse) String() string {
 func (*PurgeAccountFeedResponse) ProtoMessage() {}
 
 func (x *PurgeAccountFeedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[1]
+	mi := &file_api_proto_feed_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -116,7 +116,7 @@ func (x *PurgeAccountFeedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PurgeAccountFeedResponse.ProtoReflect.Descriptor instead.
 func (*PurgeAccountFeedResponse) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PurgeAccountFeedResponse) GetCompleted() bool {
@@ -160,7 +160,7 @@ type FeedItem struct {
 
 func (x *FeedItem) Reset() {
 	*x = FeedItem{}
-	mi := &file_feed_proto_msgTypes[2]
+	mi := &file_api_proto_feed_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -172,7 +172,7 @@ func (x *FeedItem) String() string {
 func (*FeedItem) ProtoMessage() {}
 
 func (x *FeedItem) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[2]
+	mi := &file_api_proto_feed_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -185,7 +185,7 @@ func (x *FeedItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedItem.ProtoReflect.Descriptor instead.
 func (*FeedItem) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FeedItem) GetId() int64 {
@@ -332,7 +332,7 @@ type ListFeedRequest struct {
 
 func (x *ListFeedRequest) Reset() {
 	*x = ListFeedRequest{}
-	mi := &file_feed_proto_msgTypes[3]
+	mi := &file_api_proto_feed_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -344,7 +344,7 @@ func (x *ListFeedRequest) String() string {
 func (*ListFeedRequest) ProtoMessage() {}
 
 func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[3]
+	mi := &file_api_proto_feed_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -357,7 +357,7 @@ func (x *ListFeedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFeedRequest.ProtoReflect.Descriptor instead.
 func (*ListFeedRequest) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListFeedRequest) GetLimit() int32 {
@@ -381,6 +381,190 @@ func (x *ListFeedRequest) GetAuthorIds() []int64 {
 	return nil
 }
 
+type FeedKeywordGroup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Terms         []string               `protobuf:"bytes,1,rep,name=terms,proto3" json:"terms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FeedKeywordGroup) Reset() {
+	*x = FeedKeywordGroup{}
+	mi := &file_api_proto_feed_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FeedKeywordGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FeedKeywordGroup) ProtoMessage() {}
+
+func (x *FeedKeywordGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_feed_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FeedKeywordGroup.ProtoReflect.Descriptor instead.
+func (*FeedKeywordGroup) Descriptor() ([]byte, []int) {
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FeedKeywordGroup) GetTerms() []string {
+	if x != nil {
+		return x.Terms
+	}
+	return nil
+}
+
+type FilteredFeedRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Limit             int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset            int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	AuthorIds         []int64                `protobuf:"varint,3,rep,packed,name=author_ids,json=authorIds,proto3" json:"author_ids,omitempty"`
+	ExcludedAuthorIds []int64                `protobuf:"varint,4,rep,packed,name=excluded_author_ids,json=excludedAuthorIds,proto3" json:"excluded_author_ids,omitempty"`
+	Keywords          []*FeedKeywordGroup    `protobuf:"bytes,5,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	ExcludeKeywords   []*FeedKeywordGroup    `protobuf:"bytes,6,rep,name=exclude_keywords,json=excludeKeywords,proto3" json:"exclude_keywords,omitempty"`
+	CaseSensitive     bool                   `protobuf:"varint,7,opt,name=case_sensitive,json=caseSensitive,proto3" json:"case_sensitive,omitempty"`
+	WithFile          bool                   `protobuf:"varint,8,opt,name=with_file,json=withFile,proto3" json:"with_file,omitempty"`
+	SincePublishedAt  int64                  `protobuf:"varint,9,opt,name=since_published_at,json=sincePublishedAt,proto3" json:"since_published_at,omitempty"`
+	UntilPublishedAt  int64                  `protobuf:"varint,10,opt,name=until_published_at,json=untilPublishedAt,proto3" json:"until_published_at,omitempty"`
+	SinceId           int64                  `protobuf:"varint,11,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
+	UntilId           int64                  `protobuf:"varint,12,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
+	RestrictAuthors   bool                   `protobuf:"varint,13,opt,name=restrict_authors,json=restrictAuthors,proto3" json:"restrict_authors,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *FilteredFeedRequest) Reset() {
+	*x = FilteredFeedRequest{}
+	mi := &file_api_proto_feed_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilteredFeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilteredFeedRequest) ProtoMessage() {}
+
+func (x *FilteredFeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_feed_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilteredFeedRequest.ProtoReflect.Descriptor instead.
+func (*FilteredFeedRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FilteredFeedRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetAuthorIds() []int64 {
+	if x != nil {
+		return x.AuthorIds
+	}
+	return nil
+}
+
+func (x *FilteredFeedRequest) GetExcludedAuthorIds() []int64 {
+	if x != nil {
+		return x.ExcludedAuthorIds
+	}
+	return nil
+}
+
+func (x *FilteredFeedRequest) GetKeywords() []*FeedKeywordGroup {
+	if x != nil {
+		return x.Keywords
+	}
+	return nil
+}
+
+func (x *FilteredFeedRequest) GetExcludeKeywords() []*FeedKeywordGroup {
+	if x != nil {
+		return x.ExcludeKeywords
+	}
+	return nil
+}
+
+func (x *FilteredFeedRequest) GetCaseSensitive() bool {
+	if x != nil {
+		return x.CaseSensitive
+	}
+	return false
+}
+
+func (x *FilteredFeedRequest) GetWithFile() bool {
+	if x != nil {
+		return x.WithFile
+	}
+	return false
+}
+
+func (x *FilteredFeedRequest) GetSincePublishedAt() int64 {
+	if x != nil {
+		return x.SincePublishedAt
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetUntilPublishedAt() int64 {
+	if x != nil {
+		return x.UntilPublishedAt
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetSinceId() int64 {
+	if x != nil {
+		return x.SinceId
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetUntilId() int64 {
+	if x != nil {
+		return x.UntilId
+	}
+	return 0
+}
+
+func (x *FilteredFeedRequest) GetRestrictAuthors() bool {
+	if x != nil {
+		return x.RestrictAuthors
+	}
+	return false
+}
+
 type FeedListResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*FeedItem            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
@@ -390,7 +574,7 @@ type FeedListResponse struct {
 
 func (x *FeedListResponse) Reset() {
 	*x = FeedListResponse{}
-	mi := &file_feed_proto_msgTypes[4]
+	mi := &file_api_proto_feed_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +586,7 @@ func (x *FeedListResponse) String() string {
 func (*FeedListResponse) ProtoMessage() {}
 
 func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_feed_proto_msgTypes[4]
+	mi := &file_api_proto_feed_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +599,7 @@ func (x *FeedListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeedListResponse.ProtoReflect.Descriptor instead.
 func (*FeedListResponse) Descriptor() ([]byte, []int) {
-	return file_feed_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_feed_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *FeedListResponse) GetItems() []*FeedItem {
@@ -425,12 +609,11 @@ func (x *FeedListResponse) GetItems() []*FeedItem {
 	return nil
 }
 
-var File_feed_proto protoreflect.FileDescriptor
+var File_api_proto_feed_proto protoreflect.FileDescriptor
 
-const file_feed_proto_rawDesc = "" +
+const file_api_proto_feed_proto_rawDesc = "" +
 	"\n" +
-	"\n" +
-	"feed.proto\x12\vbbs.feed.v1\"\x81\x01\n" +
+	"\x14api/proto/feed.proto\x12\vbbs.feed.v1\"\x81\x01\n" +
 	"\x17PurgeAccountFeedRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
 	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
@@ -469,74 +652,99 @@ const file_feed_proto_rawDesc = "" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1d\n" +
 	"\n" +
-	"author_ids\x18\x03 \x03(\x03R\tauthorIds\"?\n" +
+	"author_ids\x18\x03 \x03(\x03R\tauthorIds\"(\n" +
+	"\x10FeedKeywordGroup\x12\x14\n" +
+	"\x05terms\x18\x01 \x03(\tR\x05terms\"\x98\x04\n" +
+	"\x13FilteredFeedRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1d\n" +
+	"\n" +
+	"author_ids\x18\x03 \x03(\x03R\tauthorIds\x12.\n" +
+	"\x13excluded_author_ids\x18\x04 \x03(\x03R\x11excludedAuthorIds\x129\n" +
+	"\bkeywords\x18\x05 \x03(\v2\x1d.bbs.feed.v1.FeedKeywordGroupR\bkeywords\x12H\n" +
+	"\x10exclude_keywords\x18\x06 \x03(\v2\x1d.bbs.feed.v1.FeedKeywordGroupR\x0fexcludeKeywords\x12%\n" +
+	"\x0ecase_sensitive\x18\a \x01(\bR\rcaseSensitive\x12\x1b\n" +
+	"\twith_file\x18\b \x01(\bR\bwithFile\x12,\n" +
+	"\x12since_published_at\x18\t \x01(\x03R\x10sincePublishedAt\x12,\n" +
+	"\x12until_published_at\x18\n" +
+	" \x01(\x03R\x10untilPublishedAt\x12\x19\n" +
+	"\bsince_id\x18\v \x01(\x03R\asinceId\x12\x19\n" +
+	"\buntil_id\x18\f \x01(\x03R\auntilId\x12)\n" +
+	"\x10restrict_authors\x18\r \x01(\bR\x0frestrictAuthors\"?\n" +
 	"\x10FeedListResponse\x12+\n" +
-	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\xcc\x02\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.bbs.feed.v1.FeedItemR\x05items2\x9d\x03\n" +
 	"\vFeedService\x12I\n" +
 	"\n" +
 	"ListLatest\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12F\n" +
 	"\aListHot\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12I\n" +
 	"\n" +
-	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12_\n" +
+	"ListActive\x12\x1c.bbs.feed.v1.ListFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12O\n" +
+	"\fListFiltered\x12 .bbs.feed.v1.FilteredFeedRequest\x1a\x1d.bbs.feed.v1.FeedListResponse\x12_\n" +
 	"\x10PurgeAccountFeed\x12$.bbs.feed.v1.PurgeAccountFeedRequest\x1a%.bbs.feed.v1.PurgeAccountFeedResponseB&Z$feed-service/api/proto/feedpb;feedpbb\x06proto3"
 
 var (
-	file_feed_proto_rawDescOnce sync.Once
-	file_feed_proto_rawDescData []byte
+	file_api_proto_feed_proto_rawDescOnce sync.Once
+	file_api_proto_feed_proto_rawDescData []byte
 )
 
-func file_feed_proto_rawDescGZIP() []byte {
-	file_feed_proto_rawDescOnce.Do(func() {
-		file_feed_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_feed_proto_rawDesc), len(file_feed_proto_rawDesc)))
+func file_api_proto_feed_proto_rawDescGZIP() []byte {
+	file_api_proto_feed_proto_rawDescOnce.Do(func() {
+		file_api_proto_feed_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_feed_proto_rawDesc), len(file_api_proto_feed_proto_rawDesc)))
 	})
-	return file_feed_proto_rawDescData
+	return file_api_proto_feed_proto_rawDescData
 }
 
-var file_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
-var file_feed_proto_goTypes = []any{
+var file_api_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_proto_feed_proto_goTypes = []any{
 	(*PurgeAccountFeedRequest)(nil),  // 0: bbs.feed.v1.PurgeAccountFeedRequest
 	(*PurgeAccountFeedResponse)(nil), // 1: bbs.feed.v1.PurgeAccountFeedResponse
 	(*FeedItem)(nil),                 // 2: bbs.feed.v1.FeedItem
 	(*ListFeedRequest)(nil),          // 3: bbs.feed.v1.ListFeedRequest
-	(*FeedListResponse)(nil),         // 4: bbs.feed.v1.FeedListResponse
+	(*FeedKeywordGroup)(nil),         // 4: bbs.feed.v1.FeedKeywordGroup
+	(*FilteredFeedRequest)(nil),      // 5: bbs.feed.v1.FilteredFeedRequest
+	(*FeedListResponse)(nil),         // 6: bbs.feed.v1.FeedListResponse
 }
-var file_feed_proto_depIdxs = []int32{
-	2, // 0: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
-	3, // 1: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
-	3, // 2: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
-	3, // 3: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
-	0, // 4: bbs.feed.v1.FeedService.PurgeAccountFeed:input_type -> bbs.feed.v1.PurgeAccountFeedRequest
-	4, // 5: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
-	4, // 6: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
-	4, // 7: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
-	1, // 8: bbs.feed.v1.FeedService.PurgeAccountFeed:output_type -> bbs.feed.v1.PurgeAccountFeedResponse
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+var file_api_proto_feed_proto_depIdxs = []int32{
+	4, // 0: bbs.feed.v1.FilteredFeedRequest.keywords:type_name -> bbs.feed.v1.FeedKeywordGroup
+	4, // 1: bbs.feed.v1.FilteredFeedRequest.exclude_keywords:type_name -> bbs.feed.v1.FeedKeywordGroup
+	2, // 2: bbs.feed.v1.FeedListResponse.items:type_name -> bbs.feed.v1.FeedItem
+	3, // 3: bbs.feed.v1.FeedService.ListLatest:input_type -> bbs.feed.v1.ListFeedRequest
+	3, // 4: bbs.feed.v1.FeedService.ListHot:input_type -> bbs.feed.v1.ListFeedRequest
+	3, // 5: bbs.feed.v1.FeedService.ListActive:input_type -> bbs.feed.v1.ListFeedRequest
+	5, // 6: bbs.feed.v1.FeedService.ListFiltered:input_type -> bbs.feed.v1.FilteredFeedRequest
+	0, // 7: bbs.feed.v1.FeedService.PurgeAccountFeed:input_type -> bbs.feed.v1.PurgeAccountFeedRequest
+	6, // 8: bbs.feed.v1.FeedService.ListLatest:output_type -> bbs.feed.v1.FeedListResponse
+	6, // 9: bbs.feed.v1.FeedService.ListHot:output_type -> bbs.feed.v1.FeedListResponse
+	6, // 10: bbs.feed.v1.FeedService.ListActive:output_type -> bbs.feed.v1.FeedListResponse
+	6, // 11: bbs.feed.v1.FeedService.ListFiltered:output_type -> bbs.feed.v1.FeedListResponse
+	1, // 12: bbs.feed.v1.FeedService.PurgeAccountFeed:output_type -> bbs.feed.v1.PurgeAccountFeedResponse
+	8, // [8:13] is the sub-list for method output_type
+	3, // [3:8] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_feed_proto_init() }
-func file_feed_proto_init() {
-	if File_feed_proto != nil {
+func init() { file_api_proto_feed_proto_init() }
+func file_api_proto_feed_proto_init() {
+	if File_api_proto_feed_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_feed_proto_rawDesc), len(file_feed_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_feed_proto_rawDesc), len(file_api_proto_feed_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_feed_proto_goTypes,
-		DependencyIndexes: file_feed_proto_depIdxs,
-		MessageInfos:      file_feed_proto_msgTypes,
+		GoTypes:           file_api_proto_feed_proto_goTypes,
+		DependencyIndexes: file_api_proto_feed_proto_depIdxs,
+		MessageInfos:      file_api_proto_feed_proto_msgTypes,
 	}.Build()
-	File_feed_proto = out.File
-	file_feed_proto_goTypes = nil
-	file_feed_proto_depIdxs = nil
+	File_api_proto_feed_proto = out.File
+	file_api_proto_feed_proto_goTypes = nil
+	file_api_proto_feed_proto_depIdxs = nil
 }

@@ -220,6 +220,52 @@ func (r *RedisRepository) ListActive(ctx context.Context, limit, offset int) ([]
 	return r.list(ctx, latestKey, limit, offset)
 }
 
+func (r *RedisRepository) ListFiltered(ctx context.Context, filter domain.Filter) ([]domain.Item, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	authors := idSet(filter.AuthorIDs)
+	excluded := idSet(filter.ExcludedAuthorIDs)
+	items := make([]domain.Item, 0, filter.Limit)
+	var cursor int64
+	const batchSize = int64(200)
+	for {
+		ids, err := r.rdb.ZRevRange(ctx, latestKey, cursor, cursor+batchSize-1).Result()
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+		for _, rawID := range ids {
+			id, err := strconv.ParseInt(rawID, 10, 64)
+			if err != nil {
+				continue
+			}
+			item, err := r.get(ctx, id)
+			if err != nil || !matchesFilter(item, filter, authors, excluded) {
+				continue
+			}
+			if filter.Offset > 0 {
+				filter.Offset--
+				continue
+			}
+			items = append(items, item)
+			if len(items) >= filter.Limit {
+				return items, nil
+			}
+		}
+		cursor += int64(len(ids))
+		if len(ids) < int(batchSize) {
+			break
+		}
+	}
+	return items, nil
+}
+
 func (r *RedisRepository) PurgeByAuthor(ctx context.Context, userID int64) (int64, error) {
 	if userID <= 0 {
 		return 0, fmt.Errorf("user ID must be greater than zero")
@@ -560,6 +606,72 @@ func uniquePositiveIDs(ids []int64) []int64 {
 		result = append(result, id)
 	}
 	return result
+}
+
+func idSet(ids []int64) map[int64]struct{} {
+	set := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			set[id] = struct{}{}
+		}
+	}
+	return set
+}
+
+func matchesFilter(item domain.Item, filter domain.Filter, authors, excluded map[int64]struct{}) bool {
+	if filter.RestrictAuthors {
+		if _, ok := authors[item.AuthorID]; !ok {
+			return false
+		}
+	}
+	if _, ok := excluded[item.AuthorID]; ok {
+		return false
+	}
+	if filter.SincePublishedAt > 0 && item.PublishedAt <= filter.SincePublishedAt {
+		return false
+	}
+	if filter.UntilPublishedAt > 0 && item.PublishedAt >= filter.UntilPublishedAt {
+		return false
+	}
+	if filter.SinceID > 0 && item.ID <= filter.SinceID {
+		return false
+	}
+	if filter.UntilID > 0 && item.ID >= filter.UntilID {
+		return false
+	}
+	if filter.WithFile && strings.TrimSpace(item.CoverURL) == "" {
+		return false
+	}
+	text := item.Title + "\n" + item.Summary + "\n" + item.Body + "\n" + strings.Join(item.Tags, " ") + "\n" + item.Slug
+	if len(filter.Keywords) > 0 && !matchesKeywordGroups(text, filter.Keywords, filter.CaseSensitive) {
+		return false
+	}
+	return !matchesKeywordGroups(text, filter.ExcludeKeywords, filter.CaseSensitive)
+}
+
+func matchesKeywordGroups(text string, groups [][]string, caseSensitive bool) bool {
+	if len(groups) == 0 {
+		return false
+	}
+	if !caseSensitive {
+		text = strings.ToLower(text)
+	}
+	for _, group := range groups {
+		matched := len(group) > 0
+		for _, term := range group {
+			if !caseSensitive {
+				term = strings.ToLower(term)
+			}
+			if term == "" || !strings.Contains(text, term) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func hotScore(item domain.Item) float64 {

@@ -73,6 +73,11 @@ service UserService {
   rpc CopyUserList(CopyUserListRequest) returns (UserListInfoResponse);
   rpc FavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
   rpc UnfavoriteUserList(UserListFavoriteRequest) returns (UserListInfoResponse);
+  rpc CreateAntenna(CreateAntennaRequest) returns (AntennaInfoResponse);
+  rpc UpdateAntenna(UpdateAntennaRequest) returns (AntennaInfoResponse);
+  rpc DeleteAntenna(DeleteAntennaRequest) returns (SimpleResponse);
+  rpc GetAntenna(GetAntennaRequest) returns (AntennaInfoResponse);
+  rpc ListAntennas(ListAntennasRequest) returns (AntennaListResponse);
   rpc ListSessions(ListSessionsRequest) returns (SessionListResponse);
   rpc GetSession(GetSessionRequest) returns (SessionResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
@@ -284,6 +289,57 @@ message UserListFavoriteRequest {
   int64 list_id = 2;
 }
 
+message AntennaKeywordGroup {
+  repeated string terms = 1;
+}
+
+message CreateAntennaRequest {
+  int64 owner_id = 1;
+  string name = 2;
+  string source = 3;
+  int64 user_list_id = 4;
+  repeated AntennaKeywordGroup keywords = 5;
+  repeated AntennaKeywordGroup exclude_keywords = 6;
+  repeated string users = 7;
+  bool case_sensitive = 8;
+  bool local_only = 9;
+  bool exclude_bots = 10;
+  bool with_replies = 11;
+  bool with_file = 12;
+  bool exclude_notes_in_sensitive_channel = 13;
+}
+
+message UpdateAntennaRequest {
+  int64 owner_id = 1;
+  int64 antenna_id = 2;
+  string name = 3;
+  string source = 4;
+  int64 user_list_id = 5;
+  repeated AntennaKeywordGroup keywords = 6;
+  repeated AntennaKeywordGroup exclude_keywords = 7;
+  repeated string users = 8;
+  bool case_sensitive = 9;
+  bool local_only = 10;
+  bool exclude_bots = 11;
+  bool with_replies = 12;
+  bool with_file = 13;
+  bool exclude_notes_in_sensitive_channel = 14;
+}
+
+message DeleteAntennaRequest {
+  int64 owner_id = 1;
+  int64 antenna_id = 2;
+}
+
+message GetAntennaRequest {
+  int64 owner_id = 1;
+  int64 antenna_id = 2;
+}
+
+message ListAntennasRequest {
+  int64 owner_id = 1;
+}
+
 message WebmasterLoginRequest {
   string username = 1;
   string password = 2;
@@ -444,6 +500,36 @@ message UserListInfoResponse {
 
 message UserListsResponse {
   repeated UserListInfo items = 1;
+  int64 total = 2;
+}
+
+message AntennaInfo {
+  int64 id = 1;
+  int64 owner_id = 2;
+  string name = 3;
+  string source = 4;
+  int64 user_list_id = 5;
+  repeated AntennaKeywordGroup keywords = 6;
+  repeated AntennaKeywordGroup exclude_keywords = 7;
+  repeated string users = 8;
+  bool case_sensitive = 9;
+  bool local_only = 10;
+  bool exclude_bots = 11;
+  bool with_replies = 12;
+  bool with_file = 13;
+  bool exclude_notes_in_sensitive_channel = 14;
+  bool is_active = 15;
+  int64 created_at = 16;
+  int64 updated_at = 17;
+  int64 last_used_at = 18;
+}
+
+message AntennaInfoResponse {
+  AntennaInfo antenna = 1;
+}
+
+message AntennaListResponse {
+  repeated AntennaInfo items = 1;
   int64 total = 2;
 }
 

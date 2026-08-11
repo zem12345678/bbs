@@ -213,6 +213,13 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	if err := repo.FavoriteUserList(ctx, domain.UserListFavorite{ListID: otherList.ID, UserID: userID}); err != nil {
 		t.Fatalf("favorite other list: %v", err)
 	}
+	antenna, err := domain.NewAntenna(base+550, userID, "Private interests", "all", 0, [][]string{{"private", "topic"}}, nil, nil, false, false, false, false, false, false)
+	if err != nil {
+		t.Fatalf("new antenna: %v", err)
+	}
+	if err := repo.CreateAntenna(ctx, antenna); err != nil {
+		t.Fatalf("create antenna: %v", err)
+	}
 
 	request, err := repo.RequestAccountDeletion(ctx, domain.AccountDeletionRequest{
 		JobID: base + 600, UserID: userID, ActorUserID: userID,
@@ -279,6 +286,13 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	}
 	if finalized.AccountState != domain.AccountStateAnonymized || finalized.Username == users[0].Username || finalized.Email == users[0].Email || finalized.Nickname != "已注销用户" || finalized.AvatarURL != "" || finalized.CredentialVersion != finalCredential || finalized.DeletedAt == nil {
 		t.Fatalf("finalized user=%+v", finalized)
+	}
+	var antennaCount int64
+	if err := db.Model(&antennaPO{}).Where("owner_id = ?", userID).Count(&antennaCount).Error; err != nil {
+		t.Fatalf("count erased antennas: %v", err)
+	}
+	if antennaCount != 0 {
+		t.Fatalf("erased antenna count = %d, want 0", antennaCount)
 	}
 	var outbox struct {
 		EventType string

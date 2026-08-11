@@ -37,5 +37,6 @@ func (c *Clients) initFeed(grpcClient *iocgrpc.Client, o Options) error {
 		return err
 	}
 	c.Feed = feedpb.NewFeedServiceClient(conn)
+	c.FeedFiltered = c.Feed.(FeedFilteredClient)
 	return nil
 }

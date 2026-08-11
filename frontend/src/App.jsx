@@ -457,6 +457,14 @@ function RoutedApp() {
           <Route
             element={
               <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
+                <UserRoutePage auth={auth} view="antennas" />
+              </FramedRoutePage>
+            }
+            path="/user/antennas"
+          />
+          <Route
+            element={
+              <FramedRoutePage activePage="会员" categories={categories} hotTags={hotTags} siteConfig={siteConfig}>
                 <UserRoutePage auth={auth} view="messages" />
               </FramedRoutePage>
             }

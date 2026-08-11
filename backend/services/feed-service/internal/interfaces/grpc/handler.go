@@ -65,6 +65,28 @@ func (h *Handler) ListActive(ctx context.Context, req *pb.ListFeedRequest) (*pb.
 	return &pb.FeedListResponse{Items: toPbList(items)}, nil
 }
 
+func (h *Handler) ListFiltered(ctx context.Context, req *pb.FilteredFeedRequest) (*pb.FeedListResponse, error) {
+	items, err := h.qry.ListFiltered(ctx, domain.Filter{
+		Limit: int(req.GetLimit()), Offset: int(req.GetOffset()), AuthorIDs: req.GetAuthorIds(), ExcludedAuthorIDs: req.GetExcludedAuthorIds(),
+		Keywords: fromPbFilterKeywords(req.GetKeywords()), ExcludeKeywords: fromPbFilterKeywords(req.GetExcludeKeywords()),
+		CaseSensitive: req.GetCaseSensitive(), WithFile: req.GetWithFile(), RestrictAuthors: req.GetRestrictAuthors(), SincePublishedAt: req.GetSincePublishedAt(), UntilPublishedAt: req.GetUntilPublishedAt(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pb.FeedListResponse{Items: toPbList(items)}, nil
+}
+
+func fromPbFilterKeywords(groups []*pb.FeedKeywordGroup) [][]string {
+	out := make([][]string, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			out = append(out, append([]string(nil), group.GetTerms()...))
+		}
+	}
+	return out
+}
+
 func toPbList(items []domain.Item) []*pb.FeedItem {
 	out := make([]*pb.FeedItem, 0, len(items))
 	for _, item := range items {

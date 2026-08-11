@@ -36,5 +36,16 @@ type Repository interface {
 	ListLatest(ctx context.Context, limit, offset int, authorIDs []int64) ([]Item, error)
 	ListHot(ctx context.Context, limit, offset int) ([]Item, error)
 	ListActive(ctx context.Context, limit, offset int) ([]Item, error)
+	ListFiltered(ctx context.Context, filter Filter) ([]Item, error)
 	PurgeByAuthor(ctx context.Context, userID int64) (int64, error)
+}
+
+type Filter struct {
+	Limit, Offset                      int
+	AuthorIDs, ExcludedAuthorIDs       []int64
+	Keywords, ExcludeKeywords          [][]string
+	CaseSensitive, WithFile            bool
+	RestrictAuthors                    bool
+	SincePublishedAt, UntilPublishedAt int64
+	SinceID, UntilID                   int64
 }

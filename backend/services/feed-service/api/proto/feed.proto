@@ -8,6 +8,7 @@ service FeedService {
   rpc ListLatest(ListFeedRequest) returns (FeedListResponse);
   rpc ListHot(ListFeedRequest) returns (FeedListResponse);
   rpc ListActive(ListFeedRequest) returns (FeedListResponse);
+  rpc ListFiltered(FilteredFeedRequest) returns (FeedListResponse);
   rpc PurgeAccountFeed(PurgeAccountFeedRequest) returns (PurgeAccountFeedResponse);
 }
 
@@ -48,6 +49,26 @@ message ListFeedRequest {
   int32 limit = 1;
   int32 offset = 2;
   repeated int64 author_ids = 3;
+}
+
+message FeedKeywordGroup {
+  repeated string terms = 1;
+}
+
+message FilteredFeedRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  repeated int64 author_ids = 3;
+  repeated int64 excluded_author_ids = 4;
+  repeated FeedKeywordGroup keywords = 5;
+  repeated FeedKeywordGroup exclude_keywords = 6;
+  bool case_sensitive = 7;
+  bool with_file = 8;
+  int64 since_published_at = 9;
+  int64 until_published_at = 10;
+  int64 since_id = 11;
+  int64 until_id = 12;
+  bool restrict_authors = 13;
 }
 
 message FeedListResponse {

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, Radio, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -35,6 +35,7 @@ const currentUserTabs = [
   { value: "favorites", label: "收藏", icon: Star, path: "/user/favorites" },
   { value: "likes", label: "点赞", icon: Heart, path: "/user/likes" },
   { value: "lists", label: "用户列表", icon: ListFilter, path: "/user/lists" },
+  { value: "antennas", label: "天线", icon: Radio, path: "/user/antennas" },
   { value: "messages", label: "消息", icon: Bell, path: "/user/messages" },
   { value: "safety", label: "屏蔽与静音", icon: ShieldOff, path: "/user/safety" },
   { value: "scores", label: "积分", icon: Trophy, path: "/user/scores" }
@@ -161,6 +162,7 @@ export function UserRoutePage({ auth, view = "profile", onAuthInvalidated }) {
       {activeValue === "favorites" && <UserFavoritesPanel auth={auth} />}
       {activeValue === "likes" && <UserInteractionPanel auth={auth} mode="likes" />}
       {activeValue === "lists" && <UserListsPanel auth={auth} editable={!publicSpace} ownerId={userId} />}
+      {activeValue === "antennas" && !publicSpace && <UserAntennaPanel auth={auth} />}
       {activeValue === "messages" && <UserMessagesPanel auth={auth} />}
       {activeValue === "safety" && <UserSafetyPanel auth={auth} />}
       {activeValue === "scores" && <UserScoresPanel auth={auth} />}
@@ -3476,6 +3478,171 @@ function UserListsPanel({ auth, editable, ownerId }) {
     </section>
   );
 }
+
+const EMPTY_ANTENNA_FORM = {
+  name: "",
+  src: "all",
+  userListId: "",
+  keywords: "",
+  excludeKeywords: "",
+  users: "",
+  caseSensitive: false,
+  localOnly: false,
+  excludeBots: false,
+  withReplies: false,
+  withFile: false,
+  excludeNotesInSensitiveChannel: false
+};
+
+function UserAntennaPanel({ auth }) {
+  const token = auth?.accessToken || "";
+  const [state, setState] = React.useState({ items: [], selected: "", posts: [], loading: false, notesLoading: false, error: "" });
+  const [form, setForm] = React.useState(null);
+  const [action, setAction] = React.useState({ busy: "", error: "", notice: "" });
+  const requestRef = React.useRef(0);
+  const selectedRef = React.useRef("");
+
+  const loadAntennas = React.useCallback(async (preferredId = "") => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    if (!token) {
+      setState({ items: [], selected: "", posts: [], loading: false, notesLoading: false, error: "" });
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = await bbsApi.listAntennas(token);
+      if (requestRef.current !== requestId) return;
+      const items = listItems(data);
+      const selected = String(preferredId || selectedRef.current || items[0]?.id || "");
+      selectedRef.current = selected;
+      setState((current) => ({ ...current, items, selected, loading: false, error: "" }));
+      if (selected) await loadAntennaNotes(selected, requestId);
+    } catch (error) {
+      if (requestRef.current !== requestId) return;
+      setState({ items: [], selected: "", posts: [], loading: false, notesLoading: false, error: error.message || "天线加载失败" });
+    }
+  }, [token]);
+
+  const loadAntennaNotes = React.useCallback(async (antennaId, parentRequestId = requestRef.current) => {
+    if (!antennaId || !token) return;
+    setState((current) => ({ ...current, notesLoading: true, error: "" }));
+    try {
+      const data = await bbsApi.antennaNotes(antennaId, { limit: 20 }, token);
+      const rawItems = listItems(data);
+      const posts = await hydratePostsMeta(rawItems.map((item) => feedItemToPost(item, auth)), auth, { skipCounts: true });
+      if (requestRef.current !== parentRequestId) return;
+      setState((current) => ({ ...current, posts: uniquePosts(posts), notesLoading: false }));
+    } catch (error) {
+      if (requestRef.current !== parentRequestId) return;
+      setState((current) => ({ ...current, posts: [], notesLoading: false, error: error.message || "天线内容加载失败" }));
+    }
+  }, [auth, token]);
+
+  React.useEffect(() => {
+    loadAntennas();
+    return () => { requestRef.current += 1; };
+  }, [loadAntennas]);
+
+  function selectAntenna(id) {
+    const selected = String(id || "");
+    selectedRef.current = selected;
+    setState((current) => ({ ...current, selected }));
+    setForm(null);
+    loadAntennaNotes(selected);
+  }
+
+  function startCreate() {
+    setForm({ ...EMPTY_ANTENNA_FORM });
+    setAction({ busy: "", error: "", notice: "" });
+  }
+
+  function startEdit(item) {
+    setForm(antennaToForm(item));
+    setAction({ busy: "", error: "", notice: "" });
+  }
+
+  async function saveAntenna(event) {
+    event.preventDefault();
+    if (!form || !token || action.busy) return;
+    const name = String(form.name || "").trim();
+    if (!name || !form.src) {
+      setAction({ busy: "", error: "请填写天线名称和来源", notice: "" });
+      return;
+    }
+    const payload = antennaFormPayload({ ...form, name });
+    setAction({ busy: "save", error: "", notice: "" });
+    try {
+      const current = state.items.find((item) => String(item.id) === String(form.id));
+      const data = current
+        ? await bbsApi.updateAntenna(current.id, payload, token)
+        : await bbsApi.createAntenna(payload, token);
+      const saved = data?.antenna || data;
+      setForm(null);
+      setAction({ busy: "", error: "", notice: current ? "天线已更新" : "天线已创建" });
+      await loadAntennas(saved?.id || current?.id || "");
+    } catch (error) {
+      setAction({ busy: "", error: error.message || "天线保存失败", notice: "" });
+    }
+  }
+
+  async function deleteAntenna(item) {
+    if (!item || action.busy || !globalThis.confirm?.(`删除天线“${item.name}”？`)) return;
+    setAction({ busy: "delete", error: "", notice: "" });
+    try {
+      await bbsApi.deleteAntenna(item.id, token);
+      setAction({ busy: "", error: "", notice: "天线已删除" });
+      selectedRef.current = "";
+      await loadAntennas("");
+    } catch (error) {
+      setAction({ busy: "", error: error.message || "天线删除失败", notice: "" });
+    }
+  }
+
+  if (!auth) return <EmptyState title="请先登录" description="登录后可以创建和管理天线订阅。" />;
+  const selected = state.items.find((item) => String(item.id) === String(state.selected));
+  return (
+    <>
+      <section className="user-antenna-manager panel">
+        <header className="user-list-manager__header">
+          <div><strong>我的天线订阅</strong><span>{state.loading ? "正在加载..." : `${state.items.length} 个`}</span></div>
+          <button aria-label="新建天线" type="button" disabled={Boolean(action.busy)} onClick={startCreate}><Radio size={17} aria-hidden="true" />新建</button>
+        </header>
+        {state.error && <p className="user-list-feedback is-error">{state.error}</p>}
+        {!state.loading && state.items.length === 0 && !form && <p className="user-list-feedback">暂无天线订阅</p>}
+        {state.items.length > 0 && <div className="user-antenna-list" role="listbox" aria-label="天线订阅列表">
+          {state.items.map((item) => <button className={String(item.id) === String(state.selected) ? "is-active" : ""} key={item.id} type="button" onClick={() => selectAntenna(item.id)}>{item.name}<small>{antennaSourceLabel(item.src)}</small></button>)}
+        </div>}
+        {form && <form className="user-antenna-editor user-list-editor" onSubmit={saveAntenna}>
+          <label>名称<input autoFocus maxLength={100} required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
+          <label>来源<select value={form.src} onChange={(event) => setForm((current) => ({ ...current, src: event.target.value }))}><option value="all">全站</option><option value="home">关注动态</option><option value="users">指定用户</option><option value="users_blacklist">排除用户</option><option value="list">用户列表</option></select></label>
+          <label>关键词组<textarea rows="3" placeholder="每行一组，组内用逗号分隔" value={form.keywords} onChange={(event) => setForm((current) => ({ ...current, keywords: event.target.value }))} /></label>
+          <label>排除关键词组<textarea rows="2" placeholder="每行一组，组内用逗号分隔" value={form.excludeKeywords} onChange={(event) => setForm((current) => ({ ...current, excludeKeywords: event.target.value }))} /></label>
+          <label>用户（用户名或 ID）<input value={form.users} placeholder="alice, 42" onChange={(event) => setForm((current) => ({ ...current, users: event.target.value }))} /></label>
+          {form.src === "list" && <label>用户列表 ID<input inputMode="numeric" value={form.userListId} onChange={(event) => setForm((current) => ({ ...current, userListId: event.target.value }))} /></label>}
+          <div className="user-antenna-checks"><label><input type="checkbox" checked={form.caseSensitive} onChange={(event) => setForm((current) => ({ ...current, caseSensitive: event.target.checked }))} />区分大小写</label><label><input type="checkbox" checked={form.withFile} onChange={(event) => setForm((current) => ({ ...current, withFile: event.target.checked }))} />仅含封面</label><label><input type="checkbox" checked={form.withReplies} onChange={(event) => setForm((current) => ({ ...current, withReplies: event.target.checked }))} />含回复</label><label><input type="checkbox" checked={form.localOnly} onChange={(event) => setForm((current) => ({ ...current, localOnly: event.target.checked }))} />仅本地内容</label><label><input type="checkbox" checked={form.excludeBots} onChange={(event) => setForm((current) => ({ ...current, excludeBots: event.target.checked }))} />排除机器人</label><label><input type="checkbox" checked={form.excludeNotesInSensitiveChannel} onChange={(event) => setForm((current) => ({ ...current, excludeNotesInSensitiveChannel: event.target.checked }))} />排除敏感频道</label></div>
+          <div><button type="submit" disabled={Boolean(action.busy)}><Check size={16} aria-hidden="true" />保存</button><button className="is-secondary" type="button" disabled={Boolean(action.busy)} onClick={() => setForm(null)}><X size={16} aria-hidden="true" />取消</button></div>
+        </form>}
+        {action.error && <p className="user-list-feedback is-error">{action.error}</p>}
+        {action.notice && <p className="user-list-feedback">{action.notice}</p>}
+      </section>
+      {selected && !form && <section className="user-antenna-detail panel"><header className="user-list-manager__header"><div><strong>{selected.name}</strong><span>{antennaSourceLabel(selected.src)} · {selected.keywords?.length || 0} 组关键词</span></div><div><button aria-label="编辑天线" title="编辑天线" type="button" disabled={Boolean(action.busy)} onClick={() => startEdit(selected)}><Pencil size={17} aria-hidden="true" /></button><button className="is-danger" aria-label="删除天线" title="删除天线" type="button" disabled={Boolean(action.busy)} onClick={() => deleteAntenna(selected)}><Trash2 size={17} aria-hidden="true" /></button></div></header></section>}
+      {selected && <section className="user-antenna-timeline" aria-label="天线动态"><header><strong>天线动态</strong><span>{state.notesLoading ? "正在加载..." : "按筛选条件展示最新内容"}</span></header>{state.posts.map((post, index) => <PostCard auth={auth} index={index} key={`${post.kind}-${post.id}`} post={post} />)}{!state.notesLoading && state.posts.length === 0 && <EmptyState title="暂无匹配内容" />}</section>}
+    </>
+  );
+}
+
+function antennaToForm(item) {
+  return { id: item.id, name: item.name || "", src: item.src || "all", userListId: item.userListId || "", keywords: antennaGroupsText(item.keywords), excludeKeywords: antennaGroupsText(item.excludeKeywords), users: (item.users || []).join(", "), caseSensitive: Boolean(item.caseSensitive), localOnly: Boolean(item.localOnly), excludeBots: Boolean(item.excludeBots), withReplies: Boolean(item.withReplies), withFile: Boolean(item.withFile), excludeNotesInSensitiveChannel: Boolean(item.excludeNotesInSensitiveChannel) };
+}
+
+function antennaFormPayload(form) {
+  return { name: form.name, src: form.src, userListId: form.userListId || null, keywords: antennaGroupsValue(form.keywords), excludeKeywords: antennaGroupsValue(form.excludeKeywords), users: String(form.users || "").split(",").map((value) => value.trim()).filter(Boolean), caseSensitive: Boolean(form.caseSensitive), localOnly: Boolean(form.localOnly), excludeBots: Boolean(form.excludeBots), withReplies: Boolean(form.withReplies), withFile: Boolean(form.withFile), excludeNotesInSensitiveChannel: Boolean(form.excludeNotesInSensitiveChannel) };
+}
+
+function antennaGroupsText(groups) { return (groups || []).map((group) => (group || []).join(", ")).join("\n"); }
+function antennaGroupsValue(text) { return String(text || "").split(/\r?\n/).map((line) => line.split(",").map((value) => value.trim()).filter(Boolean)).filter((group) => group.length > 0); }
+function antennaSourceLabel(source) { return ({ all: "全站", home: "关注动态", users: "指定用户", users_blacklist: "排除用户", list: "用户列表" })[source] || source || "全站"; }
 
 export function UserListDetailPage({ auth }) {
   const { listId } = useParams();

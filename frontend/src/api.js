@@ -332,6 +332,21 @@ export const bbsApi = {
   testWebhook(webhookId, type, token) {
     return request(`/users/me/webhooks/${encodeURIComponent(webhookId)}/test`, { method: "POST", body: { type }, token });
   },
+  listAntennas(token) {
+    return request("/users/me/antennas", { token });
+  },
+  createAntenna(payload, token) {
+    return request("/users/me/antennas", { method: "POST", body: payload, token });
+  },
+  updateAntenna(antennaId, payload, token) {
+    return request(`/users/me/antennas/${encodeURIComponent(antennaId)}`, { method: "PUT", body: payload, token });
+  },
+  deleteAntenna(antennaId, token) {
+    return request(`/users/me/antennas/${encodeURIComponent(antennaId)}`, { method: "DELETE", token });
+  },
+  antennaNotes(antennaId, params = {}, token) {
+    return request(`/users/me/antennas/${encodeURIComponent(antennaId)}/notes${buildQuery({ limit: 20, ...params })}`, { token });
+  },
   uploadAvatar(file, token) {
     const form = new FormData();
     form.append("file", file);

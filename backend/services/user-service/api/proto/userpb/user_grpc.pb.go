@@ -85,6 +85,11 @@ const (
 	UserService_CopyUserList_FullMethodName                     = "/bbs.user.v1.UserService/CopyUserList"
 	UserService_FavoriteUserList_FullMethodName                 = "/bbs.user.v1.UserService/FavoriteUserList"
 	UserService_UnfavoriteUserList_FullMethodName               = "/bbs.user.v1.UserService/UnfavoriteUserList"
+	UserService_CreateAntenna_FullMethodName                    = "/bbs.user.v1.UserService/CreateAntenna"
+	UserService_UpdateAntenna_FullMethodName                    = "/bbs.user.v1.UserService/UpdateAntenna"
+	UserService_DeleteAntenna_FullMethodName                    = "/bbs.user.v1.UserService/DeleteAntenna"
+	UserService_GetAntenna_FullMethodName                       = "/bbs.user.v1.UserService/GetAntenna"
+	UserService_ListAntennas_FullMethodName                     = "/bbs.user.v1.UserService/ListAntennas"
 	UserService_ListSessions_FullMethodName                     = "/bbs.user.v1.UserService/ListSessions"
 	UserService_GetSession_FullMethodName                       = "/bbs.user.v1.UserService/GetSession"
 	UserService_RevokeSession_FullMethodName                    = "/bbs.user.v1.UserService/RevokeSession"
@@ -169,6 +174,11 @@ type UserServiceClient interface {
 	CopyUserList(ctx context.Context, in *CopyUserListRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
 	FavoriteUserList(ctx context.Context, in *UserListFavoriteRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
 	UnfavoriteUserList(ctx context.Context, in *UserListFavoriteRequest, opts ...grpc.CallOption) (*UserListInfoResponse, error)
+	CreateAntenna(ctx context.Context, in *CreateAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error)
+	UpdateAntenna(ctx context.Context, in *UpdateAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error)
+	DeleteAntenna(ctx context.Context, in *DeleteAntennaRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	GetAntenna(ctx context.Context, in *GetAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error)
+	ListAntennas(ctx context.Context, in *ListAntennasRequest, opts ...grpc.CallOption) (*AntennaListResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -849,6 +859,56 @@ func (c *userServiceClient) UnfavoriteUserList(ctx context.Context, in *UserList
 	return out, nil
 }
 
+func (c *userServiceClient) CreateAntenna(ctx context.Context, in *CreateAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AntennaInfoResponse)
+	err := c.cc.Invoke(ctx, UserService_CreateAntenna_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateAntenna(ctx context.Context, in *UpdateAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AntennaInfoResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateAntenna_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) DeleteAntenna(ctx context.Context, in *DeleteAntennaRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_DeleteAntenna_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetAntenna(ctx context.Context, in *GetAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AntennaInfoResponse)
+	err := c.cc.Invoke(ctx, UserService_GetAntenna_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListAntennas(ctx context.Context, in *ListAntennasRequest, opts ...grpc.CallOption) (*AntennaListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AntennaListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListAntennas_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionListResponse)
@@ -1021,6 +1081,11 @@ type UserServiceServer interface {
 	CopyUserList(context.Context, *CopyUserListRequest) (*UserListInfoResponse, error)
 	FavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error)
 	UnfavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error)
+	CreateAntenna(context.Context, *CreateAntennaRequest) (*AntennaInfoResponse, error)
+	UpdateAntenna(context.Context, *UpdateAntennaRequest) (*AntennaInfoResponse, error)
+	DeleteAntenna(context.Context, *DeleteAntennaRequest) (*SimpleResponse, error)
+	GetAntenna(context.Context, *GetAntennaRequest) (*AntennaInfoResponse, error)
+	ListAntennas(context.Context, *ListAntennasRequest) (*AntennaListResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error)
 	RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error)
@@ -1238,6 +1303,21 @@ func (UnimplementedUserServiceServer) FavoriteUserList(context.Context, *UserLis
 }
 func (UnimplementedUserServiceServer) UnfavoriteUserList(context.Context, *UserListFavoriteRequest) (*UserListInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnfavoriteUserList not implemented")
+}
+func (UnimplementedUserServiceServer) CreateAntenna(context.Context, *CreateAntennaRequest) (*AntennaInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAntenna not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateAntenna(context.Context, *UpdateAntennaRequest) (*AntennaInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAntenna not implemented")
+}
+func (UnimplementedUserServiceServer) DeleteAntenna(context.Context, *DeleteAntennaRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAntenna not implemented")
+}
+func (UnimplementedUserServiceServer) GetAntenna(context.Context, *GetAntennaRequest) (*AntennaInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAntenna not implemented")
+}
+func (UnimplementedUserServiceServer) ListAntennas(context.Context, *ListAntennasRequest) (*AntennaListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAntennas not implemented")
 }
 func (UnimplementedUserServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
@@ -2478,6 +2558,96 @@ func _UserService_UnfavoriteUserList_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CreateAntenna_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAntennaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CreateAntenna(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CreateAntenna_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CreateAntenna(ctx, req.(*CreateAntennaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateAntenna_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAntennaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateAntenna(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateAntenna_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateAntenna(ctx, req.(*UpdateAntennaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_DeleteAntenna_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAntennaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).DeleteAntenna(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_DeleteAntenna_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).DeleteAntenna(ctx, req.(*DeleteAntennaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetAntenna_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAntennaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetAntenna(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetAntenna_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetAntenna(ctx, req.(*GetAntennaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListAntennas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAntennasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListAntennas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListAntennas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListAntennas(ctx, req.(*ListAntennasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListSessionsRequest)
 	if err := dec(in); err != nil {
@@ -2928,6 +3098,26 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnfavoriteUserList",
 			Handler:    _UserService_UnfavoriteUserList_Handler,
+		},
+		{
+			MethodName: "CreateAntenna",
+			Handler:    _UserService_CreateAntenna_Handler,
+		},
+		{
+			MethodName: "UpdateAntenna",
+			Handler:    _UserService_UpdateAntenna_Handler,
+		},
+		{
+			MethodName: "DeleteAntenna",
+			Handler:    _UserService_DeleteAntenna_Handler,
+		},
+		{
+			MethodName: "GetAntenna",
+			Handler:    _UserService_GetAntenna_Handler,
+		},
+		{
+			MethodName: "ListAntennas",
+			Handler:    _UserService_ListAntennas_Handler,
 		},
 		{
 			MethodName: "ListSessions",

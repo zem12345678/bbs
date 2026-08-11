@@ -26,6 +26,12 @@ func (s *Service) ListActive(ctx context.Context, limit, offset int) ([]domain.I
 	return s.repo.ListActive(ctx, normalizeLimit(limit), normalizeOffset(offset))
 }
 
+func (s *Service) ListFiltered(ctx context.Context, filter domain.Filter) ([]domain.Item, error) {
+	filter.Limit = normalizeLimit(filter.Limit)
+	filter.Offset = normalizeOffset(filter.Offset)
+	return s.repo.ListFiltered(ctx, filter)
+}
+
 func normalizeLimit(limit int) int {
 	if limit <= 0 {
 		return 20

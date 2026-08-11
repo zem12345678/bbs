@@ -367,6 +367,33 @@ test("maps personal webhook management and test requests", async () => {
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps antenna management and filtered timeline requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, { service: "api-gateway", code: 0, message: "ok", data: {} });
+  };
+
+  const payload = { name: "后端", src: "all", keywords: [["go", "redis"]], excludeKeywords: [], users: [], caseSensitive: false, withReplies: false, withFile: false };
+  await bbsApi.listAntennas("access-token");
+  await bbsApi.createAntenna(payload, "access-token");
+  await bbsApi.updateAntenna("antenna/id", { name: "服务端" }, "access-token");
+  await bbsApi.antennaNotes("antenna/id", { limit: 30, offset: 10 }, "access-token");
+  await bbsApi.deleteAntenna("antenna/id", "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/antennas");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[1].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[1].options.body), payload);
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/users/me/antennas/antenna%2Fid");
+  assert.equal(requests[2].options.method, "PUT");
+  assert.equal(new URL(requests[3].url).pathname, "/api/v1/users/me/antennas/antenna%2Fid/notes");
+  assert.equal(new URL(requests[3].url).searchParams.get("limit"), "30");
+  assert.equal(new URL(requests[3].url).searchParams.get("offset"), "10");
+  assert.equal(requests[4].options.method, "DELETE");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("loads public site config without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {

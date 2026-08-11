@@ -237,6 +237,7 @@ func (r *Repo) FinalizeAccountDeletionJob(ctx context.Context, jobID int64, leas
 			{&passkeyChallengePO{}, "user_id = ?", []any{user.ID}},
 			{&mfaLoginChallengePO{}, "user_id = ?", []any{user.ID}},
 			{&mfaTOTPPO{}, "user_id = ?", []any{user.ID}},
+			{&antennaPO{}, "owner_id = ?", []any{user.ID}},
 			{&userListPO{}, "owner_id = ?", []any{user.ID}},
 			{&userListMembershipPO{}, "user_id = ?", []any{user.ID}},
 			{&userListFavoritePO{}, "user_id = ?", []any{user.ID}},

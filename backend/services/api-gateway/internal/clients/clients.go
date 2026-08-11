@@ -16,6 +16,7 @@ type Clients struct {
 	UserActiveUsersCharts UserActiveUsersChartClient
 	UserSafety            UserSafetyClient
 	UserLists             UserListClient
+	UserAntennas          UserAntennaClient
 	UserMFA               UserMFAClient
 	UserPasskeys          UserPasskeyClient
 	UserAccountLifecycle  UserAccountLifecycleClient
@@ -28,6 +29,7 @@ type Clients struct {
 	Reaction              ReactionClient
 	Search                SearchClient
 	Feed                  FeedClient
+	FeedFiltered          FeedFilteredClient
 	Credit                CreditClient
 	Mall                  MallClient
 	Notification          NotificationClient

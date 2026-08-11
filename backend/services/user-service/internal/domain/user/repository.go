@@ -67,6 +67,14 @@ type UserListRepository interface {
 	UnfavoriteUserList(ctx context.Context, userID, listID int64) error
 }
 
+type AntennaRepository interface {
+	CreateAntenna(ctx context.Context, antenna *Antenna) error
+	UpdateAntenna(ctx context.Context, antenna *Antenna) error
+	DeleteAntenna(ctx context.Context, ownerID, antennaID int64) error
+	GetAntenna(ctx context.Context, ownerID, antennaID int64) (*Antenna, error)
+	ListAntennas(ctx context.Context, ownerID int64) ([]*Antenna, error)
+}
+
 type UserListQuery struct {
 	Query    string
 	Status   int32

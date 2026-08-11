@@ -91,6 +91,14 @@ type UserListClient interface {
 	UnfavoriteUserList(context.Context, *userpb.UserListFavoriteRequest, ...grpc.CallOption) (*userpb.UserListInfoResponse, error)
 }
 
+type UserAntennaClient interface {
+	CreateAntenna(context.Context, *userpb.CreateAntennaRequest, ...grpc.CallOption) (*userpb.AntennaInfoResponse, error)
+	UpdateAntenna(context.Context, *userpb.UpdateAntennaRequest, ...grpc.CallOption) (*userpb.AntennaInfoResponse, error)
+	DeleteAntenna(context.Context, *userpb.DeleteAntennaRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	GetAntenna(context.Context, *userpb.GetAntennaRequest, ...grpc.CallOption) (*userpb.AntennaInfoResponse, error)
+	ListAntennas(context.Context, *userpb.ListAntennasRequest, ...grpc.CallOption) (*userpb.AntennaListResponse, error)
+}
+
 type UserMFAClient interface {
 	GetMFAStatus(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.MFAStatusResponse, error)
 	BeginTOTPEnrollment(context.Context, *userpb.BeginTOTPEnrollmentRequest, ...grpc.CallOption) (*userpb.TOTPEnrollmentResponse, error)
@@ -151,7 +159,15 @@ type ContentClient = contentpb.ContentServiceClient
 type CommentClient = commentpb.CommentServiceClient
 type ReactionClient = reactionpb.ReactionServiceClient
 type SearchClient = searchpb.SearchServiceClient
-type FeedClient = feedpb.FeedServiceClient
+type FeedClient interface {
+	ListLatest(context.Context, *feedpb.ListFeedRequest, ...grpc.CallOption) (*feedpb.FeedListResponse, error)
+	ListHot(context.Context, *feedpb.ListFeedRequest, ...grpc.CallOption) (*feedpb.FeedListResponse, error)
+	ListActive(context.Context, *feedpb.ListFeedRequest, ...grpc.CallOption) (*feedpb.FeedListResponse, error)
+}
+
+type FeedFilteredClient interface {
+	ListFiltered(context.Context, *feedpb.FilteredFeedRequest, ...grpc.CallOption) (*feedpb.FeedListResponse, error)
+}
 type CreditClient = creditpb.CreditServiceClient
 type MallClient = mallpb.MallServiceClient
 type NotificationClient = notificationpb.NotificationServiceClient
