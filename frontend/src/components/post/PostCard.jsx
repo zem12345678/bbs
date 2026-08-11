@@ -4,17 +4,20 @@ import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, Ima
 import { bbsApi } from "../../api";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { collectMissingCommentAuthorIDs, loadCommentAuthors } from "../../lib/commentAuthors";
+import { normalizeEmojiHighlightMarkup } from "../../lib/emojis.js";
 import { appendMarkdownImage, markdownImageUrls, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgo, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { articleToPost, fallbackPerson, topicToPost, userToPerson } from "../../lib/postMappers";
 import { shareLink } from "../../lib/share";
 import Avatar from "../Avatar.jsx";
+import EmojiText from "../content/EmojiText.jsx";
 import { ArticleDetailModal, AuthorProfileModal, ReportModal } from "./PostModals.jsx";
 
-function renderHighlightedText(text, fragments = []) {
-  const source = Array.isArray(fragments) && fragments.length > 0 ? fragments[0] : text;
+function renderHighlightedText(text, fragments = [], renderEmoji = false) {
+  const highlightedSource = Array.isArray(fragments) && fragments.length > 0 ? fragments[0] : text;
+  const source = renderEmoji ? normalizeEmojiHighlightMarkup(highlightedSource) : highlightedSource;
   if (!source) {
-    return text || "";
+    return renderEmoji ? <EmojiText text={text || ""} /> : text || "";
   }
   const parts = String(source).split(/(<mark>|<\/mark>)/i);
   let active = false;
@@ -32,7 +35,8 @@ function renderHighlightedText(text, fragments = []) {
       if (!part) {
         return null;
       }
-      return active ? <mark key={`${index}-${part}`}>{part}</mark> : <React.Fragment key={`${index}-${part}`}>{part}</React.Fragment>;
+      const content = renderEmoji ? <EmojiText text={part} /> : part;
+      return active ? <mark key={`${index}-${part}`}>{content}</mark> : <React.Fragment key={`${index}-${part}`}>{content}</React.Fragment>;
     })
     .filter(Boolean);
 }
@@ -843,7 +847,7 @@ export default function PostCard({
             )}
           </div>
           {rootContent.text.split(/\n+/).filter(Boolean).map((paragraph, index) => (
-            <p key={`${comment.id}-text-${index}`}>{paragraph}</p>
+            <p key={`${comment.id}-text-${index}`}><EmojiText text={paragraph} /></p>
           ))}
           {rootContent.images.length > 0 && (
             <div className="comment-images" aria-label="评论配图">
@@ -896,7 +900,7 @@ export default function PostCard({
                         )}
                       </div>
                       {replyContent.text.split(/\n+/).filter(Boolean).map((paragraph, index) => (
-                        <p key={`${reply.id}-text-${index}`}>{paragraph}</p>
+                        <p key={`${reply.id}-text-${index}`}><EmojiText text={paragraph} /></p>
                       ))}
                       {replyContent.images.length > 0 && (
                         <div className="comment-images reply-images" aria-label="回复配图">
@@ -965,7 +969,7 @@ export default function PostCard({
             {realPost ? <Link to={detailPath}>{renderHighlightedText(post.title, post.highlight?.title)}</Link> : renderHighlightedText(post.title, post.highlight?.title)}
           </h2>
         )}
-        <p className="post-text">{renderHighlightedText(post.text, post.highlight?.text)}</p>
+        <p className="post-text">{renderHighlightedText(post.text, post.highlight?.text, true)}</p>
         {post.images && (
           <div className="image-strip" aria-label="帖子配图">
             {post.images.map((src) => (

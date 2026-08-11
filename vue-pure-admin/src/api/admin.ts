@@ -507,6 +507,46 @@ export type AdminBadgePayload = {
   sort: number;
 };
 
+export type AdminEmoji = {
+  id: EntityId;
+  updatedAt?: string | null;
+  name: string;
+  host?: string | null;
+  url: string;
+  publicUrl?: string;
+  originalUrl?: string;
+  uri?: string | null;
+  type?: string | null;
+  aliases: string[];
+  category?: string | null;
+  license?: string | null;
+  isSensitive: boolean;
+  localOnly: boolean;
+  roleIdsThatCanBeUsedThisEmojiAsReaction?: string[];
+};
+
+export type AdminEmojiList = {
+  items: AdminEmoji[];
+  total: number;
+};
+
+export type AdminEmojiPayload = {
+  name: string;
+  fileId?: string;
+  category: string | null;
+  aliases: string[];
+  license: string | null;
+  isSensitive: boolean;
+  localOnly: boolean;
+};
+
+export type AdminEmojiUpload = {
+  url: string;
+  path: string;
+  fileId: string;
+  file_id?: string;
+};
+
 export type AdminLevel = {
   id: EntityId;
   key: string;
@@ -1806,6 +1846,52 @@ export const deleteAdminBadge = (id: EntityId) => {
   return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
     "delete",
     `/api/v1/admin/badges/${id}`
+  );
+};
+
+export const listAdminEmojis = (params: {
+  query?: string;
+  limit: number;
+  offset: number;
+}) => {
+  return http.request<ApiEnvelope<AdminEmojiList>>(
+    "get",
+    "/api/v1/admin/emojis",
+    { params }
+  );
+};
+
+export const createAdminEmoji = (data: AdminEmojiPayload) => {
+  return http.request<ApiEnvelope<AdminEmoji>>("post", "/api/v1/admin/emojis", {
+    data
+  });
+};
+
+export const updateAdminEmoji = (id: EntityId, data: AdminEmojiPayload) => {
+  return http.request<ApiEnvelope<AdminEmoji>>(
+    "patch",
+    `/api/v1/admin/emojis/${id}`,
+    { data }
+  );
+};
+
+export const deleteAdminEmoji = (id: EntityId) => {
+  return http.request<ApiEnvelope<{ success: boolean; message: string }>>(
+    "delete",
+    `/api/v1/admin/emojis/${id}`
+  );
+};
+
+export const uploadAdminEmoji = (data: FormData) => {
+  return http.request<ApiEnvelope<AdminEmojiUpload>>(
+    "post",
+    "/api/v1/admin/uploads/emoji",
+    {
+      data,
+      headers: {
+        "Content-Type": "multipart/form-data"
+      }
+    }
   );
 };
 

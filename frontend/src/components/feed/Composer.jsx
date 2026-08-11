@@ -2,6 +2,7 @@ import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronDown, Eye, Image, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
+import EmojiPicker from "../content/EmojiPicker.jsx";
 import MarkdownPreview from "../content/MarkdownPreview.jsx";
 import TagAssist from "../content/TagAssist.jsx";
 import { clearDraft, readDraft, writeDraft } from "../../lib/drafts";
@@ -23,6 +24,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
   const [uploadingImage, setUploadingImage] = React.useState(false);
   const [error, setError] = React.useState("");
   const [message, setMessage] = React.useState("");
+  const bodyRef = React.useRef(null);
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
     () => `bbs:composer:${auth?.user?.id || "guest"}:topic:v1${channelId ? `:channel-${channelId}` : ""}`,
@@ -162,6 +164,7 @@ export default function Composer({ auth, categories = [], onPublished }) {
           <textarea
             maxLength={1000}
             placeholder="说说您的新鲜事..."
+            ref={bodyRef}
             rows={expanded ? 4 : 1}
             value={body}
             onFocus={() => setExpanded(true)}
@@ -215,6 +218,16 @@ export default function Composer({ auth, categories = [], onPublished }) {
       {message && <p className="form-success compose-error">{message}</p>}
       <div className="compose-footer">
         <div className="compose-tools">
+          <EmojiPicker
+            inputRef={bodyRef}
+            maxLength={1000}
+            value={body}
+            onChange={(value) => {
+              draftDirtyRef.current = true;
+              setExpanded(true);
+              setBody(value);
+            }}
+          />
           <label className="compose-image-upload" title="插入图片">
             <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={uploadingImage} type="file" onChange={uploadImage} />
             <Image size={19} aria-hidden="true" />

@@ -71,6 +71,26 @@ func (Badge) TableName() string {
 	return "admin_badge"
 }
 
+type Emoji struct {
+	ID                                      int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name                                    string    `json:"name" gorm:"column:name;type:varchar(128);not null"`
+	URL                                     string    `json:"url" gorm:"column:url;type:varchar(1024);not null"`
+	OriginalURL                             string    `json:"originalUrl" gorm:"column:original_url;type:varchar(1024);not null"`
+	ContentType                             string    `json:"contentType" gorm:"column:content_type;type:varchar(64)"`
+	Category                                *string   `json:"category" gorm:"column:category;type:varchar(128);index"`
+	Aliases                                 []string  `json:"aliases" gorm:"column:aliases;type:jsonb;serializer:json;not null;default:'[]'"`
+	License                                 *string   `json:"license" gorm:"column:license;type:varchar(1024)"`
+	IsSensitive                             bool      `json:"isSensitive" gorm:"column:is_sensitive;not null;default:false"`
+	LocalOnly                               bool      `json:"localOnly" gorm:"column:local_only;not null;default:false"`
+	RoleIDsThatCanBeUsedThisEmojiAsReaction []string  `json:"roleIds" gorm:"column:reaction_role_ids;type:jsonb;serializer:json;not null;default:'[]'"`
+	CreatedAt                               time.Time `json:"createdAt" gorm:"column:created_at;index"`
+	UpdatedAt                               time.Time `json:"updatedAt" gorm:"column:updated_at;index"`
+}
+
+func (Emoji) TableName() string {
+	return "admin_emoji"
+}
+
 type Level struct {
 	ID          int64     `json:"id" gorm:"primaryKey;autoIncrement"`
 	Key         string    `json:"key" gorm:"column:key;type:varchar(64);uniqueIndex;not null"`

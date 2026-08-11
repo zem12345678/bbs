@@ -552,6 +552,9 @@ export const bbsApi = {
   feed(params = {}, token) {
     return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  emojis() {
+    return request("/emojis");
+  },
   listTopics(params = {}) {
     return request(`/topics${buildQuery({ status: 2, limit: 20, offset: 0, ...params })}`);
   },

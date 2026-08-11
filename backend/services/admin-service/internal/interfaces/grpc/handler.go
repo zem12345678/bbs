@@ -356,6 +356,78 @@ func (h *Handler) DeleteBadge(ctx context.Context, req *pb.BadgeIDRequest) (*pb.
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) ListEmojis(ctx context.Context, req *pb.ListEmojisRequest) (*pb.EmojiListResponse, error) {
+	result, err := h.service.ListEmojis(ctx, toActor(req.GetActor()), req.GetQuery(), req.GetLimit(), req.GetOffset())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EmojiListResponse{Items: toPbEmojis(result.Items), Total: result.Total}, nil
+}
+
+func (h *Handler) GetEmoji(ctx context.Context, req *pb.GetEmojiRequest) (*pb.EmojiResponse, error) {
+	emoji, err := h.service.GetEmoji(ctx, req.GetName())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EmojiResponse{Success: true, Message: "ok", Emoji: toPbEmoji(emoji)}, nil
+}
+
+func (h *Handler) CreateEmoji(ctx context.Context, req *pb.CreateEmojiRequest) (*pb.EmojiResponse, error) {
+	emoji, err := h.service.CreateEmoji(ctx, toActor(req.GetActor()), domain.CreateEmojiCommand{
+		Name: req.GetName(), URL: req.GetUrl(), OriginalURL: req.GetOriginalUrl(), ContentType: req.GetContentType(),
+		Category: req.Category, Aliases: req.GetAliases(), License: req.License,
+		IsSensitive: req.GetIsSensitive(), LocalOnly: req.GetLocalOnly(),
+		RoleIDsThatCanBeUsedThisEmojiAsReaction: req.GetRoleIdsThatCanBeUsedThisEmojiAsReaction(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EmojiResponse{Success: true, Message: "ok", Emoji: toPbEmoji(emoji)}, nil
+}
+
+func (h *Handler) UpdateEmoji(ctx context.Context, req *pb.UpdateEmojiRequest) (*pb.EmojiResponse, error) {
+	command := domain.UpdateEmojiCommand{
+		ID: req.GetId(), Name: req.Name, URL: req.Url, OriginalURL: req.OriginalUrl, ContentType: req.ContentType,
+		IsSensitive: req.IsSensitive, LocalOnly: req.LocalOnly,
+	}
+	if req.GetClearCategory() {
+		var value *string
+		command.Category = &value
+	} else if req.Category != nil {
+		value := req.GetCategory()
+		pointer := &value
+		command.Category = &pointer
+	}
+	if req.GetAliases() != nil {
+		values := append([]string(nil), req.GetAliases().GetItems()...)
+		command.Aliases = &values
+	}
+	if req.GetClearLicense() {
+		var value *string
+		command.License = &value
+	} else if req.License != nil {
+		value := req.GetLicense()
+		pointer := &value
+		command.License = &pointer
+	}
+	if req.GetRoleIdsThatCanBeUsedThisEmojiAsReaction() != nil {
+		values := append([]string(nil), req.GetRoleIdsThatCanBeUsedThisEmojiAsReaction().GetItems()...)
+		command.RoleIDsThatCanBeUsedThisEmojiAsReaction = &values
+	}
+	emoji, err := h.service.UpdateEmoji(ctx, toActor(req.GetActor()), command)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.EmojiResponse{Success: true, Message: "ok", Emoji: toPbEmoji(emoji)}, nil
+}
+
+func (h *Handler) DeleteEmoji(ctx context.Context, req *pb.EmojiIDRequest) (*pb.SimpleResponse, error) {
+	if err := h.service.DeleteEmoji(ctx, toActor(req.GetActor()), req.GetId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) ListLevels(ctx context.Context, req *pb.ListLevelsRequest) (*pb.LevelListResponse, error) {
 	result, err := h.service.ListLevels(ctx, toActor(req.GetActor()), req.GetStatus(), req.GetLimit(), req.GetOffset())
 	if err != nil {
@@ -812,6 +884,14 @@ func toPbBadges(items []domain.Badge) []*pb.BadgeInfo {
 	return out
 }
 
+func toPbEmojis(items []domain.Emoji) []*pb.EmojiInfo {
+	out := make([]*pb.EmojiInfo, 0, len(items))
+	for _, item := range items {
+		out = append(out, toPbEmoji(item))
+	}
+	return out
+}
+
 func toPbLevels(items []domain.Level) []*pb.LevelInfo {
 	out := make([]*pb.LevelInfo, 0, len(items))
 	for _, item := range items {
@@ -1012,6 +1092,16 @@ func toPbBadge(badge domain.Badge) *pb.BadgeInfo {
 		Sort:        badge.Sort,
 		CreatedAt:   badge.CreatedAt,
 		UpdatedAt:   badge.UpdatedAt,
+	}
+}
+
+func toPbEmoji(emoji domain.Emoji) *pb.EmojiInfo {
+	return &pb.EmojiInfo{
+		Id: emoji.ID, Name: emoji.Name, Url: emoji.URL, OriginalUrl: emoji.OriginalURL, ContentType: emoji.ContentType,
+		Category: emoji.Category, Aliases: append([]string(nil), emoji.Aliases...), License: emoji.License,
+		IsSensitive: emoji.IsSensitive, LocalOnly: emoji.LocalOnly,
+		RoleIdsThatCanBeUsedThisEmojiAsReaction: append([]string(nil), emoji.RoleIDsThatCanBeUsedThisEmojiAsReaction...),
+		CreatedAt:                               emoji.CreatedAt, UpdatedAt: emoji.UpdatedAt,
 	}
 }
 

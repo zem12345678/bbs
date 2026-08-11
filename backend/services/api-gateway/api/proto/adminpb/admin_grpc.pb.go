@@ -77,6 +77,11 @@ const (
 	AdminService_CreateBadge_FullMethodName             = "/bbs.admin.v1.AdminService/CreateBadge"
 	AdminService_UpdateBadge_FullMethodName             = "/bbs.admin.v1.AdminService/UpdateBadge"
 	AdminService_DeleteBadge_FullMethodName             = "/bbs.admin.v1.AdminService/DeleteBadge"
+	AdminService_ListEmojis_FullMethodName              = "/bbs.admin.v1.AdminService/ListEmojis"
+	AdminService_GetEmoji_FullMethodName                = "/bbs.admin.v1.AdminService/GetEmoji"
+	AdminService_CreateEmoji_FullMethodName             = "/bbs.admin.v1.AdminService/CreateEmoji"
+	AdminService_UpdateEmoji_FullMethodName             = "/bbs.admin.v1.AdminService/UpdateEmoji"
+	AdminService_DeleteEmoji_FullMethodName             = "/bbs.admin.v1.AdminService/DeleteEmoji"
 	AdminService_ListLevels_FullMethodName              = "/bbs.admin.v1.AdminService/ListLevels"
 	AdminService_CreateLevel_FullMethodName             = "/bbs.admin.v1.AdminService/CreateLevel"
 	AdminService_UpdateLevel_FullMethodName             = "/bbs.admin.v1.AdminService/UpdateLevel"
@@ -180,6 +185,11 @@ type AdminServiceClient interface {
 	CreateBadge(ctx context.Context, in *UpsertBadgeRequest, opts ...grpc.CallOption) (*BadgeResponse, error)
 	UpdateBadge(ctx context.Context, in *UpsertBadgeRequest, opts ...grpc.CallOption) (*BadgeResponse, error)
 	DeleteBadge(ctx context.Context, in *BadgeIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ListEmojis(ctx context.Context, in *ListEmojisRequest, opts ...grpc.CallOption) (*EmojiListResponse, error)
+	GetEmoji(ctx context.Context, in *GetEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error)
+	CreateEmoji(ctx context.Context, in *CreateEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error)
+	UpdateEmoji(ctx context.Context, in *UpdateEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error)
+	DeleteEmoji(ctx context.Context, in *EmojiIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListLevels(ctx context.Context, in *ListLevelsRequest, opts ...grpc.CallOption) (*LevelListResponse, error)
 	CreateLevel(ctx context.Context, in *UpsertLevelRequest, opts ...grpc.CallOption) (*LevelResponse, error)
 	UpdateLevel(ctx context.Context, in *UpsertLevelRequest, opts ...grpc.CallOption) (*LevelResponse, error)
@@ -809,6 +819,56 @@ func (c *adminServiceClient) DeleteBadge(ctx context.Context, in *BadgeIDRequest
 	return out, nil
 }
 
+func (c *adminServiceClient) ListEmojis(ctx context.Context, in *ListEmojisRequest, opts ...grpc.CallOption) (*EmojiListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmojiListResponse)
+	err := c.cc.Invoke(ctx, AdminService_ListEmojis_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) GetEmoji(ctx context.Context, in *GetEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmojiResponse)
+	err := c.cc.Invoke(ctx, AdminService_GetEmoji_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) CreateEmoji(ctx context.Context, in *CreateEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmojiResponse)
+	err := c.cc.Invoke(ctx, AdminService_CreateEmoji_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) UpdateEmoji(ctx context.Context, in *UpdateEmojiRequest, opts ...grpc.CallOption) (*EmojiResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EmojiResponse)
+	err := c.cc.Invoke(ctx, AdminService_UpdateEmoji_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) DeleteEmoji(ctx context.Context, in *EmojiIDRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, AdminService_DeleteEmoji_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) ListLevels(ctx context.Context, in *ListLevelsRequest, opts ...grpc.CallOption) (*LevelListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LevelListResponse)
@@ -1261,6 +1321,11 @@ type AdminServiceServer interface {
 	CreateBadge(context.Context, *UpsertBadgeRequest) (*BadgeResponse, error)
 	UpdateBadge(context.Context, *UpsertBadgeRequest) (*BadgeResponse, error)
 	DeleteBadge(context.Context, *BadgeIDRequest) (*SimpleResponse, error)
+	ListEmojis(context.Context, *ListEmojisRequest) (*EmojiListResponse, error)
+	GetEmoji(context.Context, *GetEmojiRequest) (*EmojiResponse, error)
+	CreateEmoji(context.Context, *CreateEmojiRequest) (*EmojiResponse, error)
+	UpdateEmoji(context.Context, *UpdateEmojiRequest) (*EmojiResponse, error)
+	DeleteEmoji(context.Context, *EmojiIDRequest) (*SimpleResponse, error)
 	ListLevels(context.Context, *ListLevelsRequest) (*LevelListResponse, error)
 	CreateLevel(context.Context, *UpsertLevelRequest) (*LevelResponse, error)
 	UpdateLevel(context.Context, *UpsertLevelRequest) (*LevelResponse, error)
@@ -1483,6 +1548,21 @@ func (UnimplementedAdminServiceServer) UpdateBadge(context.Context, *UpsertBadge
 }
 func (UnimplementedAdminServiceServer) DeleteBadge(context.Context, *BadgeIDRequest) (*SimpleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteBadge not implemented")
+}
+func (UnimplementedAdminServiceServer) ListEmojis(context.Context, *ListEmojisRequest) (*EmojiListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEmojis not implemented")
+}
+func (UnimplementedAdminServiceServer) GetEmoji(context.Context, *GetEmojiRequest) (*EmojiResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetEmoji not implemented")
+}
+func (UnimplementedAdminServiceServer) CreateEmoji(context.Context, *CreateEmojiRequest) (*EmojiResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateEmoji not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateEmoji(context.Context, *UpdateEmojiRequest) (*EmojiResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateEmoji not implemented")
+}
+func (UnimplementedAdminServiceServer) DeleteEmoji(context.Context, *EmojiIDRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteEmoji not implemented")
 }
 func (UnimplementedAdminServiceServer) ListLevels(context.Context, *ListLevelsRequest) (*LevelListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLevels not implemented")
@@ -2666,6 +2746,96 @@ func _AdminService_DeleteBadge_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ListEmojis_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEmojisRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ListEmojis(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_ListEmojis_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ListEmojis(ctx, req.(*ListEmojisRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_GetEmoji_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEmojiRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GetEmoji(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_GetEmoji_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GetEmoji(ctx, req.(*GetEmojiRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_CreateEmoji_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEmojiRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).CreateEmoji(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_CreateEmoji_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).CreateEmoji(ctx, req.(*CreateEmojiRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_UpdateEmoji_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateEmojiRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateEmoji(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_UpdateEmoji_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateEmoji(ctx, req.(*UpdateEmojiRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_DeleteEmoji_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmojiIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).DeleteEmoji(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_DeleteEmoji_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).DeleteEmoji(ctx, req.(*EmojiIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_ListLevels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListLevelsRequest)
 	if err := dec(in); err != nil {
@@ -3606,6 +3776,26 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteBadge",
 			Handler:    _AdminService_DeleteBadge_Handler,
+		},
+		{
+			MethodName: "ListEmojis",
+			Handler:    _AdminService_ListEmojis_Handler,
+		},
+		{
+			MethodName: "GetEmoji",
+			Handler:    _AdminService_GetEmoji_Handler,
+		},
+		{
+			MethodName: "CreateEmoji",
+			Handler:    _AdminService_CreateEmoji_Handler,
+		},
+		{
+			MethodName: "UpdateEmoji",
+			Handler:    _AdminService_UpdateEmoji_Handler,
+		},
+		{
+			MethodName: "DeleteEmoji",
+			Handler:    _AdminService_DeleteEmoji_Handler,
 		},
 		{
 			MethodName: "ListLevels",

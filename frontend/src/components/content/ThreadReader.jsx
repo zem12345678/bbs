@@ -27,6 +27,7 @@ import { fallbackPerson, userToPerson } from "../../lib/postMappers";
 import { shareLink } from "../../lib/share";
 import Avatar from "../Avatar.jsx";
 import { ReportModal } from "../post/PostModals.jsx";
+import EmojiPicker from "./EmojiPicker.jsx";
 import MarkdownPreview from "./MarkdownPreview.jsx";
 import TopicAttachments from "./TopicAttachments.jsx";
 import TopicPoll from "./TopicPoll.jsx";
@@ -63,6 +64,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [commentReportTarget, setCommentReportTarget] = React.useState(null);
   const [related, setRelated] = React.useState({ items: [], loading: false, error: "" });
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
+  const commentEditorRef = React.useRef(null);
   const contentBody = item?.body || item?.content || post?.text || "";
   const ownerPost = sameId(auth?.user?.id, post?.authorId);
   const questionPost = topicPost && (post?.topicType === "qa" || item?.type === "qa");
@@ -923,16 +925,20 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
           <textarea
             id="thread-comment-editor"
             placeholder={auth ? "写下你的回复，支持引用和图片 Markdown" : "登录后参与讨论"}
+            ref={commentEditorRef}
             value={commentText}
             disabled={!auth}
             onChange={(event) => setCommentText(event.target.value)}
           />
           <div>
-            <label className="comment-image-upload">
-              <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={!auth || Boolean(uploadingTarget)} type="file" onChange={uploadCommentImage} />
-              <ImagePlus size={16} aria-hidden="true" />
-              <span>{uploadingTarget ? "上传中" : "图片"}</span>
-            </label>
+            <div className="thread-reply-tools">
+              <EmojiPicker disabled={!auth} inputRef={commentEditorRef} value={commentText} onChange={setCommentText} />
+              <label className="comment-image-upload">
+                <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={!auth || Boolean(uploadingTarget)} type="file" onChange={uploadCommentImage} />
+                <ImagePlus size={16} aria-hidden="true" />
+                <span>{uploadingTarget ? "上传中" : "图片"}</span>
+              </label>
+            </div>
             <button type="submit" disabled={!auth || submitting || !commentText.trim()}>
               {submitting ? "发送中" : "发表回复"}
             </button>

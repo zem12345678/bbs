@@ -1591,6 +1591,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		{Name: "governance.ads", Title: "广告管理", Icon: "ri/advertisement-line", Path: "/governance/ads", Paths: "/governance/ads", Type: "C", Permission: governancePermission(domain.ActionListAds), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/ads/index", Sort: 1095, Remark: "bootstrap governance ads"},
 		{Name: "governance.tasks", Title: "任务管理", Icon: "ri/task-line", Path: "/governance/tasks", Paths: "/governance/tasks", Type: "C", Permission: governancePermission(domain.ActionListTasks), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/tasks/index", Sort: 1100, Remark: "bootstrap governance tasks"},
 		{Name: "governance.badges", Title: "徽章管理", Icon: "ri/medal-line", Path: "/governance/badges", Paths: "/governance/badges", Type: "C", Permission: governancePermission(domain.ActionListBadges), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/badges/index", Sort: 1110, Remark: "bootstrap governance badges"},
+		{Name: "governance.emojis", Title: "Emoji 管理", Icon: "ri/emoji-sticker-line", Path: "/governance/emojis", Paths: "/governance/emojis", Type: "C", Permission: governancePermission(domain.ActionListEmojis), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/emojis/index", Sort: 1115, Remark: "bootstrap governance emojis"},
 		{Name: "governance.levels", Title: "等级管理", Icon: "ri/vip-crown-line", Path: "/governance/levels", Paths: "/governance/levels", Type: "C", Permission: governancePermission(domain.ActionListLevels), ParentId: governanceRoot.ID, Status: "0", Visible: "0", IsHide: "0", Component: "governance/levels/index", Sort: 1120, Remark: "bootstrap governance levels"},
 	}
 	governanceButtonSeeds := map[string][]systemMenuButtonSeed{
@@ -1689,6 +1690,12 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 			{Name: "update", Title: "修改", Permission: governancePermission(domain.ActionUpdateBadge), SortOffset: 3},
 			{Name: "delete", Title: "删除", Permission: governancePermission(domain.ActionDeleteBadge), SortOffset: 4},
 		},
+		"governance.emojis": {
+			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListEmojis), SortOffset: 1},
+			{Name: "create", Title: "新增", Permission: governancePermission(domain.ActionCreateEmoji), SortOffset: 2},
+			{Name: "update", Title: "修改", Permission: governancePermission(domain.ActionUpdateEmoji), SortOffset: 3},
+			{Name: "delete", Title: "删除", Permission: governancePermission(domain.ActionDeleteEmoji), SortOffset: 4},
+		},
 		"governance.levels": {
 			{Name: "query", Title: "查询", Permission: governancePermission(domain.ActionListLevels), SortOffset: 1},
 			{Name: "create", Title: "新增", Permission: governancePermission(domain.ActionCreateLevel), SortOffset: 2},
@@ -1723,6 +1730,7 @@ func seedDefaultSystemManagement(ctx context.Context, tx *gorm.DB) error {
 		"governance.ads":             {},
 		"governance.tasks":           {},
 		"governance.badges":          {},
+		"governance.emojis":          {},
 		"governance.levels":          {},
 	}
 	adminMenuIDs := []int64{governanceRoot.ID}

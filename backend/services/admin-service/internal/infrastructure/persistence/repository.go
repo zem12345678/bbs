@@ -52,6 +52,7 @@ func (r *Repository) syncSystemSequences(ctx context.Context) error {
 		"admin_link",
 		"admin_task",
 		"admin_badge",
+		"admin_emoji",
 		"admin_level",
 		"admin_forbidden_word",
 		"admin_site_setting",
@@ -77,6 +78,7 @@ func (r *Repository) ensureSystemIntegrityIndexes(ctx context.Context) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_role_key_lower_unique ON sys_role (LOWER("key")) WHERE COALESCE("key", '') <> ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_menu_name_lower_unique ON sys_menu (LOWER(name)) WHERE COALESCE(name, '') <> ''`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sys_dept_parent_name_lower_unique ON sys_dept (parent_id, LOWER(name)) WHERE COALESCE(name, '') <> ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_emoji_name_lower_unique ON admin_emoji (LOWER(name)) WHERE COALESCE(name, '') <> ''`,
 	}
 	for _, statement := range statements {
 		if err := r.db.WithContext(ctx).Exec(statement).Error; err != nil {
@@ -1978,6 +1980,10 @@ func defaultCasbinRules() []po.CasbinRule {
 		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateBadge)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateBadge)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionDeleteBadge)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionListEmojis)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateEmoji)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateEmoji)),
+		policy("admin", domain.ResourceGovernance, string(domain.ActionDeleteEmoji)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionListLevels)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionCreateLevel)),
 		policy("admin", domain.ResourceGovernance, string(domain.ActionUpdateLevel)),

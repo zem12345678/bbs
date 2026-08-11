@@ -25,6 +25,8 @@ func toStatus(err error) error {
 		code = codes.ResourceExhausted
 	case errors.Is(err, domain.ErrSystemNotificationUnavailable):
 		code = codes.Unavailable
+	case errors.Is(err, domain.ErrEmojiStoreUnavailable):
+		code = codes.Unavailable
 	case errors.Is(err, domain.ErrSystemNotificationRecipientValidationUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrSearchRebuildUnavailable):
@@ -41,6 +43,10 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrSystemMenuExists),
 		errors.Is(err, domain.ErrSystemDeptExists):
 		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrEmojiNameExists):
+		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrEmojiNotFound):
+		code = codes.NotFound
 	case errors.Is(err, domain.ErrSystemMenuHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasChildren),
 		errors.Is(err, domain.ErrSystemDeptHasUsers),
@@ -61,6 +67,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidBadgeID),
 		errors.Is(err, domain.ErrInvalidCategory),
 		errors.Is(err, domain.ErrInvalidCategoryID),
+		errors.Is(err, domain.ErrInvalidEmoji),
+		errors.Is(err, domain.ErrInvalidEmojiID),
 		errors.Is(err, domain.ErrInvalidChannelID),
 		errors.Is(err, domain.ErrInvalidCommentID),
 		errors.Is(err, domain.ErrInvalidForbiddenWord),

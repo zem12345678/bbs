@@ -55,6 +55,7 @@ func Models() []any {
 		&Ad{},
 		&Api{},
 		&Badge{},
+		&Emoji{},
 		&CasbinRule{},
 		&Dept{},
 		&DictType{},

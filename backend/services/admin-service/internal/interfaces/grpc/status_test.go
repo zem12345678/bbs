@@ -36,3 +36,21 @@ func TestToStatusMapsSystemNotificationRecipientErrors(t *testing.T) {
 		t.Fatalf("recipients not found code = %s, want %s", got, codes.InvalidArgument)
 	}
 }
+
+func TestToStatusMapsEmojiErrors(t *testing.T) {
+	tests := []struct {
+		err  error
+		code codes.Code
+	}{
+		{err: domain.ErrInvalidEmoji, code: codes.InvalidArgument},
+		{err: domain.ErrInvalidEmojiID, code: codes.InvalidArgument},
+		{err: domain.ErrEmojiNotFound, code: codes.NotFound},
+		{err: domain.ErrEmojiNameExists, code: codes.AlreadyExists},
+		{err: domain.ErrEmojiStoreUnavailable, code: codes.Unavailable},
+	}
+	for _, test := range tests {
+		if got := status.Code(toStatus(test.err)); got != test.code {
+			t.Errorf("toStatus(%v) code = %s, want %s", test.err, got, test.code)
+		}
+	}
+}

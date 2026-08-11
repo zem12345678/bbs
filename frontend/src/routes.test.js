@@ -61,6 +61,28 @@ test("passes circle context through topic editor and composer requests", () => {
   assert.match(composerSource, /channel_id: channelId \|\| undefined/);
 });
 
+test("connects custom emoji rendering and pickers to public content editors", () => {
+  const emojiTextSource = fs.readFileSync(new URL("./components/content/EmojiText.jsx", import.meta.url), "utf8");
+  const emojiPickerSource = fs.readFileSync(new URL("./components/content/EmojiPicker.jsx", import.meta.url), "utf8");
+  const markdownSource = fs.readFileSync(new URL("./components/content/MarkdownPreview.jsx", import.meta.url), "utf8");
+  const composerSource = fs.readFileSync(new URL("./components/feed/Composer.jsx", import.meta.url), "utf8");
+  const editorSource = fs.readFileSync(new URL("./pages/ContentRoutes.jsx", import.meta.url), "utf8");
+  const threadSource = fs.readFileSync(new URL("./components/content/ThreadReader.jsx", import.meta.url), "utf8");
+  const postSource = fs.readFileSync(new URL("./components/post/PostCard.jsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(emojiTextSource, /dangerouslySetInnerHTML/);
+  assert.match(emojiTextSource, /emojiTextParts\(text, emojis\)/);
+  assert.match(emojiTextSource, /\}, \[text\]\);/);
+  assert.match(emojiPickerSource, /\}, \[open\]\);/);
+  assert.match(markdownSource, /<EmojiText text=\{block\.text\}/);
+  assert.match(markdownSource, /<EmojiText text=\{item\}/);
+  assert.match(composerSource, /<EmojiPicker[\s\S]*?inputRef=\{bodyRef\}[\s\S]*?maxLength=\{1000\}/);
+  assert.match(editorSource, /\{!previewOpen && <EmojiPicker inputRef=\{bodyRef\} value=\{form\.body\}/);
+  assert.match(threadSource, /<EmojiPicker disabled=\{!auth\} inputRef=\{commentEditorRef\}/);
+  assert.match(postSource, /normalizeEmojiHighlightMarkup\(highlightedSource\)/);
+  assert.match(postSource, /renderHighlightedText\(post\.text, post\.highlight\?\.text, true\)/);
+});
+
 test("keeps explicit chat entries on user message surfaces", () => {
   const messageSurfaces = [
     fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8"),

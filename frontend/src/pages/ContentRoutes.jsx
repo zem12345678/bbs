@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Clock3, Crown, Edit3, Eye, FileText, Flame, Hash, ImagePlus, ListChecks, MessageCircle, Plus, Search, Trash2, UserRound } from "lucide-react";
 import { bbsApi } from "../api";
+import EmojiPicker from "../components/content/EmojiPicker.jsx";
 import MarkdownPreview from "../components/content/MarkdownPreview.jsx";
 import TagAssist from "../components/content/TagAssist.jsx";
 import ThreadReader from "../components/content/ThreadReader.jsx";
@@ -531,6 +532,7 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
   });
   const bountySubmissionBlocked =
     bountyRequiresMembershipForCurrentSubmit && bountyGateState.blocked;
+  const bodyRef = React.useRef(null);
   const draftDirtyRef = React.useRef(false);
   const draftKey = React.useMemo(
     () => `bbs:editor:${kind}:${edit ? params.id || "unknown" : "new"}:${auth?.user?.id || "guest"}:v1${!edit && requestedChannelId ? `:channel-${requestedChannelId}` : ""}`,
@@ -884,11 +886,13 @@ export function EditorPage({ auth, categories = [], edit = false, kind = "topic"
           <textarea
             className="editor-body"
             placeholder="正文内容"
+            ref={bodyRef}
             value={form.body}
             onChange={(event) => updateField("body", event.target.value)}
           />
         )}
         <div className="editor-media-tools">
+          {!previewOpen && <EmojiPicker inputRef={bodyRef} value={form.body} onChange={(value) => updateField("body", value)} />}
           <label>
             <input accept="image/jpeg,image/png,image/gif,image/webp" className="sr-only" disabled={Boolean(imageUpload.loading)} type="file" onChange={(event) => uploadEditorImage(event, "body")} />
             <ImagePlus size={17} aria-hidden="true" />

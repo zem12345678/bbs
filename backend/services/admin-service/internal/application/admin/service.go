@@ -149,6 +149,14 @@ type OperationStore interface {
 	DeleteTask(ctx context.Context, id int64) error
 }
 
+type EmojiStore interface {
+	ListEmojis(ctx context.Context, query string, limit int32, offset int32) (domain.EmojiList, error)
+	GetEmojiByName(ctx context.Context, name string) (domain.Emoji, error)
+	CreateEmoji(ctx context.Context, command domain.CreateEmojiCommand) (domain.Emoji, error)
+	UpdateEmoji(ctx context.Context, command domain.UpdateEmojiCommand) (domain.Emoji, error)
+	DeleteEmoji(ctx context.Context, id int64) error
+}
+
 type PasswordVerifier interface {
 	Verify(hash string, password string) error
 }

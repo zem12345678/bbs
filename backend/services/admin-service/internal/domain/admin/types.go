@@ -59,6 +59,10 @@ const (
 	ActionCreateAnnouncement           Action = "create_announcement"
 	ActionUpdateAnnouncement           Action = "update_announcement"
 	ActionDeleteAnnouncement           Action = "delete_announcement"
+	ActionListEmojis                   Action = "list_emojis"
+	ActionCreateEmoji                  Action = "create_emoji"
+	ActionUpdateEmoji                  Action = "update_emoji"
+	ActionDeleteEmoji                  Action = "delete_emoji"
 	ActionListInviteCodes              Action = "list_invite_codes"
 	ActionCreateInviteCodes            Action = "create_invite_codes"
 	ActionRevokeInviteCode             Action = "revoke_invite_code"
@@ -140,6 +144,11 @@ var (
 	ErrInvalidAnnouncementID   = errors.New("invalid announcement id")
 	ErrAnnouncementsManaged    = errors.New("site announcements are managed by the announcement API")
 	ErrAnnouncementDialogLimit = errors.New("too many active dialog announcements")
+	ErrInvalidEmoji            = errors.New("invalid emoji")
+	ErrInvalidEmojiID          = errors.New("invalid emoji id")
+	ErrEmojiNotFound           = errors.New("emoji not found")
+	ErrEmojiNameExists         = errors.New("emoji name already exists")
+	ErrEmojiStoreUnavailable   = errors.New("emoji store unavailable")
 	ErrInvalidTask             = errors.New("invalid task")
 	ErrInvalidStatus           = errors.New("invalid status")
 	ErrTaskDefinitionsManaged  = errors.New("task definitions are managed by the system")
@@ -406,6 +415,54 @@ type UpsertBadgeCommand struct {
 	RuleValue   int64
 	Status      int32
 	Sort        int32
+}
+
+type Emoji struct {
+	ID                                      int64
+	Name                                    string
+	URL                                     string
+	OriginalURL                             string
+	ContentType                             string
+	Category                                *string
+	Aliases                                 []string
+	License                                 *string
+	IsSensitive                             bool
+	LocalOnly                               bool
+	RoleIDsThatCanBeUsedThisEmojiAsReaction []string
+	CreatedAt                               int64
+	UpdatedAt                               int64
+}
+
+type EmojiList struct {
+	Items []Emoji
+	Total int64
+}
+
+type CreateEmojiCommand struct {
+	Name                                    string
+	URL                                     string
+	OriginalURL                             string
+	ContentType                             string
+	Category                                *string
+	Aliases                                 []string
+	License                                 *string
+	IsSensitive                             bool
+	LocalOnly                               bool
+	RoleIDsThatCanBeUsedThisEmojiAsReaction []string
+}
+
+type UpdateEmojiCommand struct {
+	ID                                      int64
+	Name                                    *string
+	URL                                     *string
+	OriginalURL                             *string
+	ContentType                             *string
+	Category                                **string
+	Aliases                                 *[]string
+	License                                 **string
+	IsSensitive                             *bool
+	LocalOnly                               *bool
+	RoleIDsThatCanBeUsedThisEmojiAsReaction *[]string
 }
 
 type Level struct {

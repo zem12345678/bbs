@@ -1,4 +1,5 @@
 import React from "react";
+import EmojiText from "./EmojiText.jsx";
 
 const imagePattern = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/;
 
@@ -109,17 +110,17 @@ function renderBlock(block, index) {
   switch (block.type) {
     case "heading":
       return block.level === 1 ? (
-        <h2 key={index}>{block.text}</h2>
+        <h2 key={index}><EmojiText text={block.text} /></h2>
       ) : (
-        <h3 key={index}>{block.text}</h3>
+        <h3 key={index}><EmojiText text={block.text} /></h3>
       );
     case "quote":
-      return <blockquote key={index}>{block.text}</blockquote>;
+      return <blockquote key={index}><EmojiText text={block.text} /></blockquote>;
     case "list":
       return (
         <ul key={index}>
           {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{item}</li>
+            <li key={`${item}-${itemIndex}`}><EmojiText text={item} /></li>
           ))}
         </ul>
       );
@@ -132,6 +133,6 @@ function renderBlock(block, index) {
     case "image":
       return <img alt={block.alt || ""} key={index} src={block.src} />;
     default:
-      return <p key={index}>{block.text}</p>;
+      return <p key={index}><EmojiText text={block.text} /></p>;
   }
 }

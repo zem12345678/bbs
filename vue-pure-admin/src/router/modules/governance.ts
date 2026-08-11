@@ -144,6 +144,15 @@ export default {
       }
     },
     {
+      path: "/governance/emojis",
+      name: "GovernanceEmojis",
+      component: () => import("@/views/governance/emojis/index.vue"),
+      meta: {
+        title: "Emoji 管理",
+        roles: ["admin", "superadmin"]
+      }
+    },
+    {
       path: "/governance/levels",
       name: "GovernanceLevels",
       component: () => import("@/views/governance/levels/index.vue"),

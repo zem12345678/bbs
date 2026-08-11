@@ -428,6 +428,24 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			compatibility.POST("/show", h.requireAuthScope("read"), h.showAntenna)
 			compatibility.POST("/update", h.requireAuthScope("write"), h.updateAntenna)
 		}
+		for _, prefix := range []string{"/api", ""} {
+			r.GET(prefix+"/emoji", h.getEmojiCompat)
+			r.POST(prefix+"/emoji", h.getEmojiCompat)
+			r.GET(prefix+"/emojis", h.listEmojisCompat)
+			r.POST(prefix+"/emojis", h.listEmojisCompat)
+			adminEmoji := r.Group(prefix + "/admin/emoji")
+			adminEmoji.POST("/add", h.requireAdminAuth(), h.requireAdminPermission("governance:create_emoji"), h.createAdminEmojiCompat)
+			adminEmoji.POST("/add-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.addAdminEmojiAliasesBulk)
+			adminEmoji.POST("/update", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.updateAdminEmojiCompat)
+			adminEmoji.POST("/delete", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_emoji"), h.deleteAdminEmojiCompat)
+			adminEmoji.POST("/delete-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_emoji"), h.deleteAdminEmojisBulk)
+			adminEmoji.POST("/list", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojisCompat)
+			adminEmoji.POST("/remove-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.removeAdminEmojiAliasesBulk)
+			adminEmoji.POST("/set-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiAliasesBulk)
+			adminEmoji.POST("/set-category-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiCategoryBulk)
+			adminEmoji.POST("/set-license-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiLicenseBulk)
+			r.POST(prefix+"/v2/admin/emoji/list", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojisV2)
+		}
 		api := r.Group("/api/v1")
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
@@ -476,6 +494,10 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/auth/oauth/:provider/start", h.oauthStart)
 		api.GET("/auth/oauth/:provider/callback", h.oauthCallback)
 		api.POST("/uploads/images", h.requireAuth(), h.uploadImage)
+		api.GET("/emoji", h.getEmoji)
+		api.POST("/emoji", h.getEmoji)
+		api.GET("/emojis", h.listEmojis)
+		api.POST("/emojis", h.listEmojis)
 		api.POST("/files", h.requireAuth(), h.uploadFile)
 		api.GET("/files", h.requireAuth(), h.listFiles)
 		api.GET("/files/usage", h.requireAuth(), h.getFileUsage)
@@ -496,6 +518,22 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/admin/auth/menus", h.requireAdminAuth(), h.listCurrentAdminMenus)
 		api.GET("/admin/overview", h.requireAdminAuth(), h.requireAdminPermission("system:view_dashboard"), h.adminOverview)
 		api.POST("/admin/uploads/avatar", h.requireAdminAuth(), h.uploadAdminAvatar)
+		api.POST("/admin/uploads/emoji", h.requireAdminAuth(), h.requireAdminAnyPermission("governance:create_emoji", "governance:update_emoji"), h.uploadAdminEmoji)
+		api.GET("/admin/emojis", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojis)
+		api.POST("/admin/emojis", h.requireAdminAuth(), h.requireAdminPermission("governance:create_emoji"), h.createAdminEmoji)
+		api.PATCH("/admin/emojis/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.updateAdminEmoji)
+		api.DELETE("/admin/emojis/:id", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_emoji"), h.deleteAdminEmoji)
+		api.POST("/admin/emoji/add", h.requireAdminAuth(), h.requireAdminPermission("governance:create_emoji"), h.createAdminEmojiCompat)
+		api.POST("/admin/emoji/add-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.addAdminEmojiAliasesBulk)
+		api.POST("/admin/emoji/update", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.updateAdminEmojiCompat)
+		api.POST("/admin/emoji/delete", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_emoji"), h.deleteAdminEmojiCompat)
+		api.POST("/admin/emoji/delete-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:delete_emoji"), h.deleteAdminEmojisBulk)
+		api.POST("/admin/emoji/list", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojisCompat)
+		api.POST("/admin/emoji/remove-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.removeAdminEmojiAliasesBulk)
+		api.POST("/admin/emoji/set-aliases-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiAliasesBulk)
+		api.POST("/admin/emoji/set-category-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiCategoryBulk)
+		api.POST("/admin/emoji/set-license-bulk", h.requireAdminAuth(), h.requireAdminPermission("governance:update_emoji"), h.setAdminEmojiLicenseBulk)
+		api.POST("/v2/admin/emoji/list", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojisV2)
 		api.GET("/users/me", h.requireAuth(), h.getMe)
 		api.GET("/users/me/mfa", h.requireAuth(), h.getMFAStatus)
 		api.POST("/users/me/mfa/totp/enrollment", h.requireAuth(), h.beginTOTPEnrollment)
@@ -1160,6 +1198,17 @@ func (h *Handler) uploadAdminAvatar(c *gin.Context) {
 	response.Success(c, payload)
 }
 
+func (h *Handler) uploadAdminEmoji(c *gin.Context) {
+	payload, ok := h.saveUploadedImage(c, "emojis")
+	if !ok {
+		return
+	}
+	path, _ := payload["path"].(string)
+	payload["fileId"] = filepath.Base(path)
+	payload["file_id"] = filepath.Base(path)
+	response.Success(c, payload)
+}
+
 func (h *Handler) uploadUserAvatar(c *gin.Context) {
 	if !h.allowFileUploadRateLimit(c, currentUserID(c)) {
 		return
@@ -1278,7 +1327,7 @@ func (h *Handler) serveUploadedImage(c *gin.Context) {
 }
 
 func publicImageObject(kind string, name string) (string, string, bool) {
-	if (kind != "avatars" && kind != "images") || name == "" || strings.ContainsAny(name, `/\\`) {
+	if (kind != "avatars" && kind != "images" && kind != "emojis") || name == "" || strings.ContainsAny(name, `/\\`) {
 		return "", "", false
 	}
 	ext := strings.ToLower(filepath.Ext(name))
@@ -6196,6 +6245,31 @@ func (h *Handler) requireAdminPermission(permission string) gin.HandlerFunc {
 		if adminProfileHasPermission(profile, permission) {
 			c.Next()
 			return
+		}
+		writeError(c, http.StatusForbidden, "admin permission denied", "permission_denied")
+		c.Abort()
+	}
+}
+
+func (h *Handler) requireAdminAnyPermission(permissions ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		value, ok := c.Get("admin_profile")
+		if !ok {
+			writeError(c, http.StatusUnauthorized, "admin profile not found", "unauthorized")
+			c.Abort()
+			return
+		}
+		profile, ok := value.(*adminpb.ProfileResponse)
+		if !ok || profile.GetUser() == nil {
+			writeError(c, http.StatusUnauthorized, "admin profile invalid", "unauthorized")
+			c.Abort()
+			return
+		}
+		for _, permission := range permissions {
+			if adminProfileHasPermission(profile, permission) {
+				c.Next()
+				return
+			}
 		}
 		writeError(c, http.StatusForbidden, "admin permission denied", "permission_denied")
 		c.Abort()

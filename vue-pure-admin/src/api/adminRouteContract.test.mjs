@@ -346,6 +346,41 @@ test("announcement governance UI exposes the typed announcement contract", () =>
   assert.match(viewSource, /ElMessageBox\.confirm/);
 });
 
+test("emoji governance UI exposes management, upload and permission contracts", () => {
+  const apiSource = read("vue-pure-admin/src/api/admin.ts");
+  const routeSource = read("vue-pure-admin/src/router/modules/governance.ts");
+  const viewSource = read(
+    "vue-pure-admin/src/views/governance/emojis/index.vue"
+  );
+
+  for (const [functionName, route] of [
+    ["listAdminEmojis", "/api/v1/admin/emojis"],
+    ["createAdminEmoji", "/api/v1/admin/emojis"],
+    ["updateAdminEmoji", "/api/v1/admin/emojis/"],
+    ["deleteAdminEmoji", "/api/v1/admin/emojis/"],
+    ["uploadAdminEmoji", "/api/v1/admin/uploads/emoji"]
+  ]) {
+    assert.match(apiSource, new RegExp(functionName));
+    assert.match(apiSource, new RegExp(route));
+  }
+
+  assert.match(routeSource, /path:\s*"\/governance\/emojis"/);
+  assert.match(routeSource, /name:\s*"GovernanceEmojis"/);
+  assert.match(viewSource, /governance:list_emojis/);
+  assert.match(viewSource, /governance:create_emoji/);
+  assert.match(viewSource, /governance:update_emoji/);
+  assert.match(viewSource, /governance:delete_emoji/);
+  assert.match(viewSource, /canUpload = computed\(\(\) => canCreate\.value \|\| canUpdate\.value\)/);
+  assert.match(viewSource, /preview-src-list/);
+  assert.match(viewSource, /uploadAdminEmoji/);
+  assert.match(viewSource, /name:\s*form\.name\.trim\(\)/);
+  assert.match(viewSource, /category:\s*nullableText\(form\.category\)/);
+  assert.match(viewSource, /aliases:\s*parseAliases\(form\.aliasesText\)/);
+  assert.match(viewSource, /license:\s*nullableText\(form\.license\)/);
+  assert.match(viewSource, /isSensitive:\s*form\.isSensitive/);
+  assert.match(viewSource, /localOnly:\s*form\.localOnly/);
+});
+
 function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {

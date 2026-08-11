@@ -59,6 +59,27 @@ test("loads public metadata without authentication", async () => {
   assert.deepEqual(data, { ads: [], notesPerOneAd: 0 });
 });
 
+test("loads public custom emojis without authentication", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { emojis: [{ name: "party", url: "https://cdn.example.test/party.webp" }] }
+    });
+  };
+
+  const data = await bbsApi.emojis();
+
+  assert.equal(captured.url, "http://127.0.0.1:18080/api/v1/emojis");
+  assert.equal(captured.options.method, "GET");
+  assert.equal(captured.options.headers.Authorization, undefined);
+  assert.equal(data.emojis[0].name, "party");
+});
+
 test("keeps int64 mall ids quoted in mutation payloads", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {
