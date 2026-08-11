@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"notification-service/internal/infrastructure/webhook"
 	"notification-service/internal/infrastructure/webpush"
 	"notification-service/internal/ioc/application"
 	"notification-service/internal/ioc/grpc"
@@ -29,13 +30,16 @@ func NewOptions(v *viper.Viper, logger *zap.Logger) (*Options, error) {
 	return o, nil
 }
 
-func NewApp(o *Options, logger *zap.Logger, gs *grpc.Server, runner *ConsumerRunner, dispatcher *webpush.Dispatcher) (*application.Application, error) {
+func NewApp(o *Options, logger *zap.Logger, gs *grpc.Server, runner *ConsumerRunner, webPushDispatcher *webpush.Dispatcher, webhookDispatcher *webhook.Dispatcher) (*application.Application, error) {
 	options := []application.Option{application.GrpcServerOptions(gs)}
 	if runner != nil {
 		options = append(options, application.ComponentOptions(runner))
 	}
-	if dispatcher != nil {
-		options = append(options, application.ComponentOptions(dispatcher))
+	if webPushDispatcher != nil {
+		options = append(options, application.ComponentOptions(webPushDispatcher))
+	}
+	if webhookDispatcher != nil {
+		options = append(options, application.ComponentOptions(webhookDispatcher))
 	}
 	a, err := application.New(o.Name, logger, options...)
 	if err != nil {

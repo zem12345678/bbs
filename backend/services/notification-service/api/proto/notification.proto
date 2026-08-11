@@ -15,6 +15,12 @@ service NotificationService {
   rpc RegisterWebPushSubscription(RegisterWebPushSubscriptionRequest) returns (WebPushSubscriptionResponse);
   rpc GetWebPushSubscription(GetWebPushSubscriptionRequest) returns (WebPushSubscriptionResponse);
   rpc UnregisterWebPushSubscription(UnregisterWebPushSubscriptionRequest) returns (MutationResponse);
+  rpc ListWebhooks(ListWebhooksRequest) returns (WebhookListResponse);
+  rpc CreateWebhook(CreateWebhookRequest) returns (WebhookResponse);
+  rpc ShowWebhook(ShowWebhookRequest) returns (WebhookResponse);
+  rpc UpdateWebhook(UpdateWebhookRequest) returns (WebhookResponse);
+  rpc DeleteWebhook(DeleteWebhookRequest) returns (MutationResponse);
+  rpc TestWebhook(TestWebhookRequest) returns (MutationResponse);
 }
 
 // This service is intentionally separate from the user-facing notification API.
@@ -120,6 +126,71 @@ message WebPushSubscriptionResponse {
   bool send_read_message = 5;
   int64 created_at = 6;
   int64 updated_at = 7;
+}
+
+message Webhook {
+  int64 id = 1;
+  int64 user_id = 2;
+  string name = 3;
+  string url = 4;
+  string secret = 5;
+  repeated string on = 6;
+  bool active = 7;
+  int64 latest_sent_at = 8;
+  int32 latest_status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+}
+
+message ListWebhooksRequest {
+  int64 user_id = 1;
+}
+
+message WebhookListResponse {
+  repeated Webhook items = 1;
+}
+
+message CreateWebhookRequest {
+  int64 user_id = 1;
+  string name = 2;
+  string url = 3;
+  string secret = 4;
+  repeated string on = 5;
+}
+
+message WebhookResponse {
+  Webhook webhook = 1;
+}
+
+message ShowWebhookRequest {
+  int64 user_id = 1;
+  int64 webhook_id = 2;
+}
+
+message UpdateWebhookRequest {
+  int64 user_id = 1;
+  int64 webhook_id = 2;
+  string name = 3;
+  string url = 4;
+  string secret = 5;
+  repeated string on = 6;
+  bool active = 7;
+  bool active_set = 8;
+  bool secret_set = 9;
+}
+
+message DeleteWebhookRequest {
+  int64 user_id = 1;
+  int64 webhook_id = 2;
+}
+
+message TestWebhookRequest {
+  int64 user_id = 1;
+  int64 webhook_id = 2;
+  string type = 3;
+  string override_url = 4;
+  string override_secret = 5;
+  bool override_secret_set = 6;
 }
 
 message MutationResponse {

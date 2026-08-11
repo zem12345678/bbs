@@ -6,6 +6,7 @@ import (
 	"time"
 
 	app "notification-service/internal/application/notification"
+	domain "notification-service/internal/domain/notification"
 )
 
 type Projector struct {
@@ -23,13 +24,29 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 		if err := json.Unmarshal(env.Payload, &payload); err != nil {
 			return err
 		}
-		return p.service.UpsertArticle(ctx, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt)
+		if err := p.service.UpsertArticle(ctx, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
+			return err
+		}
+		if env.EventID == "" {
+			return nil
+		}
+		return p.service.EnqueueWebhookEvent(ctx, payload.AuthorID, domain.WebhookEventNote, env.EventID, map[string]any{
+			"note": map[string]any{"id": payload.ArticleID, "title": payload.Title, "authorId": payload.AuthorID, "type": "article"},
+		}, env.OccurredAt)
 	case "topic.published.v1":
 		var payload topicPublishedPayload
 		if err := json.Unmarshal(env.Payload, &payload); err != nil {
 			return err
 		}
-		return p.service.UpsertTopic(ctx, payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt)
+		if err := p.service.UpsertTopic(ctx, payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
+			return err
+		}
+		if env.EventID == "" {
+			return nil
+		}
+		return p.service.EnqueueWebhookEvent(ctx, payload.AuthorID, domain.WebhookEventNote, env.EventID, map[string]any{
+			"note": map[string]any{"id": payload.TopicID, "title": payload.Title, "authorId": payload.AuthorID, "type": "topic"},
+		}, env.OccurredAt)
 	case "content.qa.accepted.v1":
 		var payload qaAcceptedPayload
 		if err := json.Unmarshal(env.Payload, &payload); err != nil {
@@ -47,7 +64,7 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 
 func (p *Projector) HandleUser(ctx context.Context, env eventEnvelope) error {
 	switch env.EventType {
-	case "user.followed", "user.follow_requested", "user.follow_request_accepted":
+	case "user.followed", "user.unfollowed", "user.follow_requested", "user.follow_request_accepted":
 	default:
 		return nil
 	}
@@ -57,7 +74,27 @@ func (p *Projector) HandleUser(ctx context.Context, env eventEnvelope) error {
 	}
 	switch env.EventType {
 	case "user.followed":
-		return p.service.NotifyFollow(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
+		if err := p.service.NotifyFollow(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt); err != nil {
+			return err
+		}
+		if env.EventID == "" {
+			return nil
+		}
+		if err := p.service.EnqueueWebhookEvent(ctx, payload.FollowerID, domain.WebhookEventFollow, env.EventID, map[string]any{
+			"user": map[string]any{"id": payload.FolloweeID},
+		}, env.OccurredAt); err != nil {
+			return err
+		}
+		return p.service.EnqueueWebhookEvent(ctx, payload.FolloweeID, domain.WebhookEventFollowed, env.EventID, map[string]any{
+			"user": map[string]any{"id": payload.FollowerID},
+		}, env.OccurredAt)
+	case "user.unfollowed":
+		if env.EventID == "" {
+			return nil
+		}
+		return p.service.EnqueueWebhookEvent(ctx, payload.FollowerID, domain.WebhookEventUnfollow, env.EventID, map[string]any{
+			"user": map[string]any{"id": payload.FolloweeID},
+		}, env.OccurredAt)
 	case "user.follow_requested":
 		return p.service.NotifyFollowRequestReceived(ctx, env.EventID, payload.FollowerID, payload.FolloweeID, env.OccurredAt)
 	case "user.follow_request_accepted":

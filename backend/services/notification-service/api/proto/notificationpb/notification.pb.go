@@ -1017,6 +1017,634 @@ func (x *WebPushSubscriptionResponse) GetUpdatedAt() int64 {
 	return 0
 }
 
+type Webhook struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	Secret        string                 `protobuf:"bytes,5,opt,name=secret,proto3" json:"secret,omitempty"`
+	On            []string               `protobuf:"bytes,6,rep,name=on,proto3" json:"on,omitempty"`
+	Active        bool                   `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
+	LatestSentAt  int64                  `protobuf:"varint,8,opt,name=latest_sent_at,json=latestSentAt,proto3" json:"latest_sent_at,omitempty"`
+	LatestStatus  int32                  `protobuf:"varint,9,opt,name=latest_status,json=latestStatus,proto3" json:"latest_status,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Webhook) Reset() {
+	*x = Webhook{}
+	mi := &file_notification_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Webhook) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Webhook) ProtoMessage() {}
+
+func (x *Webhook) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Webhook.ProtoReflect.Descriptor instead.
+func (*Webhook) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *Webhook) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Webhook) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *Webhook) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Webhook) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *Webhook) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *Webhook) GetOn() []string {
+	if x != nil {
+		return x.On
+	}
+	return nil
+}
+
+func (x *Webhook) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *Webhook) GetLatestSentAt() int64 {
+	if x != nil {
+		return x.LatestSentAt
+	}
+	return 0
+}
+
+func (x *Webhook) GetLatestStatus() int32 {
+	if x != nil {
+		return x.LatestStatus
+	}
+	return 0
+}
+
+func (x *Webhook) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *Webhook) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+type ListWebhooksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListWebhooksRequest) Reset() {
+	*x = ListWebhooksRequest{}
+	mi := &file_notification_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWebhooksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWebhooksRequest) ProtoMessage() {}
+
+func (x *ListWebhooksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWebhooksRequest.ProtoReflect.Descriptor instead.
+func (*ListWebhooksRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListWebhooksRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type WebhookListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Webhook             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebhookListResponse) Reset() {
+	*x = WebhookListResponse{}
+	mi := &file_notification_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebhookListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebhookListResponse) ProtoMessage() {}
+
+func (x *WebhookListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebhookListResponse.ProtoReflect.Descriptor instead.
+func (*WebhookListResponse) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *WebhookListResponse) GetItems() []*Webhook {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type CreateWebhookRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
+	Secret        string                 `protobuf:"bytes,4,opt,name=secret,proto3" json:"secret,omitempty"`
+	On            []string               `protobuf:"bytes,5,rep,name=on,proto3" json:"on,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateWebhookRequest) Reset() {
+	*x = CreateWebhookRequest{}
+	mi := &file_notification_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateWebhookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateWebhookRequest) ProtoMessage() {}
+
+func (x *CreateWebhookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateWebhookRequest.ProtoReflect.Descriptor instead.
+func (*CreateWebhookRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *CreateWebhookRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *CreateWebhookRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateWebhookRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *CreateWebhookRequest) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *CreateWebhookRequest) GetOn() []string {
+	if x != nil {
+		return x.On
+	}
+	return nil
+}
+
+type WebhookResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Webhook       *Webhook               `protobuf:"bytes,1,opt,name=webhook,proto3" json:"webhook,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebhookResponse) Reset() {
+	*x = WebhookResponse{}
+	mi := &file_notification_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebhookResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebhookResponse) ProtoMessage() {}
+
+func (x *WebhookResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebhookResponse.ProtoReflect.Descriptor instead.
+func (*WebhookResponse) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *WebhookResponse) GetWebhook() *Webhook {
+	if x != nil {
+		return x.Webhook
+	}
+	return nil
+}
+
+type ShowWebhookRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	WebhookId     int64                  `protobuf:"varint,2,opt,name=webhook_id,json=webhookId,proto3" json:"webhook_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ShowWebhookRequest) Reset() {
+	*x = ShowWebhookRequest{}
+	mi := &file_notification_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ShowWebhookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ShowWebhookRequest) ProtoMessage() {}
+
+func (x *ShowWebhookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ShowWebhookRequest.ProtoReflect.Descriptor instead.
+func (*ShowWebhookRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ShowWebhookRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ShowWebhookRequest) GetWebhookId() int64 {
+	if x != nil {
+		return x.WebhookId
+	}
+	return 0
+}
+
+type UpdateWebhookRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	WebhookId     int64                  `protobuf:"varint,2,opt,name=webhook_id,json=webhookId,proto3" json:"webhook_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	Secret        string                 `protobuf:"bytes,5,opt,name=secret,proto3" json:"secret,omitempty"`
+	On            []string               `protobuf:"bytes,6,rep,name=on,proto3" json:"on,omitempty"`
+	Active        bool                   `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
+	ActiveSet     bool                   `protobuf:"varint,8,opt,name=active_set,json=activeSet,proto3" json:"active_set,omitempty"`
+	SecretSet     bool                   `protobuf:"varint,9,opt,name=secret_set,json=secretSet,proto3" json:"secret_set,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateWebhookRequest) Reset() {
+	*x = UpdateWebhookRequest{}
+	mi := &file_notification_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateWebhookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateWebhookRequest) ProtoMessage() {}
+
+func (x *UpdateWebhookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateWebhookRequest.ProtoReflect.Descriptor instead.
+func (*UpdateWebhookRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *UpdateWebhookRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *UpdateWebhookRequest) GetWebhookId() int64 {
+	if x != nil {
+		return x.WebhookId
+	}
+	return 0
+}
+
+func (x *UpdateWebhookRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpdateWebhookRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *UpdateWebhookRequest) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
+}
+
+func (x *UpdateWebhookRequest) GetOn() []string {
+	if x != nil {
+		return x.On
+	}
+	return nil
+}
+
+func (x *UpdateWebhookRequest) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *UpdateWebhookRequest) GetActiveSet() bool {
+	if x != nil {
+		return x.ActiveSet
+	}
+	return false
+}
+
+func (x *UpdateWebhookRequest) GetSecretSet() bool {
+	if x != nil {
+		return x.SecretSet
+	}
+	return false
+}
+
+type DeleteWebhookRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	WebhookId     int64                  `protobuf:"varint,2,opt,name=webhook_id,json=webhookId,proto3" json:"webhook_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteWebhookRequest) Reset() {
+	*x = DeleteWebhookRequest{}
+	mi := &file_notification_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteWebhookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteWebhookRequest) ProtoMessage() {}
+
+func (x *DeleteWebhookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteWebhookRequest.ProtoReflect.Descriptor instead.
+func (*DeleteWebhookRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *DeleteWebhookRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *DeleteWebhookRequest) GetWebhookId() int64 {
+	if x != nil {
+		return x.WebhookId
+	}
+	return 0
+}
+
+type TestWebhookRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	UserId            int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	WebhookId         int64                  `protobuf:"varint,2,opt,name=webhook_id,json=webhookId,proto3" json:"webhook_id,omitempty"`
+	Type              string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	OverrideUrl       string                 `protobuf:"bytes,4,opt,name=override_url,json=overrideUrl,proto3" json:"override_url,omitempty"`
+	OverrideSecret    string                 `protobuf:"bytes,5,opt,name=override_secret,json=overrideSecret,proto3" json:"override_secret,omitempty"`
+	OverrideSecretSet bool                   `protobuf:"varint,6,opt,name=override_secret_set,json=overrideSecretSet,proto3" json:"override_secret_set,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *TestWebhookRequest) Reset() {
+	*x = TestWebhookRequest{}
+	mi := &file_notification_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestWebhookRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestWebhookRequest) ProtoMessage() {}
+
+func (x *TestWebhookRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestWebhookRequest.ProtoReflect.Descriptor instead.
+func (*TestWebhookRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *TestWebhookRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *TestWebhookRequest) GetWebhookId() int64 {
+	if x != nil {
+		return x.WebhookId
+	}
+	return 0
+}
+
+func (x *TestWebhookRequest) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *TestWebhookRequest) GetOverrideUrl() string {
+	if x != nil {
+		return x.OverrideUrl
+	}
+	return ""
+}
+
+func (x *TestWebhookRequest) GetOverrideSecret() string {
+	if x != nil {
+		return x.OverrideSecret
+	}
+	return ""
+}
+
+func (x *TestWebhookRequest) GetOverrideSecretSet() bool {
+	if x != nil {
+		return x.OverrideSecretSet
+	}
+	return false
+}
+
 type MutationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -1027,7 +1655,7 @@ type MutationResponse struct {
 
 func (x *MutationResponse) Reset() {
 	*x = MutationResponse{}
-	mi := &file_notification_proto_msgTypes[17]
+	mi := &file_notification_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1039,7 +1667,7 @@ func (x *MutationResponse) String() string {
 func (*MutationResponse) ProtoMessage() {}
 
 func (x *MutationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[17]
+	mi := &file_notification_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1052,7 +1680,7 @@ func (x *MutationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MutationResponse.ProtoReflect.Descriptor instead.
 func (*MutationResponse) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{17}
+	return file_notification_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *MutationResponse) GetSuccess() bool {
@@ -1082,7 +1710,7 @@ type DispatchSystemNotificationsRequest struct {
 
 func (x *DispatchSystemNotificationsRequest) Reset() {
 	*x = DispatchSystemNotificationsRequest{}
-	mi := &file_notification_proto_msgTypes[18]
+	mi := &file_notification_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1094,7 +1722,7 @@ func (x *DispatchSystemNotificationsRequest) String() string {
 func (*DispatchSystemNotificationsRequest) ProtoMessage() {}
 
 func (x *DispatchSystemNotificationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[18]
+	mi := &file_notification_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1107,7 +1735,7 @@ func (x *DispatchSystemNotificationsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DispatchSystemNotificationsRequest.ProtoReflect.Descriptor instead.
 func (*DispatchSystemNotificationsRequest) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{18}
+	return file_notification_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DispatchSystemNotificationsRequest) GetRecipientIds() []int64 {
@@ -1154,7 +1782,7 @@ type DispatchSystemNotificationsResponse struct {
 
 func (x *DispatchSystemNotificationsResponse) Reset() {
 	*x = DispatchSystemNotificationsResponse{}
-	mi := &file_notification_proto_msgTypes[19]
+	mi := &file_notification_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1794,7 @@ func (x *DispatchSystemNotificationsResponse) String() string {
 func (*DispatchSystemNotificationsResponse) ProtoMessage() {}
 
 func (x *DispatchSystemNotificationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[19]
+	mi := &file_notification_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1807,7 @@ func (x *DispatchSystemNotificationsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DispatchSystemNotificationsResponse.ProtoReflect.Descriptor instead.
 func (*DispatchSystemNotificationsResponse) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{19}
+	return file_notification_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DispatchSystemNotificationsResponse) GetDeliveredCount() int32 {
@@ -1200,7 +1828,7 @@ type EraseUserDataRequest struct {
 
 func (x *EraseUserDataRequest) Reset() {
 	*x = EraseUserDataRequest{}
-	mi := &file_notification_proto_msgTypes[20]
+	mi := &file_notification_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1212,7 +1840,7 @@ func (x *EraseUserDataRequest) String() string {
 func (*EraseUserDataRequest) ProtoMessage() {}
 
 func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[20]
+	mi := &file_notification_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1225,7 +1853,7 @@ func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
 func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{20}
+	return file_notification_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *EraseUserDataRequest) GetUserId() int64 {
@@ -1328,7 +1956,63 @@ const file_notification_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\x03R\tupdatedAt\"F\n" +
+	"updated_at\x18\a \x01(\x03R\tupdatedAt\"\xa1\x02\n" +
+	"\aWebhook\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03url\x18\x04 \x01(\tR\x03url\x12\x16\n" +
+	"\x06secret\x18\x05 \x01(\tR\x06secret\x12\x0e\n" +
+	"\x02on\x18\x06 \x03(\tR\x02on\x12\x16\n" +
+	"\x06active\x18\a \x01(\bR\x06active\x12$\n" +
+	"\x0elatest_sent_at\x18\b \x01(\x03R\flatestSentAt\x12#\n" +
+	"\rlatest_status\x18\t \x01(\x05R\flatestStatus\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\n" +
+	" \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\v \x01(\x03R\tupdatedAt\".\n" +
+	"\x13ListWebhooksRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\"I\n" +
+	"\x13WebhookListResponse\x122\n" +
+	"\x05items\x18\x01 \x03(\v2\x1c.bbs.notification.v1.WebhookR\x05items\"}\n" +
+	"\x14CreateWebhookRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
+	"\x03url\x18\x03 \x01(\tR\x03url\x12\x16\n" +
+	"\x06secret\x18\x04 \x01(\tR\x06secret\x12\x0e\n" +
+	"\x02on\x18\x05 \x03(\tR\x02on\"I\n" +
+	"\x0fWebhookResponse\x126\n" +
+	"\awebhook\x18\x01 \x01(\v2\x1c.bbs.notification.v1.WebhookR\awebhook\"L\n" +
+	"\x12ShowWebhookRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"webhook_id\x18\x02 \x01(\x03R\twebhookId\"\xf2\x01\n" +
+	"\x14UpdateWebhookRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"webhook_id\x18\x02 \x01(\x03R\twebhookId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03url\x18\x04 \x01(\tR\x03url\x12\x16\n" +
+	"\x06secret\x18\x05 \x01(\tR\x06secret\x12\x0e\n" +
+	"\x02on\x18\x06 \x03(\tR\x02on\x12\x16\n" +
+	"\x06active\x18\a \x01(\bR\x06active\x12\x1d\n" +
+	"\n" +
+	"active_set\x18\b \x01(\bR\tactiveSet\x12\x1d\n" +
+	"\n" +
+	"secret_set\x18\t \x01(\bR\tsecretSet\"N\n" +
+	"\x14DeleteWebhookRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"webhook_id\x18\x02 \x01(\x03R\twebhookId\"\xdc\x01\n" +
+	"\x12TestWebhookRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"webhook_id\x18\x02 \x01(\x03R\twebhookId\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\x12!\n" +
+	"\foverride_url\x18\x04 \x01(\tR\voverrideUrl\x12'\n" +
+	"\x0foverride_secret\x18\x05 \x01(\tR\x0eoverrideSecret\x12.\n" +
+	"\x13override_secret_set\x18\x06 \x01(\bR\x11overrideSecretSet\"F\n" +
 	"\x10MutationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\xbd\x01\n" +
@@ -1343,7 +2027,7 @@ const file_notification_proto_rawDesc = "" +
 	"\x14EraseUserDataRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
 	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
-	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion2\xf6\b\n" +
+	"\x0epolicy_version\x18\x03 \x01(\x05R\rpolicyVersion2\xbe\r\n" +
 	"\x13NotificationService\x12r\n" +
 	"\x11ListNotifications\x12-.bbs.notification.v1.ListNotificationsRequest\x1a..bbs.notification.v1.ListNotificationsResponse\x12`\n" +
 	"\vCountUnread\x12'.bbs.notification.v1.CountUnreadRequest\x1a(.bbs.notification.v1.CountUnreadResponse\x12W\n" +
@@ -1354,7 +2038,13 @@ const file_notification_proto_rawDesc = "" +
 	"\x10GetWebPushConfig\x12,.bbs.notification.v1.GetWebPushConfigRequest\x1a*.bbs.notification.v1.WebPushConfigResponse\x12\x88\x01\n" +
 	"\x1bRegisterWebPushSubscription\x127.bbs.notification.v1.RegisterWebPushSubscriptionRequest\x1a0.bbs.notification.v1.WebPushSubscriptionResponse\x12~\n" +
 	"\x16GetWebPushSubscription\x122.bbs.notification.v1.GetWebPushSubscriptionRequest\x1a0.bbs.notification.v1.WebPushSubscriptionResponse\x12\x81\x01\n" +
-	"\x1dUnregisterWebPushSubscription\x129.bbs.notification.v1.UnregisterWebPushSubscriptionRequest\x1a%.bbs.notification.v1.MutationResponse2\x93\x02\n" +
+	"\x1dUnregisterWebPushSubscription\x129.bbs.notification.v1.UnregisterWebPushSubscriptionRequest\x1a%.bbs.notification.v1.MutationResponse\x12b\n" +
+	"\fListWebhooks\x12(.bbs.notification.v1.ListWebhooksRequest\x1a(.bbs.notification.v1.WebhookListResponse\x12`\n" +
+	"\rCreateWebhook\x12).bbs.notification.v1.CreateWebhookRequest\x1a$.bbs.notification.v1.WebhookResponse\x12\\\n" +
+	"\vShowWebhook\x12'.bbs.notification.v1.ShowWebhookRequest\x1a$.bbs.notification.v1.WebhookResponse\x12`\n" +
+	"\rUpdateWebhook\x12).bbs.notification.v1.UpdateWebhookRequest\x1a$.bbs.notification.v1.WebhookResponse\x12a\n" +
+	"\rDeleteWebhook\x12).bbs.notification.v1.DeleteWebhookRequest\x1a%.bbs.notification.v1.MutationResponse\x12]\n" +
+	"\vTestWebhook\x12'.bbs.notification.v1.TestWebhookRequest\x1a%.bbs.notification.v1.MutationResponse2\x93\x02\n" +
 	"\x1bInternalNotificationService\x12\x90\x01\n" +
 	"\x1bDispatchSystemNotifications\x127.bbs.notification.v1.DispatchSystemNotificationsRequest\x1a8.bbs.notification.v1.DispatchSystemNotificationsResponse\x12a\n" +
 	"\rEraseUserData\x12).bbs.notification.v1.EraseUserDataRequest\x1a%.bbs.notification.v1.MutationResponseB>Z<notification-service/api/proto/notificationpb;notificationpbb\x06proto3"
@@ -1371,7 +2061,7 @@ func file_notification_proto_rawDescGZIP() []byte {
 	return file_notification_proto_rawDescData
 }
 
-var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_notification_proto_goTypes = []any{
 	(*Notification)(nil),                         // 0: bbs.notification.v1.Notification
 	(*ListNotificationsRequest)(nil),             // 1: bbs.notification.v1.ListNotificationsRequest
@@ -1390,44 +2080,67 @@ var file_notification_proto_goTypes = []any{
 	(*GetWebPushSubscriptionRequest)(nil),        // 14: bbs.notification.v1.GetWebPushSubscriptionRequest
 	(*UnregisterWebPushSubscriptionRequest)(nil), // 15: bbs.notification.v1.UnregisterWebPushSubscriptionRequest
 	(*WebPushSubscriptionResponse)(nil),          // 16: bbs.notification.v1.WebPushSubscriptionResponse
-	(*MutationResponse)(nil),                     // 17: bbs.notification.v1.MutationResponse
-	(*DispatchSystemNotificationsRequest)(nil),   // 18: bbs.notification.v1.DispatchSystemNotificationsRequest
-	(*DispatchSystemNotificationsResponse)(nil),  // 19: bbs.notification.v1.DispatchSystemNotificationsResponse
-	(*EraseUserDataRequest)(nil),                 // 20: bbs.notification.v1.EraseUserDataRequest
+	(*Webhook)(nil),                              // 17: bbs.notification.v1.Webhook
+	(*ListWebhooksRequest)(nil),                  // 18: bbs.notification.v1.ListWebhooksRequest
+	(*WebhookListResponse)(nil),                  // 19: bbs.notification.v1.WebhookListResponse
+	(*CreateWebhookRequest)(nil),                 // 20: bbs.notification.v1.CreateWebhookRequest
+	(*WebhookResponse)(nil),                      // 21: bbs.notification.v1.WebhookResponse
+	(*ShowWebhookRequest)(nil),                   // 22: bbs.notification.v1.ShowWebhookRequest
+	(*UpdateWebhookRequest)(nil),                 // 23: bbs.notification.v1.UpdateWebhookRequest
+	(*DeleteWebhookRequest)(nil),                 // 24: bbs.notification.v1.DeleteWebhookRequest
+	(*TestWebhookRequest)(nil),                   // 25: bbs.notification.v1.TestWebhookRequest
+	(*MutationResponse)(nil),                     // 26: bbs.notification.v1.MutationResponse
+	(*DispatchSystemNotificationsRequest)(nil),   // 27: bbs.notification.v1.DispatchSystemNotificationsRequest
+	(*DispatchSystemNotificationsResponse)(nil),  // 28: bbs.notification.v1.DispatchSystemNotificationsResponse
+	(*EraseUserDataRequest)(nil),                 // 29: bbs.notification.v1.EraseUserDataRequest
 }
 var file_notification_proto_depIdxs = []int32{
 	0,  // 0: bbs.notification.v1.ListNotificationsResponse.items:type_name -> bbs.notification.v1.Notification
 	7,  // 1: bbs.notification.v1.UpdatePreferencesRequest.items:type_name -> bbs.notification.v1.NotificationPreference
 	7,  // 2: bbs.notification.v1.PreferencesResponse.items:type_name -> bbs.notification.v1.NotificationPreference
-	1,  // 3: bbs.notification.v1.NotificationService.ListNotifications:input_type -> bbs.notification.v1.ListNotificationsRequest
-	3,  // 4: bbs.notification.v1.NotificationService.CountUnread:input_type -> bbs.notification.v1.CountUnreadRequest
-	5,  // 5: bbs.notification.v1.NotificationService.MarkRead:input_type -> bbs.notification.v1.MarkReadRequest
-	6,  // 6: bbs.notification.v1.NotificationService.MarkAllRead:input_type -> bbs.notification.v1.MarkAllReadRequest
-	8,  // 7: bbs.notification.v1.NotificationService.GetPreferences:input_type -> bbs.notification.v1.GetPreferencesRequest
-	9,  // 8: bbs.notification.v1.NotificationService.UpdatePreferences:input_type -> bbs.notification.v1.UpdatePreferencesRequest
-	11, // 9: bbs.notification.v1.NotificationService.GetWebPushConfig:input_type -> bbs.notification.v1.GetWebPushConfigRequest
-	13, // 10: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:input_type -> bbs.notification.v1.RegisterWebPushSubscriptionRequest
-	14, // 11: bbs.notification.v1.NotificationService.GetWebPushSubscription:input_type -> bbs.notification.v1.GetWebPushSubscriptionRequest
-	15, // 12: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:input_type -> bbs.notification.v1.UnregisterWebPushSubscriptionRequest
-	18, // 13: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:input_type -> bbs.notification.v1.DispatchSystemNotificationsRequest
-	20, // 14: bbs.notification.v1.InternalNotificationService.EraseUserData:input_type -> bbs.notification.v1.EraseUserDataRequest
-	2,  // 15: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
-	4,  // 16: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
-	17, // 17: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
-	17, // 18: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
-	10, // 19: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	10, // 20: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	12, // 21: bbs.notification.v1.NotificationService.GetWebPushConfig:output_type -> bbs.notification.v1.WebPushConfigResponse
-	16, // 22: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
-	16, // 23: bbs.notification.v1.NotificationService.GetWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
-	17, // 24: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:output_type -> bbs.notification.v1.MutationResponse
-	19, // 25: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:output_type -> bbs.notification.v1.DispatchSystemNotificationsResponse
-	17, // 26: bbs.notification.v1.InternalNotificationService.EraseUserData:output_type -> bbs.notification.v1.MutationResponse
-	15, // [15:27] is the sub-list for method output_type
-	3,  // [3:15] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	17, // 3: bbs.notification.v1.WebhookListResponse.items:type_name -> bbs.notification.v1.Webhook
+	17, // 4: bbs.notification.v1.WebhookResponse.webhook:type_name -> bbs.notification.v1.Webhook
+	1,  // 5: bbs.notification.v1.NotificationService.ListNotifications:input_type -> bbs.notification.v1.ListNotificationsRequest
+	3,  // 6: bbs.notification.v1.NotificationService.CountUnread:input_type -> bbs.notification.v1.CountUnreadRequest
+	5,  // 7: bbs.notification.v1.NotificationService.MarkRead:input_type -> bbs.notification.v1.MarkReadRequest
+	6,  // 8: bbs.notification.v1.NotificationService.MarkAllRead:input_type -> bbs.notification.v1.MarkAllReadRequest
+	8,  // 9: bbs.notification.v1.NotificationService.GetPreferences:input_type -> bbs.notification.v1.GetPreferencesRequest
+	9,  // 10: bbs.notification.v1.NotificationService.UpdatePreferences:input_type -> bbs.notification.v1.UpdatePreferencesRequest
+	11, // 11: bbs.notification.v1.NotificationService.GetWebPushConfig:input_type -> bbs.notification.v1.GetWebPushConfigRequest
+	13, // 12: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:input_type -> bbs.notification.v1.RegisterWebPushSubscriptionRequest
+	14, // 13: bbs.notification.v1.NotificationService.GetWebPushSubscription:input_type -> bbs.notification.v1.GetWebPushSubscriptionRequest
+	15, // 14: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:input_type -> bbs.notification.v1.UnregisterWebPushSubscriptionRequest
+	18, // 15: bbs.notification.v1.NotificationService.ListWebhooks:input_type -> bbs.notification.v1.ListWebhooksRequest
+	20, // 16: bbs.notification.v1.NotificationService.CreateWebhook:input_type -> bbs.notification.v1.CreateWebhookRequest
+	22, // 17: bbs.notification.v1.NotificationService.ShowWebhook:input_type -> bbs.notification.v1.ShowWebhookRequest
+	23, // 18: bbs.notification.v1.NotificationService.UpdateWebhook:input_type -> bbs.notification.v1.UpdateWebhookRequest
+	24, // 19: bbs.notification.v1.NotificationService.DeleteWebhook:input_type -> bbs.notification.v1.DeleteWebhookRequest
+	25, // 20: bbs.notification.v1.NotificationService.TestWebhook:input_type -> bbs.notification.v1.TestWebhookRequest
+	27, // 21: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:input_type -> bbs.notification.v1.DispatchSystemNotificationsRequest
+	29, // 22: bbs.notification.v1.InternalNotificationService.EraseUserData:input_type -> bbs.notification.v1.EraseUserDataRequest
+	2,  // 23: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
+	4,  // 24: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
+	26, // 25: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
+	26, // 26: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
+	10, // 27: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	10, // 28: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	12, // 29: bbs.notification.v1.NotificationService.GetWebPushConfig:output_type -> bbs.notification.v1.WebPushConfigResponse
+	16, // 30: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	16, // 31: bbs.notification.v1.NotificationService.GetWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	26, // 32: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:output_type -> bbs.notification.v1.MutationResponse
+	19, // 33: bbs.notification.v1.NotificationService.ListWebhooks:output_type -> bbs.notification.v1.WebhookListResponse
+	21, // 34: bbs.notification.v1.NotificationService.CreateWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	21, // 35: bbs.notification.v1.NotificationService.ShowWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	21, // 36: bbs.notification.v1.NotificationService.UpdateWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	26, // 37: bbs.notification.v1.NotificationService.DeleteWebhook:output_type -> bbs.notification.v1.MutationResponse
+	26, // 38: bbs.notification.v1.NotificationService.TestWebhook:output_type -> bbs.notification.v1.MutationResponse
+	28, // 39: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:output_type -> bbs.notification.v1.DispatchSystemNotificationsResponse
+	26, // 40: bbs.notification.v1.InternalNotificationService.EraseUserData:output_type -> bbs.notification.v1.MutationResponse
+	23, // [23:41] is the sub-list for method output_type
+	5,  // [5:23] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_notification_proto_init() }
@@ -1441,7 +2154,7 @@ func file_notification_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_notification_proto_rawDesc), len(file_notification_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

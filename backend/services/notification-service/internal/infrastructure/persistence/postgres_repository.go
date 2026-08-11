@@ -240,7 +240,10 @@ CREATE TRIGGER notifications_enqueue_web_push
 AFTER INSERT ON notifications
 FOR EACH ROW EXECUTE FUNCTION enqueue_web_push_notification();
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.ensureWebhookSchema(ctx)
 }
 
 func (r *PostgresRepository) EraseUserData(ctx context.Context, userID, deletionJobID int64, policyVersion int32) error {
@@ -303,6 +306,8 @@ WHERE EXCLUDED.policy_version > notification_erased_comments.policy_version
 		}
 
 		statements := []string{
+			`DELETE FROM notification_webhook_outbox WHERE user_id = $1`,
+			`DELETE FROM notification_webhooks WHERE user_id = $1`,
 			`DELETE FROM web_push_outbox
 WHERE subscription_id IN (SELECT id FROM web_push_subscriptions WHERE user_id = $1)
    OR notification_id IN (SELECT id FROM notifications WHERE user_id = $1 OR actor_id = $1)`,

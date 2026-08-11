@@ -29,6 +29,12 @@ const (
 	NotificationService_RegisterWebPushSubscription_FullMethodName   = "/bbs.notification.v1.NotificationService/RegisterWebPushSubscription"
 	NotificationService_GetWebPushSubscription_FullMethodName        = "/bbs.notification.v1.NotificationService/GetWebPushSubscription"
 	NotificationService_UnregisterWebPushSubscription_FullMethodName = "/bbs.notification.v1.NotificationService/UnregisterWebPushSubscription"
+	NotificationService_ListWebhooks_FullMethodName                  = "/bbs.notification.v1.NotificationService/ListWebhooks"
+	NotificationService_CreateWebhook_FullMethodName                 = "/bbs.notification.v1.NotificationService/CreateWebhook"
+	NotificationService_ShowWebhook_FullMethodName                   = "/bbs.notification.v1.NotificationService/ShowWebhook"
+	NotificationService_UpdateWebhook_FullMethodName                 = "/bbs.notification.v1.NotificationService/UpdateWebhook"
+	NotificationService_DeleteWebhook_FullMethodName                 = "/bbs.notification.v1.NotificationService/DeleteWebhook"
+	NotificationService_TestWebhook_FullMethodName                   = "/bbs.notification.v1.NotificationService/TestWebhook"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
@@ -45,6 +51,12 @@ type NotificationServiceClient interface {
 	RegisterWebPushSubscription(ctx context.Context, in *RegisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error)
 	GetWebPushSubscription(ctx context.Context, in *GetWebPushSubscriptionRequest, opts ...grpc.CallOption) (*WebPushSubscriptionResponse, error)
 	UnregisterWebPushSubscription(ctx context.Context, in *UnregisterWebPushSubscriptionRequest, opts ...grpc.CallOption) (*MutationResponse, error)
+	ListWebhooks(ctx context.Context, in *ListWebhooksRequest, opts ...grpc.CallOption) (*WebhookListResponse, error)
+	CreateWebhook(ctx context.Context, in *CreateWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error)
+	ShowWebhook(ctx context.Context, in *ShowWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error)
+	UpdateWebhook(ctx context.Context, in *UpdateWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error)
+	DeleteWebhook(ctx context.Context, in *DeleteWebhookRequest, opts ...grpc.CallOption) (*MutationResponse, error)
+	TestWebhook(ctx context.Context, in *TestWebhookRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 }
 
 type notificationServiceClient struct {
@@ -155,6 +167,66 @@ func (c *notificationServiceClient) UnregisterWebPushSubscription(ctx context.Co
 	return out, nil
 }
 
+func (c *notificationServiceClient) ListWebhooks(ctx context.Context, in *ListWebhooksRequest, opts ...grpc.CallOption) (*WebhookListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebhookListResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ListWebhooks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) CreateWebhook(ctx context.Context, in *CreateWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebhookResponse)
+	err := c.cc.Invoke(ctx, NotificationService_CreateWebhook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) ShowWebhook(ctx context.Context, in *ShowWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebhookResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ShowWebhook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) UpdateWebhook(ctx context.Context, in *UpdateWebhookRequest, opts ...grpc.CallOption) (*WebhookResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WebhookResponse)
+	err := c.cc.Invoke(ctx, NotificationService_UpdateWebhook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) DeleteWebhook(ctx context.Context, in *DeleteWebhookRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_DeleteWebhook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) TestWebhook(ctx context.Context, in *TestWebhookRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_TestWebhook_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NotificationServiceServer is the server API for NotificationService service.
 // All implementations must embed UnimplementedNotificationServiceServer
 // for forward compatibility.
@@ -169,6 +241,12 @@ type NotificationServiceServer interface {
 	RegisterWebPushSubscription(context.Context, *RegisterWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error)
 	GetWebPushSubscription(context.Context, *GetWebPushSubscriptionRequest) (*WebPushSubscriptionResponse, error)
 	UnregisterWebPushSubscription(context.Context, *UnregisterWebPushSubscriptionRequest) (*MutationResponse, error)
+	ListWebhooks(context.Context, *ListWebhooksRequest) (*WebhookListResponse, error)
+	CreateWebhook(context.Context, *CreateWebhookRequest) (*WebhookResponse, error)
+	ShowWebhook(context.Context, *ShowWebhookRequest) (*WebhookResponse, error)
+	UpdateWebhook(context.Context, *UpdateWebhookRequest) (*WebhookResponse, error)
+	DeleteWebhook(context.Context, *DeleteWebhookRequest) (*MutationResponse, error)
+	TestWebhook(context.Context, *TestWebhookRequest) (*MutationResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }
 
@@ -208,6 +286,24 @@ func (UnimplementedNotificationServiceServer) GetWebPushSubscription(context.Con
 }
 func (UnimplementedNotificationServiceServer) UnregisterWebPushSubscription(context.Context, *UnregisterWebPushSubscriptionRequest) (*MutationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UnregisterWebPushSubscription not implemented")
+}
+func (UnimplementedNotificationServiceServer) ListWebhooks(context.Context, *ListWebhooksRequest) (*WebhookListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWebhooks not implemented")
+}
+func (UnimplementedNotificationServiceServer) CreateWebhook(context.Context, *CreateWebhookRequest) (*WebhookResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateWebhook not implemented")
+}
+func (UnimplementedNotificationServiceServer) ShowWebhook(context.Context, *ShowWebhookRequest) (*WebhookResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ShowWebhook not implemented")
+}
+func (UnimplementedNotificationServiceServer) UpdateWebhook(context.Context, *UpdateWebhookRequest) (*WebhookResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateWebhook not implemented")
+}
+func (UnimplementedNotificationServiceServer) DeleteWebhook(context.Context, *DeleteWebhookRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteWebhook not implemented")
+}
+func (UnimplementedNotificationServiceServer) TestWebhook(context.Context, *TestWebhookRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TestWebhook not implemented")
 }
 func (UnimplementedNotificationServiceServer) mustEmbedUnimplementedNotificationServiceServer() {}
 func (UnimplementedNotificationServiceServer) testEmbeddedByValue()                             {}
@@ -410,6 +506,114 @@ func _NotificationService_UnregisterWebPushSubscription_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotificationService_ListWebhooks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWebhooksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ListWebhooks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ListWebhooks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ListWebhooks(ctx, req.(*ListWebhooksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_CreateWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateWebhookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).CreateWebhook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_CreateWebhook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).CreateWebhook(ctx, req.(*CreateWebhookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_ShowWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShowWebhookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ShowWebhook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ShowWebhook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ShowWebhook(ctx, req.(*ShowWebhookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_UpdateWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateWebhookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).UpdateWebhook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_UpdateWebhook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).UpdateWebhook(ctx, req.(*UpdateWebhookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_DeleteWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWebhookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).DeleteWebhook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_DeleteWebhook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).DeleteWebhook(ctx, req.(*DeleteWebhookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_TestWebhook_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestWebhookRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).TestWebhook(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_TestWebhook_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).TestWebhook(ctx, req.(*TestWebhookRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NotificationService_ServiceDesc is the grpc.ServiceDesc for NotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -456,6 +660,30 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnregisterWebPushSubscription",
 			Handler:    _NotificationService_UnregisterWebPushSubscription_Handler,
+		},
+		{
+			MethodName: "ListWebhooks",
+			Handler:    _NotificationService_ListWebhooks_Handler,
+		},
+		{
+			MethodName: "CreateWebhook",
+			Handler:    _NotificationService_CreateWebhook_Handler,
+		},
+		{
+			MethodName: "ShowWebhook",
+			Handler:    _NotificationService_ShowWebhook_Handler,
+		},
+		{
+			MethodName: "UpdateWebhook",
+			Handler:    _NotificationService_UpdateWebhook_Handler,
+		},
+		{
+			MethodName: "DeleteWebhook",
+			Handler:    _NotificationService_DeleteWebhook_Handler,
+		},
+		{
+			MethodName: "TestWebhook",
+			Handler:    _NotificationService_TestWebhook_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

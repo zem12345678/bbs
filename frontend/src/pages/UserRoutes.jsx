@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, RefreshCw, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -13,6 +13,7 @@ import { describeUserAgent, ipAddressLabel, loginFailureLabel, loginMethodLabel,
 import { loadAllListPages } from "../lib/focusedLists";
 import { normalizeMFAStatus, recoveryCodesFromResponse, recoveryCodesText } from "../lib/mfa";
 import { apiTokenScopeLabel, apiTokenStatus, apiTokenStatusLabel, apiTokenTime, normalizeAPITokenCreation, normalizeAPITokenList } from "../lib/apiTokens";
+import { normalizeWebhook, normalizeWebhookList, validWebhookURL, WEBHOOK_EVENT_OPTIONS, webhookEventLabel, webhookTime } from "../lib/webhooks";
 import { createPasskey, friendlyPasskeyError, normalizePasskeyList, passkeysSupported } from "../lib/passkeys";
 import { emitNotificationsChanged } from "../lib/notificationEvents";
 import {
@@ -1231,6 +1232,280 @@ function APITokenSecuritySection({ token }) {
   );
 }
 
+const EMPTY_WEBHOOK_FORM = { id: "", name: "", url: "", secret: "", events: ["note"] };
+
+function WebhookSecuritySection({ token }) {
+  const [state, setState] = React.useState({ data: { items: [], total: 0 }, loading: false, error: "" });
+  const [form, setForm] = React.useState(EMPTY_WEBHOOK_FORM);
+  const [testTypes, setTestTypes] = React.useState({});
+  const [action, setAction] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [error, setError] = React.useState("");
+  const requestRef = React.useRef(0);
+
+  const loadWebhooks = React.useCallback(async () => {
+    const requestID = requestRef.current + 1;
+    requestRef.current = requestID;
+    if (!token) {
+      setState({ data: { items: [], total: 0 }, loading: false, error: "" });
+      return;
+    }
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const data = normalizeWebhookList(await bbsApi.listWebhooks(token));
+      if (requestRef.current !== requestID) return;
+      setState({ data, loading: false, error: "" });
+      setTestTypes((current) => Object.fromEntries(data.items.map((item) => [item.id, current[item.id] || item.events[0] || "note"])));
+    } catch (loadError) {
+      if (requestRef.current !== requestID) return;
+      setState((current) => ({ ...current, loading: false, error: loadError.message || "Webhook 加载失败" }));
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    setForm(EMPTY_WEBHOOK_FORM);
+    setTestTypes({});
+    setAction("");
+    setNotice("");
+    setError("");
+    loadWebhooks();
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [loadWebhooks]);
+
+  function resetForm() {
+    setForm(EMPTY_WEBHOOK_FORM);
+  }
+
+  function updateField(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function toggleEvent(eventType, checked) {
+    setForm((current) => ({
+      ...current,
+      events: checked ? [...new Set([...current.events, eventType])] : current.events.filter((item) => item !== eventType)
+    }));
+  }
+
+  async function saveWebhook(event) {
+    event.preventDefault();
+    const name = form.name.trim();
+    const url = form.url.trim();
+    const secret = form.secret.trim();
+    if (!name || [...name].length > 100) {
+      setError("Webhook 名称需要 1–100 个字符。");
+      return;
+    }
+    if (!validWebhookURL(url)) {
+      setError("请输入 HTTPS 接收地址；本地测试可使用 localhost HTTP 地址。");
+      return;
+    }
+    if (form.events.length === 0) {
+      setError("至少选择一种事件。");
+      return;
+    }
+    if (secret.length > 1024) {
+      setError("签名密钥不能超过 1024 个字符。");
+      return;
+    }
+
+    const editing = Boolean(form.id);
+    const requestID = requestRef.current;
+    const payload = { name, url, on: form.events };
+    if (!editing || secret) payload.secret = secret;
+    setAction(editing ? `save:${form.id}` : "create");
+    setError("");
+    setNotice("");
+    try {
+      if (editing) {
+        await bbsApi.updateWebhook(form.id, payload, token);
+      } else {
+        await bbsApi.createWebhook(payload, token);
+      }
+      if (requestRef.current !== requestID) return;
+      setNotice(editing ? "Webhook 已更新。" : "Webhook 已创建。");
+      resetForm();
+      setAction("");
+      await loadWebhooks();
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || (editing ? "Webhook 更新失败" : "Webhook 创建失败"));
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function editWebhook(item) {
+    const requestID = requestRef.current;
+    setAction(`show:${item.id}`);
+    setError("");
+    setNotice("");
+    try {
+      const fresh = normalizeWebhook(await bbsApi.showWebhook(item.id, token));
+      if (requestRef.current !== requestID) return;
+      setForm({ id: fresh.id, name: fresh.name, url: fresh.url, secret: "", events: fresh.events });
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "Webhook 详情加载失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function setWebhookActive(item) {
+    const requestID = requestRef.current;
+    setAction(`active:${item.id}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.updateWebhook(item.id, { active: !item.active }, token);
+      if (requestRef.current !== requestID) return;
+      setNotice(item.active ? "Webhook 已停用。" : "Webhook 已启用。");
+      setAction("");
+      await loadWebhooks();
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "Webhook 状态更新失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function sendWebhookTest(item) {
+    const eventType = testTypes[item.id] || item.events[0] || "note";
+    const requestID = requestRef.current;
+    setAction(`test:${item.id}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.testWebhook(item.id, eventType, token);
+      if (requestRef.current !== requestID) return;
+      setNotice(`测试事件“${webhookEventLabel(eventType)}”已进入投递队列。`);
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "Webhook 测试失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  async function deleteWebhook(item) {
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(`确定删除 Webhook“${item.name}”吗？`)) return;
+    const requestID = requestRef.current;
+    setAction(`delete:${item.id}`);
+    setError("");
+    setNotice("");
+    try {
+      await bbsApi.deleteWebhook(item.id, token);
+      if (requestRef.current !== requestID) return;
+      if (form.id === item.id) resetForm();
+      setNotice("Webhook 已删除。");
+      setAction("");
+      await loadWebhooks();
+    } catch (actionError) {
+      if (requestRef.current !== requestID) return;
+      setError(actionError.message || "Webhook 删除失败");
+    } finally {
+      if (requestRef.current === requestID) setAction("");
+    }
+  }
+
+  return (
+    <div className="account-security-section webhook-security-section">
+      <div className="account-security-section-heading">
+        <Webhook size={20} aria-hidden="true" />
+        <div>
+          <strong>Webhook</strong>
+          <p>将账号事件投递到你管理的外部服务。</p>
+        </div>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {notice && <p className="form-success" role="status">{notice}</p>}
+      {state.loading && <p className="form-muted">正在读取 Webhook...</p>}
+      {state.error && (
+        <div className="mfa-inline-feedback">
+          <p className="form-error" role="alert">{state.error}</p>
+          <button className="account-security-secondary" type="button" onClick={loadWebhooks}>重新加载</button>
+        </div>
+      )}
+      {!state.loading && !state.error && (
+        <>
+          {state.data.items.length === 0 ? <p className="form-muted">暂无 Webhook。</p> : (
+            <div className="passkey-list webhook-list">
+              {state.data.items.map((item) => (
+                <div className="passkey-row webhook-row" key={item.id}>
+                  <div className="passkey-row-meta webhook-row-meta">
+                    <Webhook size={18} aria-hidden="true" />
+                    <div>
+                      <strong>{item.name || "未命名 Webhook"}{item.active ? "" : " · 已停用"}</strong>
+                      <span className="webhook-url">{item.url}</span>
+                      <span>{item.events.map(webhookEventLabel).join("、") || "未订阅事件"} · {item.latestSentAt ? `最近投递 ${webhookTime(item.latestSentAt)}${item.latestStatus ? ` · HTTP ${item.latestStatus}` : ""}` : "尚无投递记录"}</span>
+                    </div>
+                  </div>
+                  <div className="passkey-row-actions webhook-row-actions">
+                    <select
+                      className="webhook-test-select"
+                      aria-label={`${item.name || "Webhook"}的测试事件`}
+                      value={testTypes[item.id] || item.events[0] || "note"}
+                      onChange={(event) => setTestTypes((current) => ({ ...current, [item.id]: event.target.value }))}
+                      disabled={Boolean(action)}
+                    >
+                      {WEBHOOK_EVENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={() => sendWebhookTest(item)}>
+                      <Send size={16} aria-hidden="true" />{action === `test:${item.id}` ? "测试中" : "测试"}
+                    </button>
+                    <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={() => setWebhookActive(item)}>
+                      {item.active ? <PowerOff size={16} aria-hidden="true" /> : <Power size={16} aria-hidden="true" />}{action === `active:${item.id}` ? "处理中" : item.active ? "停用" : "启用"}
+                    </button>
+                    <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={() => editWebhook(item)}>
+                      <Pencil size={16} aria-hidden="true" />{action === `show:${item.id}` ? "读取中" : "编辑"}
+                    </button>
+                    <button className="account-security-danger" type="button" disabled={Boolean(action)} onClick={() => deleteWebhook(item)}>
+                      <Trash2 size={16} aria-hidden="true" />{action === `delete:${item.id}` ? "删除中" : "删除"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <form className="api-token-form webhook-form" onSubmit={saveWebhook}>
+            <label>
+              Webhook 名称
+              <input maxLength={100} required value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="例如：发布通知" />
+            </label>
+            <label>
+              接收地址
+              <input type="url" maxLength={1024} required value={form.url} onChange={(event) => updateField("url", event.target.value)} placeholder="https://hooks.example.com/bbs" />
+            </label>
+            <label>
+              签名密钥{form.id ? "（留空则保持不变）" : "（可选）"}
+              <input type="password" autoComplete="new-password" maxLength={1024} value={form.secret} onChange={(event) => updateField("secret", event.target.value)} />
+            </label>
+            <fieldset className="api-token-scope-options webhook-event-options">
+              <legend>事件</legend>
+              {WEBHOOK_EVENT_OPTIONS.map((option) => (
+                <label key={option.value}>
+                  <input type="checkbox" checked={form.events.includes(option.value)} onChange={(event) => toggleEvent(option.value, event.target.checked)} />
+                  {option.label}
+                </label>
+              ))}
+            </fieldset>
+            <div className="account-security-actions">
+              <button type="submit" disabled={Boolean(action)}>
+                <Webhook size={17} aria-hidden="true" />{action === "create" || action === `save:${form.id}` ? "保存中..." : form.id ? "保存 Webhook" : "创建 Webhook"}
+              </button>
+              {form.id && <button className="account-security-secondary" type="button" disabled={Boolean(action)} onClick={resetForm}><X size={17} aria-hidden="true" />取消编辑</button>}
+            </div>
+          </form>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AccountDeletionSection({ token, username, mfaEnabled, verificationReady, onAuthInvalidated }) {
   const navigate = useNavigate();
   const [lifecycle, setLifecycle] = React.useState({ data: null, loading: Boolean(token), error: "" });
@@ -1791,6 +2066,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
       <PasskeySecuritySection token={token} mfaEnabled={mfaState.status.enabled} />
 
       <APITokenSecuritySection token={token} />
+
+      <WebhookSecuritySection token={token} />
 
       <SessionSecuritySection token={token} />
 

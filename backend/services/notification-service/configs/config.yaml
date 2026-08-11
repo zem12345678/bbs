@@ -33,6 +33,12 @@ webPush:
   publicKey: ""
   privateKey: ""
 
+webhook:
+  enabled: true
+  serverURL: "http://127.0.0.1:18080"
+  # Keep false in production. Enable only for a controlled local receiver.
+  allowPrivateEndpoints: false
+
 kafka:
   # Override in production with comma-separated BBS_NOTIFICATION_KAFKA_BROKERS.
   brokers:

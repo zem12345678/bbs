@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -15,7 +16,9 @@ import (
 type Service struct {
 	repo          domain.Repository
 	webPushRepo   domain.WebPushRepository
+	webhookRepo   domain.WebhookRepository
 	webPushConfig domain.WebPushConfig
+	webhookConfig domain.WebhookConfig
 }
 
 type MallDigitalEntitlement struct {
@@ -35,10 +38,171 @@ func NewService(repo domain.Repository, configs ...domain.WebPushConfig) *Servic
 	if webPushRepo, ok := repo.(domain.WebPushRepository); ok {
 		service.webPushRepo = webPushRepo
 	}
+	if webhookRepo, ok := repo.(domain.WebhookRepository); ok {
+		service.webhookRepo = webhookRepo
+	}
 	if len(configs) > 0 {
 		service.webPushConfig = configs[0]
 	}
 	return service
+}
+
+func (s *Service) SetWebhookConfig(config domain.WebhookConfig) *Service {
+	s.webhookConfig = config
+	return s
+}
+
+func (s *Service) ListWebhooks(ctx context.Context, userID int64) ([]domain.Webhook, error) {
+	if userID <= 0 || s.webhookRepo == nil {
+		return nil, domain.ErrInvalidWebhook
+	}
+	return s.webhookRepo.ListWebhooks(ctx, userID)
+}
+
+func (s *Service) CreateWebhook(ctx context.Context, item domain.Webhook) (domain.Webhook, error) {
+	if s.webhookRepo == nil {
+		return domain.Webhook{}, domain.ErrInvalidWebhook
+	}
+	normalized, err := normalizeWebhook(item, s.webhookConfig.AllowPrivateEndpoints)
+	if err != nil {
+		return domain.Webhook{}, err
+	}
+	return s.webhookRepo.CreateWebhook(ctx, normalized, domain.WebhookMaxPerUser)
+}
+
+func (s *Service) ShowWebhook(ctx context.Context, userID, webhookID int64) (domain.Webhook, error) {
+	if userID <= 0 || webhookID <= 0 || s.webhookRepo == nil {
+		return domain.Webhook{}, domain.ErrInvalidWebhook
+	}
+	return s.webhookRepo.GetWebhook(ctx, userID, webhookID)
+}
+
+func (s *Service) UpdateWebhook(ctx context.Context, item domain.Webhook, activeSet, secretSet bool) (domain.Webhook, error) {
+	if item.UserID <= 0 || item.ID <= 0 || s.webhookRepo == nil {
+		return domain.Webhook{}, domain.ErrInvalidWebhook
+	}
+	existing, err := s.webhookRepo.GetWebhook(ctx, item.UserID, item.ID)
+	if err != nil {
+		return domain.Webhook{}, err
+	}
+	if strings.TrimSpace(item.Name) != "" {
+		existing.Name = item.Name
+	}
+	if strings.TrimSpace(item.URL) != "" {
+		existing.URL = item.URL
+	}
+	if len(item.Events) > 0 {
+		existing.Events = item.Events
+	}
+	if secretSet {
+		existing.Secret = item.Secret
+	}
+	if activeSet {
+		existing.Active = item.Active
+	}
+	normalized, err := normalizeWebhook(existing, s.webhookConfig.AllowPrivateEndpoints)
+	if err != nil {
+		return domain.Webhook{}, err
+	}
+	return s.webhookRepo.UpdateWebhook(ctx, normalized)
+}
+
+func (s *Service) DeleteWebhook(ctx context.Context, userID, webhookID int64) error {
+	if userID <= 0 || webhookID <= 0 || s.webhookRepo == nil {
+		return domain.ErrInvalidWebhook
+	}
+	return s.webhookRepo.DeleteWebhook(ctx, userID, webhookID)
+}
+
+func (s *Service) TestWebhook(ctx context.Context, userID, webhookID int64, eventType, overrideURL, overrideSecret string, overrideSecretSet bool) error {
+	if !domain.IsWebhookEventType(strings.TrimSpace(eventType)) || s.webhookRepo == nil {
+		return domain.ErrInvalidWebhook
+	}
+	item, err := s.ShowWebhook(ctx, userID, webhookID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(overrideURL) != "" {
+		item.URL = overrideURL
+	}
+	if overrideSecretSet {
+		item.Secret = overrideSecret
+	}
+	if _, err := normalizeWebhook(item, s.webhookConfig.AllowPrivateEndpoints); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	payload, err := json.Marshal(map[string]any{
+		"id":         fmt.Sprintf("test-%d", webhookID),
+		"type":       eventType,
+		"message":    "BBS webhook test event",
+		"created_at": now.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return err
+	}
+	eventID := fmt.Sprintf("webhook-test:%d:%d", webhookID, now.UnixNano())
+	return s.webhookRepo.EnqueueWebhookTest(ctx, item, eventType, eventID, payload, now)
+}
+
+func (s *Service) EnqueueWebhookEvent(ctx context.Context, userID int64, eventType, eventID string, payload any, createdAt time.Time) error {
+	if s.webhookRepo == nil {
+		return nil
+	}
+	eventType = strings.TrimSpace(eventType)
+	eventID = strings.TrimSpace(eventID)
+	if userID <= 0 || !domain.IsWebhookEventType(eventType) || eventID == "" || len(eventID) > domain.WebhookMaxEventIDBytes {
+		return domain.ErrInvalidWebhook
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	if len(encoded) > domain.WebhookMaxPayloadBytes {
+		return domain.ErrWebhookPayloadTooBig
+	}
+	return s.webhookRepo.EnqueueWebhookEvent(ctx, userID, eventType, eventID, encoded, createdAt)
+}
+
+func normalizeWebhook(item domain.Webhook, allowPrivateEndpoints bool) (domain.Webhook, error) {
+	item.Name = strings.TrimSpace(item.Name)
+	item.URL = strings.TrimSpace(item.URL)
+	item.Secret = strings.TrimSpace(item.Secret)
+	if item.UserID <= 0 || item.Name == "" || len([]rune(item.Name)) > domain.WebhookMaxNameRunes || len(item.URL) > domain.WebhookMaxURLBytes || len(item.Secret) > domain.WebhookMaxSecretBytes {
+		return domain.Webhook{}, domain.ErrInvalidWebhook
+	}
+	parsed, err := url.Parse(item.URL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return domain.Webhook{}, domain.ErrWebhookUnsafeURL
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "https":
+	case "http":
+		if !allowPrivateEndpoints {
+			return domain.Webhook{}, domain.ErrWebhookUnsafeURL
+		}
+	default:
+		return domain.Webhook{}, domain.ErrWebhookUnsafeURL
+	}
+	if !allowPrivateEndpoints && isPrivateWebhookHost(parsed.Hostname()) {
+		return domain.Webhook{}, domain.ErrWebhookUnsafeURL
+	}
+	events, err := domain.NormalizeWebhookEvents(item.Events)
+	if err != nil {
+		return domain.Webhook{}, err
+	}
+	item.Events = events
+	item.URL = parsed.String()
+	return item, item.Validate()
+}
+
+func isPrivateWebhookHost(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified())
 }
 
 func (s *Service) GetWebPushConfig() domain.WebPushConfig {
@@ -307,7 +471,7 @@ func (s *Service) notifyContentComment(ctx context.Context, eventID string, comm
 		return nil
 	}
 	label := contentLabel(entityType)
-	return s.repo.Create(ctx, domain.Notification{
+	return s.createNotification(ctx, domain.Notification{
 		UserID:     content.AuthorID,
 		Type:       "comment",
 		Title:      label + "收到新评论",
@@ -316,7 +480,7 @@ func (s *Service) notifyContentComment(ctx context.Context, eventID string, comm
 		EntityType: entityType,
 		EntityID:   entityID,
 		SourceID:   commentID,
-	}, eventID, occurredAt)
+	}, eventID, occurredAt, domain.WebhookEventReply)
 }
 
 func (s *Service) notifyReply(ctx context.Context, eventID string, commentID, parentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
@@ -333,7 +497,7 @@ func (s *Service) notifyReply(ctx context.Context, eventID string, commentID, pa
 	if parent.AuthorID == actorID {
 		return nil
 	}
-	return s.repo.Create(ctx, domain.Notification{
+	return s.createNotification(ctx, domain.Notification{
 		UserID:     parent.AuthorID,
 		Type:       "reply",
 		Title:      "评论收到回复",
@@ -342,7 +506,7 @@ func (s *Service) notifyReply(ctx context.Context, eventID string, commentID, pa
 		EntityType: entityType,
 		EntityID:   entityID,
 		SourceID:   commentID,
-	}, eventID, occurredAt)
+	}, eventID, occurredAt, domain.WebhookEventReply)
 }
 
 func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind string, entityType string, entityID, actorID int64, occurredAt time.Time) error {
@@ -370,7 +534,7 @@ func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind strin
 		title = label + "被收藏"
 		message = fmt.Sprintf("用户 #%d 收藏了《%s》", actorID, content.Title)
 	}
-	return s.repo.Create(ctx, domain.Notification{
+	return s.createNotification(ctx, domain.Notification{
 		UserID:     content.AuthorID,
 		Type:       kind,
 		Title:      title,
@@ -379,7 +543,24 @@ func (s *Service) NotifyReaction(ctx context.Context, eventID string, kind strin
 		EntityType: entityType,
 		EntityID:   entityID,
 		SourceID:   entityID,
-	}, eventID, occurredAt)
+	}, eventID, occurredAt, domain.WebhookEventReaction)
+}
+
+func (s *Service) createNotification(ctx context.Context, item domain.Notification, eventID string, occurredAt time.Time, webhookType string) error {
+	if err := s.repo.Create(ctx, item, eventID, occurredAt); err != nil {
+		return err
+	}
+	if webhookType == "" {
+		return nil
+	}
+	payload := map[string]any{
+		"notification": map[string]any{
+			"type": item.Type, "title": item.Title, "content": item.Content,
+			"actorId": item.ActorID, "entityType": item.EntityType, "entityId": item.EntityID,
+			"sourceId": item.SourceID,
+		},
+	}
+	return s.EnqueueWebhookEvent(ctx, item.UserID, webhookType, eventID, payload, occurredAt)
 }
 
 func (s *Service) NotifyQAAccepted(ctx context.Context, eventID string, topicID int64, title string, questionAuthorID, acceptedCommentID, acceptedCommentAuthorID, rewardCredits int64, occurredAt time.Time) error {

@@ -314,6 +314,24 @@ export const bbsApi = {
   revokeAPIToken(tokenId, token) {
     return request(`/users/me/api-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE", token });
   },
+  listWebhooks(token) {
+    return request("/users/me/webhooks", { token });
+  },
+  createWebhook(payload, token) {
+    return request("/users/me/webhooks", { method: "POST", body: payload, token });
+  },
+  showWebhook(webhookId, token) {
+    return request(`/users/me/webhooks/${encodeURIComponent(webhookId)}`, { token });
+  },
+  updateWebhook(webhookId, payload, token) {
+    return request(`/users/me/webhooks/${encodeURIComponent(webhookId)}`, { method: "PUT", body: payload, token });
+  },
+  deleteWebhook(webhookId, token) {
+    return request(`/users/me/webhooks/${encodeURIComponent(webhookId)}`, { method: "DELETE", token });
+  },
+  testWebhook(webhookId, type, token) {
+    return request(`/users/me/webhooks/${encodeURIComponent(webhookId)}/test`, { method: "POST", body: { type }, token });
+  },
   uploadAvatar(file, token) {
     const form = new FormData();
     form.append("file", file);

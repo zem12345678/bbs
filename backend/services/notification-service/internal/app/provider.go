@@ -9,6 +9,7 @@ import (
 	domain "notification-service/internal/domain/notification"
 	"notification-service/internal/infrastructure/messaging"
 	"notification-service/internal/infrastructure/persistence"
+	"notification-service/internal/infrastructure/webhook"
 	"notification-service/internal/infrastructure/webpush"
 	datasource "notification-service/internal/ioc/db/postgres"
 	iockafka "notification-service/internal/ioc/kafka"
@@ -52,8 +53,16 @@ func ProvideWebPushConfig(v *viper.Viper) domain.WebPushConfig {
 	}
 }
 
-func ProvideNotificationService(repo domain.Repository, webPushConfig domain.WebPushConfig) *notificationservice.Service {
-	return notificationservice.NewService(repo, webPushConfig)
+func ProvideWebhookConfig(v *viper.Viper) domain.WebhookConfig {
+	return domain.WebhookConfig{
+		Enabled:               v.GetBool("webhook.enabled"),
+		ServerURL:             strings.TrimRight(strings.TrimSpace(v.GetString("webhook.serverURL")), "/"),
+		AllowPrivateEndpoints: v.GetBool("webhook.allowPrivateEndpoints"),
+	}
+}
+
+func ProvideNotificationService(repo domain.Repository, webPushConfig domain.WebPushConfig, webhookConfig domain.WebhookConfig) *notificationservice.Service {
+	return notificationservice.NewService(repo, webPushConfig).SetWebhookConfig(webhookConfig)
 }
 
 func ProvideProjector(service *notificationservice.Service) *messaging.Projector {
@@ -65,6 +74,13 @@ func ProvideWebPushDispatcher(repo *persistence.PostgresRepository, config domai
 		return nil
 	}
 	return webpush.NewDispatcher(repo, webpush.NewSender(config), log)
+}
+
+func ProvideWebhookDispatcher(repo *persistence.PostgresRepository, config domain.WebhookConfig, log logger.Logger) *webhook.Dispatcher {
+	if !config.Enabled {
+		return nil
+	}
+	return webhook.NewDispatcher(repo, webhook.NewSender(config), log)
 }
 
 func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOptions, projector *messaging.Projector, log logger.Logger) (*ConsumerRunner, error) {
@@ -155,9 +171,11 @@ var BusinessProviderSet = wire.NewSet(
 	ProvidePostgresPool,
 	ProvideRepository,
 	ProvideWebPushConfig,
+	ProvideWebhookConfig,
 	ProvideNotificationService,
 	ProvideProjector,
 	ProvideWebPushDispatcher,
+	ProvideWebhookDispatcher,
 	ProvideConsumerRunner,
 )
 

@@ -74,3 +74,36 @@ func TestProjectorUserEventValidation(t *testing.T) {
 		t.Fatal("malformed follow request payload returned nil error")
 	}
 }
+
+func TestProjectorEnqueuesFollowAndUnfollowWebhooks(t *testing.T) {
+	t.Parallel()
+	payload, err := json.Marshal(followPayload{FollowerID: 11, FolloweeID: 22})
+	if err != nil {
+		t.Fatalf("marshal follow payload: %v", err)
+	}
+	for _, test := range []struct {
+		eventType string
+		want      []webhookEventRecord
+	}{
+		{eventType: "user.followed", want: []webhookEventRecord{{userID: 11, eventType: "follow"}, {userID: 22, eventType: "followed"}}},
+		{eventType: "user.unfollowed", want: []webhookEventRecord{{userID: 11, eventType: "unfollow"}}},
+	} {
+		t.Run(test.eventType, func(t *testing.T) {
+			t.Parallel()
+			repo := &mallProjectorRepo{}
+			projector := NewProjector(app.NewService(repo))
+			if err := projector.HandleUser(context.Background(), eventEnvelope{EventID: "evt-user", EventType: test.eventType, OccurredAt: time.Now().UTC(), Payload: payload}); err != nil {
+				t.Fatalf("handle user event: %v", err)
+			}
+			if len(repo.webhookEvents) != len(test.want) {
+				t.Fatalf("webhook events = %+v, want %d", repo.webhookEvents, len(test.want))
+			}
+			for index, want := range test.want {
+				got := repo.webhookEvents[index]
+				if got.userID != want.userID || got.eventType != want.eventType || got.eventID != "evt-user" || len(got.payload) == 0 {
+					t.Fatalf("webhook event[%d] = %+v, want user=%d type=%s", index, got, want.userID, want.eventType)
+				}
+			}
+		})
+	}
+}

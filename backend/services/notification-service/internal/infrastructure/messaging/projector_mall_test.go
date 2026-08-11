@@ -187,6 +187,15 @@ type mallProjectorRepo struct {
 	created        []domain.Notification
 	sourceEventIDs []string
 	createdAt      []time.Time
+	webhookEvents  []webhookEventRecord
+}
+
+type webhookEventRecord struct {
+	userID    int64
+	eventType string
+	eventID   string
+	payload   []byte
+	createdAt time.Time
 }
 
 func (r *mallProjectorRepo) EnsureSchema(context.Context) error { return nil }
@@ -267,3 +276,24 @@ func (r *mallProjectorRepo) List(context.Context, int64, int32, int32, bool) ([]
 func (r *mallProjectorRepo) UnreadCount(context.Context, int64) (int64, error) { return 0, nil }
 func (r *mallProjectorRepo) MarkRead(context.Context, int64, int64) error      { return nil }
 func (r *mallProjectorRepo) MarkAllRead(context.Context, int64) error          { return nil }
+
+func (*mallProjectorRepo) CreateWebhook(context.Context, domain.Webhook, int) (domain.Webhook, error) {
+	return domain.Webhook{}, nil
+}
+func (*mallProjectorRepo) ListWebhooks(context.Context, int64) ([]domain.Webhook, error) {
+	return nil, nil
+}
+func (*mallProjectorRepo) GetWebhook(context.Context, int64, int64) (domain.Webhook, error) {
+	return domain.Webhook{}, nil
+}
+func (*mallProjectorRepo) UpdateWebhook(context.Context, domain.Webhook) (domain.Webhook, error) {
+	return domain.Webhook{}, nil
+}
+func (*mallProjectorRepo) DeleteWebhook(context.Context, int64, int64) error { return nil }
+func (r *mallProjectorRepo) EnqueueWebhookEvent(_ context.Context, userID int64, eventType, eventID string, payload []byte, createdAt time.Time) error {
+	r.webhookEvents = append(r.webhookEvents, webhookEventRecord{userID: userID, eventType: eventType, eventID: eventID, payload: append([]byte(nil), payload...), createdAt: createdAt})
+	return nil
+}
+func (*mallProjectorRepo) EnqueueWebhookTest(context.Context, domain.Webhook, string, string, []byte, time.Time) error {
+	return nil
+}

@@ -139,6 +139,9 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "webPush.subject", "BBS_NOTIFICATION_WEB_PUSH_SUBJECT")
 	bindEnv(v, "webPush.publicKey", "BBS_NOTIFICATION_WEB_PUSH_PUBLIC_KEY")
 	bindEnv(v, "webPush.privateKey", "BBS_NOTIFICATION_WEB_PUSH_PRIVATE_KEY")
+	bindEnv(v, "webhook.enabled", "BBS_NOTIFICATION_WEBHOOK_ENABLED")
+	bindEnv(v, "webhook.serverURL", "BBS_NOTIFICATION_WEBHOOK_SERVER_URL")
+	bindEnv(v, "webhook.allowPrivateEndpoints", "BBS_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ENDPOINTS")
 	bindEnv(v, "kafka.brokers", "BBS_NOTIFICATION_KAFKA_BROKERS")
 	bindEnv(v, "kafka.username", "BBS_NOTIFICATION_KAFKA_USERNAME")
 	bindEnv(v, "kafka.password", "BBS_NOTIFICATION_KAFKA_PASSWORD")
@@ -178,6 +181,9 @@ func applyEnvOverrides(v *viper.Viper) {
 	setStringEnv(v, "webPush.subject", "BBS_NOTIFICATION_WEB_PUSH_SUBJECT")
 	setStringEnv(v, "webPush.publicKey", "BBS_NOTIFICATION_WEB_PUSH_PUBLIC_KEY")
 	setStringEnv(v, "webPush.privateKey", "BBS_NOTIFICATION_WEB_PUSH_PRIVATE_KEY")
+	setStringEnv(v, "webhook.serverURL", "BBS_NOTIFICATION_WEBHOOK_SERVER_URL")
+	setBoolEnv(v, "webhook.enabled", "BBS_NOTIFICATION_WEBHOOK_ENABLED")
+	setBoolEnv(v, "webhook.allowPrivateEndpoints", "BBS_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ENDPOINTS")
 	if value := strings.TrimSpace(os.Getenv("BBS_NOTIFICATION_KAFKA_BROKERS")); value != "" {
 		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(value))
 	}
@@ -215,6 +221,17 @@ func setStringEnv(v *viper.Viper, key string, env string) {
 	}
 }
 
+func setBoolEnv(v *viper.Viper, key string, env string) {
+	value := strings.TrimSpace(os.Getenv(env))
+	if value == "" {
+		return
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err == nil {
+		setNestedConfigValue(v, key, parsed)
+	}
+}
+
 func applyGRPCPortEnvOverride(v *viper.Viper, names ...string) error {
 	value := firstNonEmptyEnv(names...)
 	if value == "" {
@@ -249,10 +266,31 @@ func validate(v *viper.Viper) error {
 		return err
 	}
 	environment := strings.ToLower(strings.TrimSpace(v.GetString("trace.env")))
-	if environment != "production" && environment != "prod" {
+	production := environment == "production" || environment == "prod"
+	if err := validateWebhook(v, production); err != nil {
+		return err
+	}
+	if !production {
 		return nil
 	}
 	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+}
+
+func validateWebhook(v *viper.Viper, production bool) error {
+	if !v.GetBool("webhook.enabled") {
+		return nil
+	}
+	parsed, err := url.Parse(strings.TrimSpace(v.GetString("webhook.serverURL")))
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return errors.New("webhook.serverURL must be an absolute http or https URL")
+	}
+	if production && parsed.Scheme != "https" {
+		return errors.New("webhook.serverURL must use https in production")
+	}
+	if production && v.GetBool("webhook.allowPrivateEndpoints") {
+		return errors.New("webhook.allowPrivateEndpoints must be false in production")
+	}
+	return nil
 }
 
 func validateWebPush(v *viper.Viper) error {

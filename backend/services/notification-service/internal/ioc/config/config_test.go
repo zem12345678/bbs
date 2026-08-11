@@ -43,6 +43,24 @@ func TestValidateWebPushRequiresCompleteValidVAPIDConfig(t *testing.T) {
 	}
 }
 
+func TestValidateWebhookRequiresPublicProductionConfiguration(t *testing.T) {
+	local := viper.New()
+	local.Set("webhook.enabled", true)
+	local.Set("webhook.serverURL", "http://127.0.0.1:18080")
+	local.Set("webhook.allowPrivateEndpoints", true)
+	if err := validateWebhook(local, false); err != nil {
+		t.Fatalf("valid local webhook config: %v", err)
+	}
+	if err := validateWebhook(local, true); err == nil {
+		t.Fatal("unsafe production webhook config was accepted")
+	}
+	local.Set("webhook.serverURL", "https://bbs.example.test")
+	local.Set("webhook.allowPrivateEndpoints", false)
+	if err := validateWebhook(local, true); err != nil {
+		t.Fatalf("valid production webhook config: %v", err)
+	}
+}
+
 func TestValidateVAPIDKeyPairRejectsInvalidAndMismatchedKeys(t *testing.T) {
 	privateKey := make([]byte, 32)
 	privateKey[31] = 3

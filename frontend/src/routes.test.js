@@ -222,6 +222,22 @@ test("connects API token management to account security", () => {
   assert.match(apiSource, /request\(`\/users\/me\/api-tokens\/\$\{encodeURIComponent\(tokenId\)\}`/);
 });
 
+test("connects personal webhook management to account security", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  assert.match(userSource, /function WebhookSecuritySection/);
+  assert.match(userSource, /bbsApi\.listWebhooks\(token\)/);
+  assert.match(userSource, /bbsApi\.showWebhook\(item\.id, token\)/);
+  assert.match(userSource, /bbsApi\.createWebhook\(payload, token\)/);
+  assert.match(userSource, /bbsApi\.updateWebhook\(item\.id, \{ active: !item\.active \}, token\)/);
+  assert.match(userSource, /bbsApi\.testWebhook\(item\.id, eventType, token\)/);
+  assert.match(userSource, /bbsApi\.deleteWebhook\(item\.id, token\)/);
+  assert.match(userSource, /if \(!editing \|\| secret\) payload\.secret = secret/);
+  assert.match(userSource, /<WebhookSecuritySection token=\{token\} \/>/);
+  assert.match(apiSource, /request\("\/users\/me\/webhooks", \{ token \}\)/);
+  assert.match(apiSource, /\/users\/me\/webhooks\/\$\{encodeURIComponent\(webhookId\)\}\/test/);
+});
+
 test("connects account lifecycle and permanent deletion to account security", () => {
   const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");

@@ -118,6 +118,60 @@ func (h *Handler) UnregisterWebPushSubscription(ctx context.Context, req *pb.Unr
 	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) ListWebhooks(ctx context.Context, req *pb.ListWebhooksRequest) (*pb.WebhookListResponse, error) {
+	items, err := h.service.ListWebhooks(ctx, req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	result := &pb.WebhookListResponse{Items: make([]*pb.Webhook, 0, len(items))}
+	for _, item := range items {
+		result.Items = append(result.Items, toPBWebhook(item))
+	}
+	return result, nil
+}
+
+func (h *Handler) CreateWebhook(ctx context.Context, req *pb.CreateWebhookRequest) (*pb.WebhookResponse, error) {
+	item, err := h.service.CreateWebhook(ctx, domain.Webhook{
+		UserID: req.GetUserId(), Name: req.GetName(), URL: req.GetUrl(), Secret: req.GetSecret(), Events: req.GetOn(), Active: true,
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.WebhookResponse{Webhook: toPBWebhook(item)}, nil
+}
+
+func (h *Handler) ShowWebhook(ctx context.Context, req *pb.ShowWebhookRequest) (*pb.WebhookResponse, error) {
+	item, err := h.service.ShowWebhook(ctx, req.GetUserId(), req.GetWebhookId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.WebhookResponse{Webhook: toPBWebhook(item)}, nil
+}
+
+func (h *Handler) UpdateWebhook(ctx context.Context, req *pb.UpdateWebhookRequest) (*pb.WebhookResponse, error) {
+	item, err := h.service.UpdateWebhook(ctx, domain.Webhook{
+		ID: req.GetWebhookId(), UserID: req.GetUserId(), Name: req.GetName(), URL: req.GetUrl(), Secret: req.GetSecret(), Events: req.GetOn(), Active: req.GetActive(),
+	}, req.GetActiveSet(), req.GetSecretSet())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.WebhookResponse{Webhook: toPBWebhook(item)}, nil
+}
+
+func (h *Handler) DeleteWebhook(ctx context.Context, req *pb.DeleteWebhookRequest) (*pb.MutationResponse, error) {
+	if err := h.service.DeleteWebhook(ctx, req.GetUserId(), req.GetWebhookId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) TestWebhook(ctx context.Context, req *pb.TestWebhookRequest) (*pb.MutationResponse, error) {
+	if err := h.service.TestWebhook(ctx, req.GetUserId(), req.GetWebhookId(), req.GetType(), req.GetOverrideUrl(), req.GetOverrideSecret(), req.GetOverrideSecretSet()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "queued"}, nil
+}
+
 func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.DispatchSystemNotificationsRequest) (*pb.DispatchSystemNotificationsResponse, error) {
 	delivered, err := h.service.DispatchSystemNotifications(ctx, domain.SystemNotificationCommand{
 		RecipientIDs:   req.GetRecipientIds(),
@@ -185,6 +239,21 @@ func toPBWebPushSubscription(subscription domain.WebPushSubscription, registered
 		SendReadMessage: subscription.SendReadMessage,
 		CreatedAt:       millis(subscription.CreatedAt),
 		UpdatedAt:       millis(subscription.UpdatedAt),
+	}
+}
+
+func toPBWebhook(item domain.Webhook) *pb.Webhook {
+	latestSentAt := int64(0)
+	if item.LatestSentAt != nil {
+		latestSentAt = millis(*item.LatestSentAt)
+	}
+	latestStatus := int32(0)
+	if item.LatestStatus != nil {
+		latestStatus = *item.LatestStatus
+	}
+	return &pb.Webhook{
+		Id: item.ID, UserId: item.UserID, Name: item.Name, Url: item.URL, Secret: item.Secret, On: append([]string(nil), item.Events...), Active: item.Active,
+		LatestSentAt: latestSentAt, LatestStatus: latestStatus, CreatedAt: millis(item.CreatedAt), UpdatedAt: millis(item.UpdatedAt),
 	}
 }
 

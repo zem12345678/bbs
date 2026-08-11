@@ -336,6 +336,37 @@ test("maps API token listing, creation, and revocation requests", async () => {
   assert.equal(requests.slice(0, 3).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("maps personal webhook management and test requests", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return jsonResponse(200, { service: "api-gateway", code: 0, message: "ok", data: {} });
+  };
+
+  const createPayload = { name: "发布通知", url: "https://hooks.example.test/bbs", secret: "hook-secret", on: ["note", "reply"] };
+  const updatePayload = { name: "互动通知", url: "https://hooks.example.test/events", on: ["reaction"] };
+  await bbsApi.listWebhooks("access-token");
+  await bbsApi.createWebhook(createPayload, "access-token");
+  await bbsApi.showWebhook("hook/id", "access-token");
+  await bbsApi.updateWebhook("hook/id", updatePayload, "access-token");
+  await bbsApi.testWebhook("hook/id", "reaction", "access-token");
+  await bbsApi.deleteWebhook("hook/id", "access-token");
+
+  assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/webhooks");
+  assert.equal(requests[0].options.method, "GET");
+  assert.equal(requests[1].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[1].options.body), createPayload);
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/users/me/webhooks/hook%2Fid");
+  assert.equal(requests[2].options.method, "GET");
+  assert.equal(requests[3].options.method, "PUT");
+  assert.deepEqual(JSON.parse(requests[3].options.body), updatePayload);
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/users/me/webhooks/hook%2Fid/test");
+  assert.equal(requests[4].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[4].options.body), { type: "reaction" });
+  assert.equal(requests[5].options.method, "DELETE");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("loads public site config without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {

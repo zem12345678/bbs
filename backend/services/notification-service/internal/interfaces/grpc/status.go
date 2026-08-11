@@ -16,7 +16,7 @@ func toStatus(err error) error {
 	if _, ok := status.FromError(err); ok {
 		return err
 	}
-	if errors.Is(err, domain.ErrInvalidSystemNotification) || errors.Is(err, domain.ErrInvalidUserErasure) || errors.Is(err, domain.ErrInvalidNotificationPreferences) || errors.Is(err, domain.ErrInvalidWebPushSubscription) {
+	if errors.Is(err, domain.ErrInvalidSystemNotification) || errors.Is(err, domain.ErrInvalidUserErasure) || errors.Is(err, domain.ErrInvalidNotificationPreferences) || errors.Is(err, domain.ErrInvalidWebPushSubscription) || errors.Is(err, domain.ErrInvalidWebhook) || errors.Is(err, domain.ErrWebhookUnsafeURL) || errors.Is(err, domain.ErrWebhookPayloadTooBig) {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	if errors.Is(err, domain.ErrWebPushDisabled) {
@@ -24,6 +24,12 @@ func toStatus(err error) error {
 	}
 	if errors.Is(err, domain.ErrWebPushSubscriptionLimit) {
 		return status.Error(codes.ResourceExhausted, err.Error())
+	}
+	if errors.Is(err, domain.ErrWebhookLimitReached) {
+		return status.Error(codes.ResourceExhausted, err.Error())
+	}
+	if errors.Is(err, domain.ErrWebhookNotFound) {
+		return status.Error(codes.NotFound, err.Error())
 	}
 	return err
 }
