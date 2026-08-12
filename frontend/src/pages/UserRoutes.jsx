@@ -168,7 +168,7 @@ export function UserRoutePage({ auth, view = "profile", onAuthInvalidated }) {
       {activeValue === "scores" && <UserScoresPanel auth={auth} />}
       {activeValue === "articles" && <UserArticlesPanel auth={auth} userId={userId} />}
       {activeValue === "badges" && <UserBadgesPanel userId={userId} />}
-      {activeValue === "fans" && <UserFollowPanel direction="followers" userId={userId} />}
+      {activeValue === "fans" && <UserFollowPanel auth={auth} direction="followers" editable={sameId(auth?.user?.id, userId)} userId={userId} />}
       {activeValue === "followed" && <UserFollowPanel direction="following" userId={userId} />}
     </>
   );
@@ -3239,7 +3239,10 @@ function appendUniqueBadgeRows(currentRows, pageRows) {
   ];
 }
 
-function UserFollowPanel({ direction, userId }) {
+function UserFollowPanel({ auth, direction, editable = false, userId }) {
+  const accessToken = auth?.accessToken || "";
+  const removeRequestRef = React.useRef(0);
+  const [removal, setRemoval] = React.useState({ busy: "", error: "" });
   const [state, setState] = React.useState({
     rows: [],
     total: 0,
@@ -3305,11 +3308,43 @@ function UserFollowPanel({ direction, userId }) {
     };
   }, [direction, userId]);
 
-  React.useEffect(loadFollows, [loadFollows]);
+  React.useEffect(() => {
+    removeRequestRef.current += 1;
+    setRemoval({ busy: "", error: "" });
+    const cleanup = loadFollows();
+    return () => {
+      cleanup?.();
+      removeRequestRef.current += 1;
+    };
+  }, [accessToken, editable, loadFollows]);
 
   function loadMoreFollows() {
-    if (state.loading || state.loadingMore || state.rows.length >= state.total) return;
+    if (state.loading || state.loadingMore || removal.busy || state.rows.length >= state.total) return;
     loadFollows(state.page + 1, true);
+  }
+
+  const canRemove = editable && direction === "followers" && Boolean(accessToken);
+
+  async function removeFollower(row) {
+    if (!canRemove || !row?.key || removal.busy || state.loadingMore) return;
+    const confirmed = typeof globalThis.confirm !== "function" || globalThis.confirm(`确定将“${row.title}”移出粉丝列表吗？`);
+    if (!confirmed) return;
+    const requestId = removeRequestRef.current + 1;
+    removeRequestRef.current = requestId;
+    setRemoval({ busy: String(row.key), error: "" });
+    try {
+      await bbsApi.removeFollower(row.key, accessToken);
+      if (removeRequestRef.current !== requestId) return;
+      setState((current) => {
+        const rows = current.rows.filter((item) => String(item.key) !== String(row.key));
+        return { ...current, rows, total: Math.max(rows.length, current.total - 1), error: "" };
+      });
+      setRemoval({ busy: "", error: "" });
+    } catch (error) {
+      if (removeRequestRef.current === requestId) {
+        setRemoval({ busy: "", error: error.message || "移除粉丝失败" });
+      }
+    }
   }
 
   if (state.loading) return <EmptyState title="正在加载用户列表..." />;
@@ -3318,11 +3353,27 @@ function UserFollowPanel({ direction, userId }) {
   const label = direction === "followers" ? "粉丝" : "关注";
   return (
     <>
-      <DataRows rows={state.rows} />
+      {canRemove ? (
+        <div className="data-rows">
+          {state.rows.map((row) => (
+            <article className="data-row panel user-follow-row" key={row.key}>
+              <div>
+                <strong>{row.title}</strong>
+                {row.description && <p>{row.description}</p>}
+              </div>
+              {row.meta && <span>{row.meta}</span>}
+              <button aria-label={`移除粉丝 ${row.title}`} type="button" disabled={Boolean(removal.busy) || state.loadingMore} onClick={() => removeFollower(row)}>
+                {removal.busy === String(row.key) ? "移除中..." : "移除"}
+              </button>
+            </article>
+          ))}
+        </div>
+      ) : <DataRows rows={state.rows} />}
+      {removal.error && <p className="form-error" role="alert">{removal.error}</p>}
       {state.rows.length < state.total && (
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? `正在加载更多${label}...` : state.error || `继续查看更多${label}。`}</span>
-          <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore} onClick={loadMoreFollows}>
+          <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore || Boolean(removal.busy)} onClick={loadMoreFollows}>
             {state.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>

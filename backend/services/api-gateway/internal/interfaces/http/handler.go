@@ -429,6 +429,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			compatibility.POST("/update", h.requireAuthScope("write"), h.updateAntenna)
 		}
 		for _, prefix := range []string{"/api", ""} {
+			r.POST(prefix+"/following/invalidate", h.requireAuthScope("write"), h.invalidateFollowingCompat)
+		}
+		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
 			r.POST(prefix+"/emoji", h.getEmojiCompat)
 			r.GET(prefix+"/emojis", h.listEmojisCompat)
@@ -599,6 +602,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/:id", h.getUser)
 		api.GET("/users/:id/followers", h.listFollowers)
 		api.GET("/users/:id/following", h.listFollowing)
+		api.DELETE("/users/me/followers/:followerId", h.requireAuthScope("write"), h.removeFollower)
 		api.POST("/users/:id/follow", h.requireAuth(), h.follow)
 		api.DELETE("/users/:id/follow", h.requireAuth(), h.unfollow)
 		api.POST("/users/:id/follow/cancel", h.requireAuth(), h.cancelFollowRequest)

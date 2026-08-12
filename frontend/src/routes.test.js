@@ -161,6 +161,16 @@ test("keeps user safety controls connected to authenticated routes", () => {
   assert.match(userSource, /window\.confirm\(message\)/);
 });
 
+test("lets authenticated users remove followers only from their own follower list", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+
+  assert.match(userSource, /activeValue === "fans" && <UserFollowPanel auth=\{auth\} direction="followers" editable=\{sameId\(auth\?\.user\?\.id, userId\)\}/);
+  assert.match(userSource, /const canRemove = editable && direction === "followers" && Boolean\(accessToken\)/);
+  assert.match(userSource, /await bbsApi\.removeFollower\(row\.key, accessToken\)/);
+  assert.match(userSource, /aria-label=\{`移除粉丝 \$\{row\.title\}`\}/);
+  assert.match(userSource, /current\.rows\.filter\(\(item\) => String\(item\.key\) !== String\(row\.key\)\)/);
+});
+
 test("keeps named collection management inside the existing favorites route", () => {
   const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
 

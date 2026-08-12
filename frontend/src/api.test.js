@@ -745,6 +745,26 @@ test("manages authenticated user safety relationships", async () => {
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("removes a follower from the authenticated user's audience", async () => {
+  let requestRecord;
+  globalThis.fetch = async (url, options) => {
+    requestRecord = { url, options };
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { user: { id: "42", username: "alice" } }
+    });
+  };
+
+  await bbsApi.removeFollower("9223372036854775000", "access-token");
+
+  assert.equal(new URL(requestRecord.url).pathname, "/api/v1/users/me/followers/9223372036854775000");
+  assert.equal(requestRecord.options.method, "DELETE");
+  assert.equal(requestRecord.options.headers.Authorization, "Bearer access-token");
+});
+
 test("manages named collections with string-safe ids", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

@@ -513,6 +513,9 @@ export const bbsApi = {
   followers(userId, params = {}) {
     return request(`/users/${userId}/followers${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
+  removeFollower(followerId, token) {
+    return request(`/users/me/followers/${encodeURIComponent(followerId)}`, { method: "DELETE", token });
+  },
   following(userId, params = {}) {
     return request(`/users/${userId}/following${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
