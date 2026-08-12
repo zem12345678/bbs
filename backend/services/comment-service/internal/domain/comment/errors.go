@@ -19,3 +19,8 @@ var (
 	ErrInvalidUserErasure  = errors.New("invalid comment user erasure")
 	ErrAuthorErased        = errors.New("comment author account erased")
 )
+
+var (
+	ErrConversationLimitInvalid  = errors.New("comment conversation limit invalid")
+	ErrConversationOffsetInvalid = errors.New("comment conversation offset invalid")
+)

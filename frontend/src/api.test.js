@@ -1084,6 +1084,29 @@ test("revokes an accepted topic comment with authorization", async () => {
   assert.equal(options.headers.Authorization, "Bearer access-token");
 });
 
+test("loads a bounded comment ancestor conversation without authentication", async () => {
+  let requestedUrl = "";
+  let options;
+  globalThis.fetch = async (url, requestOptions) => {
+    requestedUrl = url;
+    options = requestOptions;
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [{ id: "202" }, { id: "101" }] }
+    });
+  };
+
+  const data = await bbsApi.commentConversation("303", { limit: 7, offset: 2 });
+
+  assert.equal(requestedUrl, "http://127.0.0.1:18080/api/v1/comments/303/conversation?limit=7&offset=2");
+  assert.equal(options.method, "GET");
+  assert.equal(options.headers.Authorization, undefined);
+  assert.deepEqual(data.items, [{ id: "202" }, { id: "101" }]);
+});
+
 test("uploads topic attachments as multipart form data without exposing a JSON content type", async () => {
   let requestedUrl = "";
   let options;

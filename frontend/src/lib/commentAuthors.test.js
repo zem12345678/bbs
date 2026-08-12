@@ -13,11 +13,14 @@ test("collectMissingCommentAuthorIDs excludes self and cached authors", () => {
     replyState: {
       "10": { items: [{ author_id: 3 }, { author_id: 4 }] }
     },
+    conversationState: {
+      "12": { items: [{ author_id: 5 }, { author_id: 4 }] }
+    },
     knownAuthors: { "3": { id: 3 } },
     currentUserID: 1
   });
 
-  assert.deepEqual(ids, ["2", "4"]);
+  assert.deepEqual(ids, ["2", "4", "5"]);
 });
 
 test("loadCommentAuthors batches IDs and bounds concurrent requests", async () => {

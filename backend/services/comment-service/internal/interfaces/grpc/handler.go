@@ -50,7 +50,9 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrNoteChartSpanInvalid),
 		errors.Is(err, domain.ErrNoteChartLimitInvalid),
 		errors.Is(err, domain.ErrNoteChartOffsetInvalid),
-		errors.Is(err, domain.ErrNoteChartUserInvalid):
+		errors.Is(err, domain.ErrNoteChartUserInvalid),
+		errors.Is(err, domain.ErrConversationLimitInvalid),
+		errors.Is(err, domain.ErrConversationOffsetInvalid):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrNoteChartRepositoryUnavailable),
 		errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
@@ -161,6 +163,18 @@ func (h *Handler) GetComment(ctx context.Context, req *pb.GetCommentRequest) (*p
 		return nil, toStatus(err)
 	}
 	return &pb.CommentResponse{Success: true, Message: "ok", Comment: toPb(c)}, nil
+}
+
+func (h *Handler) GetCommentConversation(ctx context.Context, req *pb.GetCommentConversationRequest) (*pb.CommentListResponse, error) {
+	items, err := h.qry.Conversation(ctx, domain.ConversationQuery{
+		CommentID: req.GetCommentId(),
+		Limit:     int(req.GetLimit()),
+		Offset:    int(req.GetOffset()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CommentListResponse{Items: toPbList(items), Total: int64(len(items))}, nil
 }
 
 func (h *Handler) ListComments(ctx context.Context, req *pb.ListCommentsRequest) (*pb.CommentListResponse, error) {

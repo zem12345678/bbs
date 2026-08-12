@@ -832,6 +832,9 @@ export const bbsApi = {
   listReplies(commentId, params = {}) {
     return request(`/comments/${commentId}/replies${buildQuery({ page: 1, page_size: 20, ...params })}`);
   },
+  commentConversation(commentId, params = {}) {
+    return request(`/comments/${commentId}/conversation${buildQuery({ limit: 10, offset: 0, ...params })}`);
+  },
   getComment(commentId) {
     return request(`/comments/${commentId}`);
   },

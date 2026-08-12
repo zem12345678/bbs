@@ -19,16 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CommentService_CreateComment_FullMethodName         = "/bbs.comment.v1.CommentService/CreateComment"
-	CommentService_DeleteComment_FullMethodName         = "/bbs.comment.v1.CommentService/DeleteComment"
-	CommentService_RestoreComment_FullMethodName        = "/bbs.comment.v1.CommentService/RestoreComment"
-	CommentService_GetComment_FullMethodName            = "/bbs.comment.v1.CommentService/GetComment"
-	CommentService_ListComments_FullMethodName          = "/bbs.comment.v1.CommentService/ListComments"
-	CommentService_ListReplies_FullMethodName           = "/bbs.comment.v1.CommentService/ListReplies"
-	CommentService_ListRecentComments_FullMethodName    = "/bbs.comment.v1.CommentService/ListRecentComments"
-	CommentService_RedactAccountComments_FullMethodName = "/bbs.comment.v1.CommentService/RedactAccountComments"
-	CommentService_GetNoteChart_FullMethodName          = "/bbs.comment.v1.CommentService/GetNoteChart"
-	CommentService_GetActiveUsersChart_FullMethodName   = "/bbs.comment.v1.CommentService/GetActiveUsersChart"
+	CommentService_CreateComment_FullMethodName          = "/bbs.comment.v1.CommentService/CreateComment"
+	CommentService_DeleteComment_FullMethodName          = "/bbs.comment.v1.CommentService/DeleteComment"
+	CommentService_RestoreComment_FullMethodName         = "/bbs.comment.v1.CommentService/RestoreComment"
+	CommentService_GetComment_FullMethodName             = "/bbs.comment.v1.CommentService/GetComment"
+	CommentService_GetCommentConversation_FullMethodName = "/bbs.comment.v1.CommentService/GetCommentConversation"
+	CommentService_ListComments_FullMethodName           = "/bbs.comment.v1.CommentService/ListComments"
+	CommentService_ListReplies_FullMethodName            = "/bbs.comment.v1.CommentService/ListReplies"
+	CommentService_ListRecentComments_FullMethodName     = "/bbs.comment.v1.CommentService/ListRecentComments"
+	CommentService_RedactAccountComments_FullMethodName  = "/bbs.comment.v1.CommentService/RedactAccountComments"
+	CommentService_GetNoteChart_FullMethodName           = "/bbs.comment.v1.CommentService/GetNoteChart"
+	CommentService_GetActiveUsersChart_FullMethodName    = "/bbs.comment.v1.CommentService/GetActiveUsersChart"
 )
 
 // CommentServiceClient is the client API for CommentService service.
@@ -39,6 +40,7 @@ type CommentServiceClient interface {
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	RestoreComment(ctx context.Context, in *RestoreCommentRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	GetComment(ctx context.Context, in *GetCommentRequest, opts ...grpc.CallOption) (*CommentResponse, error)
+	GetCommentConversation(ctx context.Context, in *GetCommentConversationRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListReplies(ctx context.Context, in *ListRepliesRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
 	ListRecentComments(ctx context.Context, in *ListRecentCommentsRequest, opts ...grpc.CallOption) (*CommentListResponse, error)
@@ -89,6 +91,16 @@ func (c *commentServiceClient) GetComment(ctx context.Context, in *GetCommentReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CommentResponse)
 	err := c.cc.Invoke(ctx, CommentService_GetComment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *commentServiceClient) GetCommentConversation(ctx context.Context, in *GetCommentConversationRequest, opts ...grpc.CallOption) (*CommentListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommentListResponse)
+	err := c.cc.Invoke(ctx, CommentService_GetCommentConversation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +175,7 @@ type CommentServiceServer interface {
 	DeleteComment(context.Context, *DeleteCommentRequest) (*SimpleResponse, error)
 	RestoreComment(context.Context, *RestoreCommentRequest) (*SimpleResponse, error)
 	GetComment(context.Context, *GetCommentRequest) (*CommentResponse, error)
+	GetCommentConversation(context.Context, *GetCommentConversationRequest) (*CommentListResponse, error)
 	ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error)
 	ListReplies(context.Context, *ListRepliesRequest) (*CommentListResponse, error)
 	ListRecentComments(context.Context, *ListRecentCommentsRequest) (*CommentListResponse, error)
@@ -190,6 +203,9 @@ func (UnimplementedCommentServiceServer) RestoreComment(context.Context, *Restor
 }
 func (UnimplementedCommentServiceServer) GetComment(context.Context, *GetCommentRequest) (*CommentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetComment not implemented")
+}
+func (UnimplementedCommentServiceServer) GetCommentConversation(context.Context, *GetCommentConversationRequest) (*CommentListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCommentConversation not implemented")
 }
 func (UnimplementedCommentServiceServer) ListComments(context.Context, *ListCommentsRequest) (*CommentListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListComments not implemented")
@@ -298,6 +314,24 @@ func _CommentService_GetComment_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CommentServiceServer).GetComment(ctx, req.(*GetCommentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CommentService_GetCommentConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCommentConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentServiceServer).GetCommentConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommentService_GetCommentConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentServiceServer).GetCommentConversation(ctx, req.(*GetCommentConversationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -432,6 +466,10 @@ var CommentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetComment",
 			Handler:    _CommentService_GetComment_Handler,
+		},
+		{
+			MethodName: "GetCommentConversation",
+			Handler:    _CommentService_GetCommentConversation_Handler,
 		},
 		{
 			MethodName: "ListComments",

@@ -21,6 +21,7 @@ import {
 import { bbsApi } from "../../api";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { collectMissingCommentAuthorIDs, loadCommentAuthors } from "../../lib/commentAuthors";
+import { commentReplyTargets, commentRootId, conversationItems, isNestedReply } from "../../lib/commentConversation";
 import { appendMarkdownImage, textWithoutMarkdownImages } from "../../lib/markdownMedia";
 import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../../lib/formatters";
 import { fallbackPerson, userToPerson } from "../../lib/postMappers";
@@ -47,6 +48,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const viewCount = hasViews ? toNumber(post.views) : 0;
   const [comments, setComments] = React.useState([]);
   const [replyState, setReplyState] = React.useState({});
+  const [conversationState, setConversationState] = React.useState({});
   const [commentAuthorMap, setCommentAuthorMap] = React.useState({});
   const [commentText, setCommentText] = React.useState("");
   const [targetComment, setTargetComment] = React.useState(null);
@@ -65,6 +67,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [related, setRelated] = React.useState({ items: [], loading: false, error: "" });
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
   const commentEditorRef = React.useRef(null);
+  const postIdRef = React.useRef(toId(post?.id));
+  postIdRef.current = toId(post?.id);
   const contentBody = item?.body || item?.content || post?.text || "";
   const ownerPost = sameId(auth?.user?.id, post?.authorId);
   const questionPost = topicPost && (post?.topicType === "qa" || item?.type === "qa");
@@ -146,6 +150,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     setCommentPage(0);
     setCommentsLoadingMore(false);
     setReplyState({});
+    setConversationState({});
     setCommentAuthorMap({});
     setCommentText("");
     setTargetComment(null);
@@ -183,6 +188,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     const missingAuthorIds = collectMissingCommentAuthorIDs({
       comments,
       replyState,
+      conversationState,
       knownAuthors: commentAuthorMap,
       currentUserID: auth?.user?.id
     });
@@ -209,7 +215,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     return () => {
       alive = false;
     };
-  }, [auth?.user?.id, commentAuthorMap, comments, replyState]);
+  }, [auth?.user?.id, commentAuthorMap, comments, conversationState, replyState]);
 
   React.useEffect(() => {
     if (!post?.id) return;
@@ -434,6 +440,67 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     return replyState[String(commentId)] || emptyReplyState();
   }
 
+  function emptyConversationState() {
+    return { items: [], loading: false, open: false, error: "" };
+  }
+
+  function getConversationState(commentId) {
+    return conversationState[String(commentId)] || emptyConversationState();
+  }
+
+  async function loadConversation(comment) {
+    const commentId = toId(comment?.id);
+    if (!commentId || !isNestedReply(comment)) return;
+    const requestedPostId = postIdRef.current;
+    const key = String(commentId);
+    const current = conversationState[key];
+    if (current?.open) {
+      setConversationState((items) => ({
+        ...items,
+        [key]: { ...emptyConversationState(), ...items[key], open: false, loading: false }
+      }));
+      return;
+    }
+    if (current?.items?.length) {
+      setConversationState((items) => ({
+        ...items,
+        [key]: { ...emptyConversationState(), ...items[key], open: true, error: "" }
+      }));
+      return;
+    }
+    setConversationState((items) => ({
+      ...items,
+      [key]: { ...emptyConversationState(), ...items[key], open: true, loading: true, error: "" }
+    }));
+    try {
+      const data = await bbsApi.commentConversation(commentId, { limit: 10, offset: 0 });
+      if (!sameId(postIdRef.current, requestedPostId)) return;
+      setConversationState((items) => ({
+        ...items,
+        [key]: {
+          ...emptyConversationState(),
+          ...items[key],
+          items: conversationItems(data),
+          loading: false,
+          open: true,
+          error: ""
+        }
+      }));
+    } catch (error) {
+      if (!sameId(postIdRef.current, requestedPostId)) return;
+      setConversationState((items) => ({
+        ...items,
+        [key]: {
+          ...emptyConversationState(),
+          ...items[key],
+          loading: false,
+          open: true,
+          error: error.message || "会话加载失败"
+        }
+      }));
+    }
+  }
+
   async function loadReplies(comment, forceOpen = false) {
     const rootId = commentRootId(comment);
     if (!rootId) return;
@@ -540,7 +607,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     if (!ensureActionable()) return;
     const content = commentText.trim();
     if (!content) return;
-    const parentId = targetComment ? commentRootId(targetComment) : 0;
+    const { parentId, rootId } = commentReplyTargets(targetComment);
     setSubmitting(true);
     setActionError("");
     try {
@@ -548,8 +615,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
         ? await bbsApi.createTopicComment(post.id, { content, parent_id: parentId }, auth.accessToken)
         : await bbsApi.createComment(post.id, { content, parent_id: parentId }, auth.accessToken);
       if (data?.comment) {
-        if (parentId) {
-          const key = String(parentId);
+        if (rootId) {
+          const key = String(rootId);
           setReplyState((items) => {
             const current = { ...emptyReplyState(), ...items[key] };
             return {
@@ -565,7 +632,7 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
               }
             };
           });
-          setComments((items) => incrementReplyCount(items, parentId, 1));
+          setComments((items) => incrementReplyCount(items, rootId, 1));
         } else {
           setComments((items) => mergeComments(items, [data.comment]));
           setCommentPage((page) => Math.max(page, 1));
@@ -712,6 +779,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     const replyCount = Math.max(toNumber(comment?.reply_count ?? comment?.replyCount), toNumber(replies.total));
     const hasMoreReplies = replies.page * COMMENT_PAGE_SIZE < replies.total;
     const commentId = toId(comment?.id);
+    const nestedReply = !root && isNestedReply(comment);
+    const conversation = nestedReply ? getConversationState(commentId) : emptyConversationState();
     const acceptedAnswer = questionPost && sameId(commentId, acceptedCommentId);
     const acceptingThisAnswer = sameId(acceptingCommentId, commentId);
 	const unacceptingThisAnswer = sameId(unacceptingCommentId, commentId);
@@ -735,6 +804,29 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             )}
             {root && <a href={`#comment-${commentId}`}>#{floor}</a>}
           </header>
+          {nestedReply && conversation.open && (
+            <div className="thread-conversation" aria-live="polite">
+              {conversation.loading && <p>正在加载会话...</p>}
+              {conversation.error && <p className="form-error">{conversation.error}</p>}
+              {!conversation.loading && !conversation.error && conversation.items.length === 0 && <p>没有可见的上级回复。</p>}
+              {conversation.items.map((ancestor) => {
+                const ancestorId = toId(ancestor?.id);
+                const ancestorPerson = commentPerson(ancestor);
+                return (
+                  <div className="thread-conversation-item" key={ancestorId}>
+                    <header>
+                      <Avatar person={ancestorPerson} small />
+                      <div>
+                        <strong>{ancestorPerson.name}</strong>
+                        <span>{timeAgoMillis(ancestor?.created_at || ancestor?.createdAt)}</span>
+                      </div>
+                    </header>
+                    <MarkdownPreview className="thread-comment-body" text={ancestor?.content || ""} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <MarkdownPreview className="thread-comment-body" text={comment?.content || ""} />
           <footer>
             {canAcceptAnswer && (
@@ -766,6 +858,12 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             {root && replyCount > 0 && (
               <button type="button" disabled={replies.loading || replies.loadingMore} onClick={() => loadReplies(comment)}>
                 {replies.loading ? "正在加载回复..." : replies.open ? "收起回复" : `查看 ${replyCount} 条回复`}
+              </button>
+            )}
+            {nestedReply && (
+              <button type="button" disabled={conversation.loading} onClick={() => loadConversation(comment)}>
+                <CornerDownRight size={16} aria-hidden="true" />
+                {conversation.loading ? "正在加载会话..." : conversation.open ? "收起会话" : "查看会话"}
               </button>
             )}
             {canDeleteComment(comment) && (
@@ -982,11 +1080,6 @@ function mergeComments(current = [], additions = []) {
     }
     return false;
   }));
-}
-
-function commentRootId(comment) {
-  const rootId = comment?.root_id ?? comment?.rootId;
-  return toNumber(rootId) > 0 ? toId(rootId) : toId(comment?.id);
 }
 
 function latestVisibleCommentId(comments, replyState) {

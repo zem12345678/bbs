@@ -5086,6 +5086,58 @@ a {
   border-top: 0;
 }
 
+.thread-conversation {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-left: 2px solid #dce6f1;
+}
+
+.thread-conversation > p {
+  margin: 0;
+  color: #7c8798;
+  font-size: 13px;
+}
+
+.thread-conversation-item {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e7edf4;
+}
+
+.thread-conversation-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.thread-conversation-item > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thread-conversation-item > header > div {
+  display: grid;
+  min-width: 0;
+}
+
+.thread-conversation-item > header strong {
+  color: #273247;
+  font-size: 13px;
+}
+
+.thread-conversation-item > header span {
+  color: #8a94a5;
+  font-size: 11px;
+}
+
+.thread-conversation-item .thread-comment-body {
+  margin-top: 6px;
+  color: #4b5668;
+  font-size: 13px;
+}
+
 .thread-reply-form {
   display: grid;
   gap: 10px;

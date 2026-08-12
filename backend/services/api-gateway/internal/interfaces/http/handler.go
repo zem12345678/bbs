@@ -432,6 +432,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/following/invalidate", h.requireAuthScope("write"), h.invalidateFollowingCompat)
 		}
 		for _, prefix := range []string{"/api", ""} {
+			r.POST(prefix+"/notes/conversation", h.notesConversationCompat)
+		}
+		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
 			r.POST(prefix+"/emoji", h.getEmojiCompat)
 			r.GET(prefix+"/emojis", h.listEmojisCompat)
@@ -699,6 +702,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/articles/:id/comments", h.requireAuth(), h.createComment)
 		api.GET("/articles/:id/comments", h.listComments)
 		api.GET("/comments/:id", h.getComment)
+		api.GET("/comments/:id/conversation", h.getCommentConversation)
 		api.GET("/comments/:id/replies", h.listReplies)
 		api.DELETE("/comments/:id", h.requireAuth(), h.deleteComment)
 		api.POST("/comments/:id/report", h.requireAuth(), h.reportComment)

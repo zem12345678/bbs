@@ -83,6 +83,20 @@ test("connects custom emoji rendering and pickers to public content editors", ()
   assert.match(postSource, /renderHighlightedText\(post\.text, post\.highlight\?\.text, true\)/);
 });
 
+test("keeps nested comment replies attached to their direct parent and exposes ancestor context on demand", () => {
+  const source = fs.readFileSync(new URL("./components/content/ThreadReader.jsx", import.meta.url), "utf8");
+
+  assert.match(source, /const \{ parentId, rootId \} = commentReplyTargets\(targetComment\);/);
+  assert.match(source, /createTopicComment\(post\.id, \{ content, parent_id: parentId \}/);
+  assert.match(source, /const key = String\(rootId\);/);
+  assert.match(source, /incrementReplyCount\(items, rootId, 1\)/);
+  assert.match(source, /const nestedReply = !root && isNestedReply\(comment\);/);
+  assert.match(source, /bbsApi\.commentConversation\(commentId, \{ limit: 10, offset: 0 \}\)/);
+  assert.match(source, /items: conversationItems\(data\)/);
+  assert.match(source, /conversation\.open \? "收起会话" : "查看会话"/);
+  assert.match(source, /setConversationState\(\{\}\);/);
+});
+
 test("keeps explicit chat entries on user message surfaces", () => {
   const messageSurfaces = [
     fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8"),

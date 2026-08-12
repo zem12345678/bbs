@@ -22,8 +22,8 @@ const testInternalAuthToken = "comment-internal-token"
 
 func TestInternalAuthInterceptorProtectsEveryCommentMethod(t *testing.T) {
 	interceptor := newInternalAuthUnaryServerInterceptor(testInternalAuthToken)
-	if got := len(pb.CommentService_ServiceDesc.Methods); got != 10 {
-		t.Fatalf("comment unary method count = %d, want 10", got)
+	if got := len(pb.CommentService_ServiceDesc.Methods); got != 11 {
+		t.Fatalf("comment unary method count = %d, want 11", got)
 	}
 
 	for _, method := range pb.CommentService_ServiceDesc.Methods {
@@ -85,6 +85,9 @@ func TestInternalAuthGRPCServer(t *testing.T) {
 
 	if _, err := commentClient.GetComment(context.Background(), &pb.GetCommentRequest{}); status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("anonymous business RPC status = %s, want %s", status.Code(err), codes.Unauthenticated)
+	}
+	if _, err := commentClient.GetCommentConversation(context.Background(), &pb.GetCommentConversationRequest{}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("anonymous conversation RPC status = %s, want %s", status.Code(err), codes.Unauthenticated)
 	}
 
 	authCtx := metadata.AppendToOutgoingContext(context.Background(), internalAuthMetadataKey, testInternalAuthToken)

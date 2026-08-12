@@ -15,6 +15,12 @@ type ReplyListQuery struct {
 	PageSize int
 }
 
+type ConversationQuery struct {
+	CommentID int64
+	Limit     int
+	Offset    int
+}
+
 type ModerationListQuery struct {
 	EntityType string
 	EntityID   int64

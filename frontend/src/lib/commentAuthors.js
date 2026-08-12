@@ -7,6 +7,7 @@ const COMMENT_AUTHOR_BATCH_CONCURRENCY = 4;
 export function collectMissingCommentAuthorIDs({
   comments = [],
   replyState = {},
+  conversationState = {},
   knownAuthors = {},
   currentUserID
 } = {}) {
@@ -19,6 +20,9 @@ export function collectMissingCommentAuthorIDs({
   };
   comments.forEach(collect);
   Object.values(replyState).forEach((state) => {
+    (state?.items || []).forEach(collect);
+  });
+  Object.values(conversationState).forEach((state) => {
     (state?.items || []).forEach(collect);
   });
   return [...ids];
