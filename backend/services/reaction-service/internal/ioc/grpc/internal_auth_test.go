@@ -22,8 +22,8 @@ const testInternalAuthToken = "reaction-internal-token"
 
 func TestInternalAuthInterceptorProtectsEveryReactionMethod(t *testing.T) {
 	interceptor := newInternalAuthUnaryServerInterceptor(testInternalAuthToken)
-	if got := len(pb.ReactionService_ServiceDesc.Methods); got != 20 {
-		t.Fatalf("reaction unary method count = %d, want 20", got)
+	if got := len(pb.ReactionService_ServiceDesc.Methods); got != 22 {
+		t.Fatalf("reaction unary method count = %d, want 22", got)
 	}
 
 	for _, method := range pb.ReactionService_ServiceDesc.Methods {

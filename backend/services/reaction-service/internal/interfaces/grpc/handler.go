@@ -331,6 +331,26 @@ func (h *Handler) ListCollectionItems(ctx context.Context, req *pb.ListCollectio
 	return &pb.CollectionItemsResponse{Items: items, Total: total}, nil
 }
 
+func (h *Handler) GetCollection(ctx context.Context, req *pb.GetCollectionRequest) (*pb.CollectionResponse, error) {
+	collection, err := h.qry.GetCollection(ctx, req.GetId(), req.GetViewerUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.CollectionResponse{Success: true, Message: "ok", Collection: toCollectionPb(collection)}, nil
+}
+
+func (h *Handler) ListPublicCollectionItems(ctx context.Context, req *pb.ListPublicCollectionItemsRequest) (*pb.CollectionItemsResponse, error) {
+	rows, total, err := h.qry.ListPublicCollectionItems(ctx, req.GetCollectionId(), req.GetViewerUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.CollectionItemInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toCollectionItemPb(row))
+	}
+	return &pb.CollectionItemsResponse{Items: items, Total: total}, nil
+}
+
 func (h *Handler) EraseAccountReactions(ctx context.Context, req *pb.EraseAccountReactionsRequest) (*pb.EraseAccountReactionsResponse, error) {
 	if h.erase == nil {
 		return nil, status.Error(codes.Unavailable, "account erasure service unavailable")

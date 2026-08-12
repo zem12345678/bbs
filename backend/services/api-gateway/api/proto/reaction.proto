@@ -24,6 +24,8 @@ service ReactionService {
   rpc AddCollectionItem(CollectionItemRequest) returns (CollectionActionResponse);
   rpc RemoveCollectionItem(CollectionItemRequest) returns (CollectionActionResponse);
   rpc ListCollectionItems(ListCollectionItemsRequest) returns (CollectionItemsResponse);
+  rpc GetCollection(GetCollectionRequest) returns (CollectionResponse);
+  rpc ListPublicCollectionItems(ListPublicCollectionItemsRequest) returns (CollectionItemsResponse);
 }
 
 message EntityRef {
@@ -148,6 +150,18 @@ message ListCollectionItemsRequest {
   string entity_type = 3;
   int32 limit = 4;
   int32 offset = 5;
+}
+
+message GetCollectionRequest {
+  int64 id = 1;
+  int64 viewer_user_id = 2;
+}
+
+message ListPublicCollectionItemsRequest {
+  int64 collection_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  int64 viewer_user_id = 4;
 }
 
 message CollectionActionResponse {

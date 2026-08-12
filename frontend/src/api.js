@@ -552,6 +552,39 @@ export const bbsApi = {
   removeCollectionItem(collectionId, payload, token) {
     return request(`/users/me/collections/${encodeURIComponent(collectionId)}/items`, { method: "DELETE", body: payload, token });
   },
+  clips(token) {
+    return request("/clips/list", { method: "POST", body: {}, token });
+  },
+  createClip(payload, token) {
+    return request("/clips/create", { method: "POST", body: payload, token });
+  },
+  updateClip(payload, token) {
+    return request("/clips/update", { method: "POST", body: payload, token });
+  },
+  deleteClip(clipId, token) {
+    return request("/clips/delete", { method: "POST", body: { clipId: String(clipId) }, token });
+  },
+  showClip(clipId, token) {
+    return request("/clips/show", { method: "POST", body: { clipId: String(clipId) }, token });
+  },
+  addClipNote(clipId, noteId, token) {
+    return request("/clips/add-note", { method: "POST", body: { clipId: String(clipId), noteId: String(noteId) }, token });
+  },
+  removeClipNote(clipId, noteId, token) {
+    return request("/clips/remove-note", { method: "POST", body: { clipId: String(clipId), noteId: String(noteId) }, token });
+  },
+  clipNotes(clipId, payload = {}, token) {
+    return request("/clips/notes", { method: "POST", body: { clipId: String(clipId), ...payload }, token });
+  },
+  favoriteClip(clipId, token) {
+    return request("/clips/favorite", { method: "POST", body: { clipId: String(clipId) }, token });
+  },
+  unfavoriteClip(clipId, token) {
+    return request("/clips/unfavorite", { method: "POST", body: { clipId: String(clipId) }, token });
+  },
+  myFavoriteClips(token) {
+    return request("/clips/my-favorites", { method: "POST", body: {}, token });
+  },
   feed(params = {}, token) {
     return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },

@@ -272,6 +272,52 @@ func (r *PostgresCollectionRepository) ListCollectionItems(ctx context.Context, 
 	return out, total, err
 }
 
+func (r *PostgresCollectionRepository) GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*domain.Collection, error) {
+	if collectionID <= 0 {
+		return nil, domain.ErrInvalidCollectionID
+	}
+	if viewerUserID < 0 {
+		return nil, domain.ErrInvalidUserID
+	}
+	query := r.db.WithContext(ctx).Model(&collectionPO{}).Where("id = ?", collectionID)
+	if viewerUserID > 0 {
+		query = query.Where("(is_public OR user_id = ?)", viewerUserID)
+	} else {
+		query = query.Where("is_public = TRUE")
+	}
+	var row collectionPO
+	err := query.Select(`favorite_collections.*, (SELECT COUNT(*) FROM favorite_collection_items WHERE collection_id = favorite_collections.id) AS item_count`).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrCollectionNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toCollectionEntity(&row), nil
+}
+
+func (r *PostgresCollectionRepository) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*domain.CollectionItem, int64, error) {
+	collection, err := r.GetCollection(ctx, collectionID, viewerUserID)
+	if err != nil {
+		return nil, 0, err
+	}
+	limit, offset = normalizeCollectionPage(limit, offset)
+	query := r.db.WithContext(ctx).Model(&collectionItemPO{}).Where("collection_id = ?", collection.ID)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []collectionItemPO
+	if err := query.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*domain.CollectionItem, 0, len(rows))
+	for i := range rows {
+		out = append(out, toCollectionItemEntity(&rows[i]))
+	}
+	return out, total, nil
+}
+
 func getOwnedCollection(db *gorm.DB, userID, collectionID int64) (*domain.Collection, error) {
 	var po collectionPO
 	err := db.Model(&collectionPO{}).

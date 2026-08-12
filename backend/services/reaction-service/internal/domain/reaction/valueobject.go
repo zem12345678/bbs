@@ -5,12 +5,13 @@ type EntityType string
 const (
 	EntityArticle EntityType = "article"
 	EntityTopic   EntityType = "topic"
-	EntityComment EntityType = "comment"
+	EntityComment    EntityType = "comment"
+	EntityCollection EntityType = "collection"
 )
 
 func (t EntityType) Valid() bool {
 	switch t {
-	case EntityArticle, EntityTopic, EntityComment:
+	case EntityArticle, EntityTopic, EntityComment, EntityCollection:
 		return true
 	default:
 		return false

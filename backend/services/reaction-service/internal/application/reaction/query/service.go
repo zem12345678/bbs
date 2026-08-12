@@ -128,3 +128,31 @@ func (s *Service) ListCollectionItems(ctx context.Context, userID, collectionID 
 	}
 	return s.collections.ListCollectionItems(ctx, userID, collectionID, entityType, limit, offset)
 }
+
+func (s *Service) GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*domain.Collection, error) {
+	publicCollections, ok := s.collections.(domain.PublicCollectionRepository)
+	if !ok {
+		return nil, domain.ErrCollectionRepositoryUnavailable
+	}
+	if collectionID <= 0 {
+		return nil, domain.ErrInvalidCollectionID
+	}
+	if viewerUserID < 0 {
+		return nil, domain.ErrInvalidUserID
+	}
+	return publicCollections.GetCollection(ctx, collectionID, viewerUserID)
+}
+
+func (s *Service) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*domain.CollectionItem, int64, error) {
+	publicCollections, ok := s.collections.(domain.PublicCollectionRepository)
+	if !ok {
+		return nil, 0, domain.ErrCollectionRepositoryUnavailable
+	}
+	if collectionID <= 0 {
+		return nil, 0, domain.ErrInvalidCollectionID
+	}
+	if viewerUserID < 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	return publicCollections.ListPublicCollectionItems(ctx, collectionID, viewerUserID, limit, offset)
+}

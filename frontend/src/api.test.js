@@ -807,6 +807,27 @@ test("manages named collections with string-safe ids", async () => {
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
+test("uses Misskey-compatible clip endpoints with string-safe ids", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => { requests.push({ url, options }); return jsonResponse(204, null); };
+  await bbsApi.clips("access-token");
+  await bbsApi.createClip({ name: "阅读", isPublic: false }, "access-token");
+  await bbsApi.updateClip({ clipId: "9007199254740993", isPublic: true }, "access-token");
+  await bbsApi.showClip("9007199254740993", "access-token");
+  await bbsApi.addClipNote("9007199254740993", "9007199254740999", "access-token");
+  await bbsApi.removeClipNote("9007199254740993", "9007199254740999", "access-token");
+  await bbsApi.clipNotes("9007199254740993", { limit: 10, sinceId: "7" }, "access-token");
+  await bbsApi.favoriteClip("9007199254740993", "access-token");
+  await bbsApi.unfavoriteClip("9007199254740993", "access-token");
+  await bbsApi.myFavoriteClips("access-token");
+  assert.deepEqual(requests.map(({ url, options }) => [new URL(url).pathname, options.method]), [
+    ["/api/v1/clips/list", "POST"], ["/api/v1/clips/create", "POST"], ["/api/v1/clips/update", "POST"], ["/api/v1/clips/show", "POST"],
+    ["/api/v1/clips/add-note", "POST"], ["/api/v1/clips/remove-note", "POST"], ["/api/v1/clips/notes", "POST"], ["/api/v1/clips/favorite", "POST"], ["/api/v1/clips/unfavorite", "POST"], ["/api/v1/clips/my-favorites", "POST"]
+  ]);
+  assert.equal(JSON.parse(requests[6].options.body).sinceId, "7");
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
+
 test("preserves a zero chat repair cursor and sends bearer auth", async () => {
   let requestedUrl = "";
   let authorization = "";

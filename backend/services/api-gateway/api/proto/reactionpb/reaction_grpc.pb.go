@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: reaction.proto
+// source: api/proto/reaction.proto
 
 package reactionpb
 
@@ -19,25 +19,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ReactionService_Like_FullMethodName                 = "/bbs.reaction.v1.ReactionService/Like"
-	ReactionService_Unlike_FullMethodName               = "/bbs.reaction.v1.ReactionService/Unlike"
-	ReactionService_ListLikes_FullMethodName            = "/bbs.reaction.v1.ReactionService/ListLikes"
-	ReactionService_Favorite_FullMethodName             = "/bbs.reaction.v1.ReactionService/Favorite"
-	ReactionService_Unfavorite_FullMethodName           = "/bbs.reaction.v1.ReactionService/Unfavorite"
-	ReactionService_ListFavorites_FullMethodName        = "/bbs.reaction.v1.ReactionService/ListFavorites"
-	ReactionService_GetCounts_FullMethodName            = "/bbs.reaction.v1.ReactionService/GetCounts"
-	ReactionService_HotIDs_FullMethodName               = "/bbs.reaction.v1.ReactionService/HotIDs"
-	ReactionService_SubmitReport_FullMethodName         = "/bbs.reaction.v1.ReactionService/SubmitReport"
-	ReactionService_ListReports_FullMethodName          = "/bbs.reaction.v1.ReactionService/ListReports"
-	ReactionService_GetReport_FullMethodName            = "/bbs.reaction.v1.ReactionService/GetReport"
-	ReactionService_AuditReport_FullMethodName          = "/bbs.reaction.v1.ReactionService/AuditReport"
-	ReactionService_CreateCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/CreateCollection"
-	ReactionService_UpdateCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/UpdateCollection"
-	ReactionService_DeleteCollection_FullMethodName     = "/bbs.reaction.v1.ReactionService/DeleteCollection"
-	ReactionService_ListCollections_FullMethodName      = "/bbs.reaction.v1.ReactionService/ListCollections"
-	ReactionService_AddCollectionItem_FullMethodName    = "/bbs.reaction.v1.ReactionService/AddCollectionItem"
-	ReactionService_RemoveCollectionItem_FullMethodName = "/bbs.reaction.v1.ReactionService/RemoveCollectionItem"
-	ReactionService_ListCollectionItems_FullMethodName  = "/bbs.reaction.v1.ReactionService/ListCollectionItems"
+	ReactionService_Like_FullMethodName                      = "/bbs.reaction.v1.ReactionService/Like"
+	ReactionService_Unlike_FullMethodName                    = "/bbs.reaction.v1.ReactionService/Unlike"
+	ReactionService_ListLikes_FullMethodName                 = "/bbs.reaction.v1.ReactionService/ListLikes"
+	ReactionService_Favorite_FullMethodName                  = "/bbs.reaction.v1.ReactionService/Favorite"
+	ReactionService_Unfavorite_FullMethodName                = "/bbs.reaction.v1.ReactionService/Unfavorite"
+	ReactionService_ListFavorites_FullMethodName             = "/bbs.reaction.v1.ReactionService/ListFavorites"
+	ReactionService_GetCounts_FullMethodName                 = "/bbs.reaction.v1.ReactionService/GetCounts"
+	ReactionService_HotIDs_FullMethodName                    = "/bbs.reaction.v1.ReactionService/HotIDs"
+	ReactionService_SubmitReport_FullMethodName              = "/bbs.reaction.v1.ReactionService/SubmitReport"
+	ReactionService_ListReports_FullMethodName               = "/bbs.reaction.v1.ReactionService/ListReports"
+	ReactionService_GetReport_FullMethodName                 = "/bbs.reaction.v1.ReactionService/GetReport"
+	ReactionService_AuditReport_FullMethodName               = "/bbs.reaction.v1.ReactionService/AuditReport"
+	ReactionService_CreateCollection_FullMethodName          = "/bbs.reaction.v1.ReactionService/CreateCollection"
+	ReactionService_UpdateCollection_FullMethodName          = "/bbs.reaction.v1.ReactionService/UpdateCollection"
+	ReactionService_DeleteCollection_FullMethodName          = "/bbs.reaction.v1.ReactionService/DeleteCollection"
+	ReactionService_ListCollections_FullMethodName           = "/bbs.reaction.v1.ReactionService/ListCollections"
+	ReactionService_AddCollectionItem_FullMethodName         = "/bbs.reaction.v1.ReactionService/AddCollectionItem"
+	ReactionService_RemoveCollectionItem_FullMethodName      = "/bbs.reaction.v1.ReactionService/RemoveCollectionItem"
+	ReactionService_ListCollectionItems_FullMethodName       = "/bbs.reaction.v1.ReactionService/ListCollectionItems"
+	ReactionService_GetCollection_FullMethodName             = "/bbs.reaction.v1.ReactionService/GetCollection"
+	ReactionService_ListPublicCollectionItems_FullMethodName = "/bbs.reaction.v1.ReactionService/ListPublicCollectionItems"
 )
 
 // ReactionServiceClient is the client API for ReactionService service.
@@ -63,6 +65,8 @@ type ReactionServiceClient interface {
 	AddCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error)
 	RemoveCollectionItem(ctx context.Context, in *CollectionItemRequest, opts ...grpc.CallOption) (*CollectionActionResponse, error)
 	ListCollectionItems(ctx context.Context, in *ListCollectionItemsRequest, opts ...grpc.CallOption) (*CollectionItemsResponse, error)
+	GetCollection(ctx context.Context, in *GetCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error)
+	ListPublicCollectionItems(ctx context.Context, in *ListPublicCollectionItemsRequest, opts ...grpc.CallOption) (*CollectionItemsResponse, error)
 }
 
 type reactionServiceClient struct {
@@ -263,6 +267,26 @@ func (c *reactionServiceClient) ListCollectionItems(ctx context.Context, in *Lis
 	return out, nil
 }
 
+func (c *reactionServiceClient) GetCollection(ctx context.Context, in *GetCollectionRequest, opts ...grpc.CallOption) (*CollectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_GetCollection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) ListPublicCollectionItems(ctx context.Context, in *ListPublicCollectionItemsRequest, opts ...grpc.CallOption) (*CollectionItemsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollectionItemsResponse)
+	err := c.cc.Invoke(ctx, ReactionService_ListPublicCollectionItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReactionServiceServer is the server API for ReactionService service.
 // All implementations must embed UnimplementedReactionServiceServer
 // for forward compatibility.
@@ -286,6 +310,8 @@ type ReactionServiceServer interface {
 	AddCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error)
 	RemoveCollectionItem(context.Context, *CollectionItemRequest) (*CollectionActionResponse, error)
 	ListCollectionItems(context.Context, *ListCollectionItemsRequest) (*CollectionItemsResponse, error)
+	GetCollection(context.Context, *GetCollectionRequest) (*CollectionResponse, error)
+	ListPublicCollectionItems(context.Context, *ListPublicCollectionItemsRequest) (*CollectionItemsResponse, error)
 	mustEmbedUnimplementedReactionServiceServer()
 }
 
@@ -352,6 +378,12 @@ func (UnimplementedReactionServiceServer) RemoveCollectionItem(context.Context, 
 }
 func (UnimplementedReactionServiceServer) ListCollectionItems(context.Context, *ListCollectionItemsRequest) (*CollectionItemsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListCollectionItems not implemented")
+}
+func (UnimplementedReactionServiceServer) GetCollection(context.Context, *GetCollectionRequest) (*CollectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCollection not implemented")
+}
+func (UnimplementedReactionServiceServer) ListPublicCollectionItems(context.Context, *ListPublicCollectionItemsRequest) (*CollectionItemsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPublicCollectionItems not implemented")
 }
 func (UnimplementedReactionServiceServer) mustEmbedUnimplementedReactionServiceServer() {}
 func (UnimplementedReactionServiceServer) testEmbeddedByValue()                         {}
@@ -716,6 +748,42 @@ func _ReactionService_ListCollectionItems_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReactionService_GetCollection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCollectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).GetCollection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_GetCollection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).GetCollection(ctx, req.(*GetCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_ListPublicCollectionItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPublicCollectionItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).ListPublicCollectionItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_ListPublicCollectionItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).ListPublicCollectionItems(ctx, req.(*ListPublicCollectionItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReactionService_ServiceDesc is the grpc.ServiceDesc for ReactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -799,7 +867,15 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListCollectionItems",
 			Handler:    _ReactionService_ListCollectionItems_Handler,
 		},
+		{
+			MethodName: "GetCollection",
+			Handler:    _ReactionService_GetCollection_Handler,
+		},
+		{
+			MethodName: "ListPublicCollectionItems",
+			Handler:    _ReactionService_ListPublicCollectionItems_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "reaction.proto",
+	Metadata: "api/proto/reaction.proto",
 }

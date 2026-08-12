@@ -17,6 +17,10 @@ const gatewayRouteFiles = [
   {
     path: "backend/services/api-gateway/internal/interfaces/http/handler_chat.go",
     prefix: "/chat"
+  },
+  {
+    path: "backend/services/api-gateway/internal/interfaces/http/handler_clips.go",
+    prefix: "/clips"
   }
 ];
 

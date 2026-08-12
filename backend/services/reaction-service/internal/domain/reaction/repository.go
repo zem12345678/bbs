@@ -58,3 +58,8 @@ type CollectionRepository interface {
 	RemoveCollectionItem(ctx context.Context, userID, collectionID int64, entity EntityRef) (changed bool, err error)
 	ListCollectionItems(ctx context.Context, userID, collectionID int64, entityType EntityType, limit, offset int) ([]*CollectionItem, int64, error)
 }
+
+type PublicCollectionRepository interface {
+	GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*Collection, error)
+	ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*CollectionItem, int64, error)
+}
