@@ -26,6 +26,8 @@ service ReactionService {
   rpc ListCollectionItems(ListCollectionItemsRequest) returns (CollectionItemsResponse);
   rpc GetCollection(GetCollectionRequest) returns (CollectionResponse);
   rpc ListPublicCollectionItems(ListPublicCollectionItemsRequest) returns (CollectionItemsResponse);
+  rpc ListPublicCollections(ListPublicCollectionsRequest) returns (ListCollectionsResponse);
+  rpc ListPublicCollectionsForEntity(ListPublicCollectionsForEntityRequest) returns (ListCollectionsResponse);
   rpc EraseAccountReactions(EraseAccountReactionsRequest) returns (EraseAccountReactionsResponse);
 }
 
@@ -166,6 +168,7 @@ message CollectionInfo {
   int64 item_count = 6;
   int64 created_at = 7;
   int64 updated_at = 8;
+  int64 last_clipped_at = 9;
 }
 
 message CollectionItemInfo {
@@ -225,6 +228,20 @@ message ListPublicCollectionItemsRequest {
   int32 limit = 2;
   int32 offset = 3;
   int64 viewer_user_id = 4;
+}
+
+message ListPublicCollectionsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int64 since_id = 3;
+  int64 until_id = 4;
+  int64 viewer_user_id = 5;
+}
+
+message ListPublicCollectionsForEntityRequest {
+  EntityRef entity = 1;
+  int32 limit = 2;
+  int64 viewer_user_id = 3;
 }
 
 message CollectionResponse {

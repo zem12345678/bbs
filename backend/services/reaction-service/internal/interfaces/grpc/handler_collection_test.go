@@ -85,6 +85,35 @@ func TestListCollectionItemsMapsEntityAndMilliseconds(t *testing.T) {
 	}
 }
 
+func TestCollectionHandlerMapsLastClippedAtMilliseconds(t *testing.T) {
+	lastClippedAt := time.UnixMilli(1_800_000_000_456)
+	response := toCollectionPb(&domain.Collection{ID: 7, LastClippedAt: &lastClippedAt})
+	if response.GetLastClippedAt() != lastClippedAt.UnixMilli() {
+		t.Fatalf("last_clipped_at = %d, want %d", response.GetLastClippedAt(), lastClippedAt.UnixMilli())
+	}
+}
+
+func TestListPublicCollectionsMapsItems(t *testing.T) {
+	repo := &collectionRepositoryStub{publicCollections: []*domain.Collection{{ID: 7, UserID: 42, Name: "Reading", IsPublic: true}}}
+	h := newCollectionHandler(repo)
+
+	response, err := h.ListPublicCollections(context.Background(), &pb.ListPublicCollectionsRequest{UserId: 42, Limit: 10})
+	if err != nil {
+		t.Fatalf("list public collections: %v", err)
+	}
+	if response.GetTotal() != 1 || len(response.GetItems()) != 1 || response.GetItems()[0].GetId() != 7 {
+		t.Fatalf("response = %+v", response)
+	}
+
+	entityResponse, err := h.ListPublicCollectionsForEntity(context.Background(), &pb.ListPublicCollectionsForEntityRequest{Entity: &pb.EntityRef{EntityType: "article", EntityId: 9}, Limit: 100})
+	if err != nil {
+		t.Fatalf("list public collections for entity: %v", err)
+	}
+	if entityResponse.GetTotal() != 1 || entityResponse.GetItems()[0].GetName() != "Reading" {
+		t.Fatalf("entity response = %+v", entityResponse)
+	}
+}
+
 func newCollectionHandler(repo domain.CollectionRepository) *Handler {
 	cmd := command.NewService(nil, nil, nil, nil, repo, nil, nil)
 	qry := query.NewService(nil, nil, nil, nil, repo)
@@ -92,10 +121,11 @@ func newCollectionHandler(repo domain.CollectionRepository) *Handler {
 }
 
 type collectionRepositoryStub struct {
-	items            []*domain.CollectionItem
-	listItemsErr     error
-	lastUserID       int64
-	lastCollectionID int64
+	items             []*domain.CollectionItem
+	publicCollections []*domain.Collection
+	listItemsErr      error
+	lastUserID        int64
+	lastCollectionID  int64
 }
 
 func (r *collectionRepositoryStub) CreateCollection(_ context.Context, collection *domain.Collection) error {
@@ -130,4 +160,20 @@ func (r *collectionRepositoryStub) RemoveCollectionItem(_ context.Context, userI
 
 func (r *collectionRepositoryStub) ListCollectionItems(context.Context, int64, int64, domain.EntityType, int, int) ([]*domain.CollectionItem, int64, error) {
 	return r.items, int64(len(r.items)), r.listItemsErr
+}
+
+func (r *collectionRepositoryStub) GetCollection(context.Context, int64, int64) (*domain.Collection, error) {
+	return nil, nil
+}
+
+func (r *collectionRepositoryStub) ListPublicCollectionItems(context.Context, int64, int64, int, int) ([]*domain.CollectionItem, int64, error) {
+	return r.items, int64(len(r.items)), r.listItemsErr
+}
+
+func (r *collectionRepositoryStub) ListPublicCollections(context.Context, int64, int64, int, int64, int64) ([]*domain.Collection, error) {
+	return r.publicCollections, nil
+}
+
+func (r *collectionRepositoryStub) ListPublicCollectionsForEntity(context.Context, domain.EntityRef, int64, int) ([]*domain.Collection, error) {
+	return r.publicCollections, nil
 }

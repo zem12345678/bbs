@@ -62,4 +62,6 @@ type CollectionRepository interface {
 type PublicCollectionRepository interface {
 	GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*Collection, error)
 	ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*CollectionItem, int64, error)
+	ListPublicCollections(ctx context.Context, userID, viewerUserID int64, limit int, sinceID, untilID int64) ([]*Collection, error)
+	ListPublicCollectionsForEntity(ctx context.Context, entity EntityRef, viewerUserID int64, limit int) ([]*Collection, error)
 }

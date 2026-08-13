@@ -15,14 +15,15 @@ import (
 const collectionNameUniqueConstraint = "ux_favorite_collections_owner_name"
 
 type collectionPO struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement"`
-	UserID      int64     `gorm:"column:user_id;not null"`
-	Name        string    `gorm:"size:80;not null"`
-	Description string    `gorm:"type:text;not null;default:''"`
-	IsPublic    bool      `gorm:"not null;default:false"`
-	ItemCount   int64     `gorm:"->;-:migration"`
-	CreatedAt   time.Time `gorm:"not null;default:now()"`
-	UpdatedAt   time.Time `gorm:"not null;default:now()"`
+	ID            int64      `gorm:"primaryKey;autoIncrement"`
+	UserID        int64      `gorm:"column:user_id;not null"`
+	Name          string     `gorm:"size:80;not null"`
+	Description   string     `gorm:"type:text;not null;default:''"`
+	IsPublic      bool       `gorm:"not null;default:false"`
+	ItemCount     int64      `gorm:"->;-:migration"`
+	LastClippedAt *time.Time `gorm:"column:last_clipped_at"`
+	CreatedAt     time.Time  `gorm:"not null;default:now()"`
+	UpdatedAt     time.Time  `gorm:"not null;default:now()"`
 }
 
 func (collectionPO) TableName() string { return "favorite_collections" }
@@ -53,8 +54,22 @@ func (r *PostgresCollectionRepository) EnsureSchema(ctx context.Context) error {
   name VARCHAR(80) NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
   description TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 500),
   is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  last_clipped_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)`,
+		`ALTER TABLE favorite_collections ADD COLUMN IF NOT EXISTS last_clipped_at TIMESTAMPTZ`,
+		`UPDATE favorite_collections
+SET last_clipped_at = (
+  SELECT MAX(created_at)
+  FROM favorite_collection_items
+  WHERE collection_id = favorite_collections.id
+)
+WHERE last_clipped_at IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM favorite_collection_items
+    WHERE collection_id = favorite_collections.id
 )`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS ux_favorite_collections_owner_name
   ON favorite_collections(user_id, lower(name))`,
@@ -207,6 +222,11 @@ func (r *PostgresCollectionRepository) AddCollectionItem(ctx context.Context, us
 			return result.Error
 		}
 		changed = result.RowsAffected > 0
+		if changed {
+			if err := tx.Model(&collectionPO{}).Where("id = ?", collectionID).Update("last_clipped_at", po.CreatedAt).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	return changed, err
@@ -318,6 +338,49 @@ func (r *PostgresCollectionRepository) ListPublicCollectionItems(ctx context.Con
 	return out, total, nil
 }
 
+func (r *PostgresCollectionRepository) ListPublicCollections(ctx context.Context, userID, viewerUserID int64, limit int, sinceID, untilID int64) ([]*domain.Collection, error) {
+	if userID <= 0 || viewerUserID < 0 || sinceID < 0 || untilID < 0 {
+		return nil, domain.ErrInvalidUserID
+	}
+	limit, _ = normalizeCollectionPage(limit, 0)
+	query := r.db.WithContext(ctx).Model(&collectionPO{}).
+		Where("user_id = ? AND is_public = TRUE", userID)
+	if sinceID > 0 {
+		query = query.Where("id > ?", sinceID)
+	}
+	if untilID > 0 {
+		query = query.Where("id < ?", untilID)
+	}
+	return r.listCollectionRows(query.Order("id DESC").Limit(limit))
+}
+
+func (r *PostgresCollectionRepository) ListPublicCollectionsForEntity(ctx context.Context, entity domain.EntityRef, viewerUserID int64, limit int) ([]*domain.Collection, error) {
+	if viewerUserID < 0 {
+		return nil, domain.ErrInvalidUserID
+	}
+	if err := entity.ValidateForCollection(); err != nil {
+		return nil, err
+	}
+	limit, _ = normalizeCollectionPage(limit, 0)
+	query := r.db.WithContext(ctx).Model(&collectionPO{}).
+		Where("is_public = TRUE").
+		Where("EXISTS (SELECT 1 FROM favorite_collection_items WHERE favorite_collection_items.collection_id = favorite_collections.id AND entity_type = ? AND entity_id = ?)", string(entity.Type), entity.ID)
+	return r.listCollectionRows(query.Order("id DESC").Limit(limit))
+}
+
+func (r *PostgresCollectionRepository) listCollectionRows(query *gorm.DB) ([]*domain.Collection, error) {
+	var rows []collectionPO
+	if err := query.Select(`favorite_collections.*,
+  (SELECT COUNT(*) FROM favorite_collection_items WHERE collection_id = favorite_collections.id) AS item_count`).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*domain.Collection, 0, len(rows))
+	for i := range rows {
+		out = append(out, toCollectionEntity(&rows[i]))
+	}
+	return out, nil
+}
+
 func getOwnedCollection(db *gorm.DB, userID, collectionID int64) (*domain.Collection, error) {
 	var po collectionPO
 	err := db.Model(&collectionPO{}).
@@ -380,7 +443,7 @@ func toCollectionEntity(po *collectionPO) *domain.Collection {
 	}
 	return &domain.Collection{
 		ID: po.ID, UserID: po.UserID, Name: po.Name, Description: po.Description,
-		IsPublic: po.IsPublic, ItemCount: po.ItemCount, CreatedAt: po.CreatedAt, UpdatedAt: po.UpdatedAt,
+		IsPublic: po.IsPublic, ItemCount: po.ItemCount, LastClippedAt: po.LastClippedAt, CreatedAt: po.CreatedAt, UpdatedAt: po.UpdatedAt,
 	}
 }
 

@@ -820,11 +820,16 @@ test("uses Misskey-compatible clip endpoints with string-safe ids", async () => 
   await bbsApi.favoriteClip("9007199254740993", "access-token");
   await bbsApi.unfavoriteClip("9007199254740993", "access-token");
   await bbsApi.myFavoriteClips("access-token");
+  await bbsApi.userClips("9007199254740993", { limit: 10, sinceId: "7", untilId: "3" }, "access-token");
+  await bbsApi.noteClips("9007199254740999", "access-token");
   assert.deepEqual(requests.map(({ url, options }) => [new URL(url).pathname, options.method]), [
     ["/api/v1/clips/list", "POST"], ["/api/v1/clips/create", "POST"], ["/api/v1/clips/update", "POST"], ["/api/v1/clips/show", "POST"],
-    ["/api/v1/clips/add-note", "POST"], ["/api/v1/clips/remove-note", "POST"], ["/api/v1/clips/notes", "POST"], ["/api/v1/clips/favorite", "POST"], ["/api/v1/clips/unfavorite", "POST"], ["/api/v1/clips/my-favorites", "POST"]
+    ["/api/v1/clips/add-note", "POST"], ["/api/v1/clips/remove-note", "POST"], ["/api/v1/clips/notes", "POST"], ["/api/v1/clips/favorite", "POST"], ["/api/v1/clips/unfavorite", "POST"], ["/api/v1/clips/my-favorites", "POST"], ["/api/v1/users/clips", "POST"], ["/api/v1/notes/clips", "POST"]
   ]);
   assert.equal(JSON.parse(requests[6].options.body).sinceId, "7");
+  assert.equal(JSON.parse(requests[10].options.body).userId, "9007199254740993");
+  assert.equal(JSON.parse(requests[10].options.body).untilId, "3");
+  assert.equal(JSON.parse(requests[11].options.body).noteId, "9007199254740999");
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 

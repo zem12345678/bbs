@@ -445,8 +445,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			clips.POST("/favorite", h.requireAuthScope("write"), h.mutateClipFavorite)
 			clips.POST("/unfavorite", h.requireAuthScope("write"), h.mutateClipFavorite)
 			clips.POST("/my-favorites", h.requireAuthScope("read"), h.listFavoriteClips)
-			r.POST(prefix+"/users/clips", h.optionalAuth(), h.publicClipsUnavailable)
-			r.POST(prefix+"/notes/clips", h.optionalAuth(), h.noteClipsUnavailable)
+			r.POST(prefix+"/users/clips", h.optionalAuth(), h.listPublicClips)
+			r.POST(prefix+"/notes/clips", h.optionalAuth(), h.listNoteClips)
 			r.POST(prefix+"/i/export-clips", h.requireAuthScope("read"), h.exportClipsUnavailable)
 		}
 		for _, prefix := range []string{"/api", ""} {
@@ -479,8 +479,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/clips/favorite", h.requireAuthScope("write"), h.mutateClipFavorite)
 	api.POST("/clips/unfavorite", h.requireAuthScope("write"), h.mutateClipFavorite)
 	api.POST("/clips/my-favorites", h.requireAuthScope("read"), h.listFavoriteClips)
-	api.POST("/users/clips", h.optionalAuth(), h.publicClipsUnavailable)
-	api.POST("/notes/clips", h.optionalAuth(), h.noteClipsUnavailable)
+	api.POST("/users/clips", h.optionalAuth(), h.listPublicClips)
+	api.POST("/notes/clips", h.optionalAuth(), h.listNoteClips)
 	api.POST("/i/export-clips", h.requireAuthScope("read"), h.exportClipsUnavailable)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)

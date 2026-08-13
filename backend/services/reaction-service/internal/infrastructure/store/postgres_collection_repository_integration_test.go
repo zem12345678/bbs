@@ -49,9 +49,16 @@ func TestPostgresCollectionRepositoryIntegration(t *testing.T) {
 	changed, err := repo.AddCollectionItem(ctx, ownerID, reading.ID, entity)
 	require.NoError(t, err)
 	require.True(t, changed)
+	readingAfterAdd, err := repo.GetCollection(ctx, reading.ID, ownerID)
+	require.NoError(t, err)
+	require.NotNil(t, readingAfterAdd.LastClippedAt)
+	firstClippedAt := *readingAfterAdd.LastClippedAt
 	changed, err = repo.AddCollectionItem(ctx, ownerID, reading.ID, entity)
 	require.NoError(t, err)
 	require.False(t, changed)
+	readingAfterDuplicate, err := repo.GetCollection(ctx, reading.ID, ownerID)
+	require.NoError(t, err)
+	require.Equal(t, firstClippedAt, *readingAfterDuplicate.LastClippedAt)
 
 	archive := &domain.Collection{UserID: ownerID, Name: "Archive"}
 	require.NoError(t, repo.CreateCollection(ctx, archive))
@@ -66,9 +73,31 @@ func TestPostgresCollectionRepositoryIntegration(t *testing.T) {
 	changed, err = repo.RemoveCollectionItem(ctx, ownerID, archive.ID, entity)
 	require.NoError(t, err)
 	require.True(t, changed)
+	archiveAfterRemove, err := repo.GetCollection(ctx, archive.ID, ownerID)
+	require.NoError(t, err)
+	require.NotNil(t, archiveAfterRemove.LastClippedAt)
 	changed, err = repo.RemoveCollectionItem(ctx, ownerID, archive.ID, entity)
 	require.NoError(t, err)
 	require.False(t, changed)
+	foreignPublic := &domain.Collection{UserID: foreignOwnerID, Name: "Shared", IsPublic: true}
+	require.NoError(t, repo.CreateCollection(ctx, foreignPublic))
+	changed, err = repo.AddCollectionItem(ctx, foreignOwnerID, foreignPublic.ID, entity)
+	require.NoError(t, err)
+	require.True(t, changed)
+	foreignPrivate := &domain.Collection{UserID: foreignOwnerID, Name: "Private", IsPublic: false}
+	require.NoError(t, repo.CreateCollection(ctx, foreignPrivate))
+	changed, err = repo.AddCollectionItem(ctx, foreignOwnerID, foreignPrivate.ID, entity)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	publicCollections, err := repo.ListPublicCollections(ctx, foreignOwnerID, ownerID, 10, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, publicCollections, 1)
+	require.Equal(t, foreignPublic.ID, publicCollections[0].ID)
+	entityCollections, err := repo.ListPublicCollectionsForEntity(ctx, entity, ownerID, 10)
+	require.NoError(t, err)
+	require.Len(t, entityCollections, 1)
+	require.Equal(t, foreignPublic.ID, entityCollections[0].ID)
 
 	collections, total, err := repo.ListCollections(ctx, ownerID, 20, 0)
 	require.NoError(t, err)

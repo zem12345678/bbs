@@ -585,6 +585,12 @@ export const bbsApi = {
   myFavoriteClips(token) {
     return request("/clips/my-favorites", { method: "POST", body: {}, token });
   },
+  userClips(userId, payload = {}, token) {
+    return request("/users/clips", { method: "POST", body: { userId: String(userId), ...payload }, token });
+  },
+  noteClips(noteId, token) {
+    return request("/notes/clips", { method: "POST", body: { noteId: String(noteId) }, token });
+  },
   feed(params = {}, token) {
     return request(`/feed${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },

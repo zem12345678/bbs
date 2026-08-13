@@ -128,15 +128,20 @@ func toCollectionPb(collection *domain.Collection) *pb.CollectionInfo {
 	if collection == nil {
 		return nil
 	}
+	lastClippedAt := int64(0)
+	if collection.LastClippedAt != nil {
+		lastClippedAt = collection.LastClippedAt.UnixMilli()
+	}
 	return &pb.CollectionInfo{
-		Id:          collection.ID,
-		UserId:      collection.UserID,
-		Name:        collection.Name,
-		Description: collection.Description,
-		IsPublic:    collection.IsPublic,
-		ItemCount:   collection.ItemCount,
-		CreatedAt:   collection.CreatedAt.UnixMilli(),
-		UpdatedAt:   collection.UpdatedAt.UnixMilli(),
+		Id:            collection.ID,
+		UserId:        collection.UserID,
+		Name:          collection.Name,
+		Description:   collection.Description,
+		IsPublic:      collection.IsPublic,
+		ItemCount:     collection.ItemCount,
+		CreatedAt:     collection.CreatedAt.UnixMilli(),
+		UpdatedAt:     collection.UpdatedAt.UnixMilli(),
+		LastClippedAt: lastClippedAt,
 	}
 }
 
@@ -349,6 +354,30 @@ func (h *Handler) ListPublicCollectionItems(ctx context.Context, req *pb.ListPub
 		items = append(items, toCollectionItemPb(row))
 	}
 	return &pb.CollectionItemsResponse{Items: items, Total: total}, nil
+}
+
+func (h *Handler) ListPublicCollections(ctx context.Context, req *pb.ListPublicCollectionsRequest) (*pb.ListCollectionsResponse, error) {
+	rows, err := h.qry.ListPublicCollections(ctx, req.GetUserId(), req.GetViewerUserId(), int(req.GetLimit()), req.GetSinceId(), req.GetUntilId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.CollectionInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toCollectionPb(row))
+	}
+	return &pb.ListCollectionsResponse{Items: items, Total: int64(len(items))}, nil
+}
+
+func (h *Handler) ListPublicCollectionsForEntity(ctx context.Context, req *pb.ListPublicCollectionsForEntityRequest) (*pb.ListCollectionsResponse, error) {
+	rows, err := h.qry.ListPublicCollectionsForEntity(ctx, toRef(req.GetEntity()), req.GetViewerUserId(), int(req.GetLimit()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.CollectionInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toCollectionPb(row))
+	}
+	return &pb.ListCollectionsResponse{Items: items, Total: int64(len(items))}, nil
 }
 
 func (h *Handler) EraseAccountReactions(ctx context.Context, req *pb.EraseAccountReactionsRequest) (*pb.EraseAccountReactionsResponse, error) {

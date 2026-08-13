@@ -37,6 +37,17 @@ type clipNoteRequest struct {
 	UntilID jsonInt64 `json:"untilId"`
 }
 
+type publicClipListRequest struct {
+	UserID  jsonInt64 `json:"userId"`
+	Limit   *int32    `json:"limit"`
+	SinceID jsonInt64 `json:"sinceId"`
+	UntilID jsonInt64 `json:"untilId"`
+}
+
+type noteClipsRequest struct {
+	NoteID jsonInt64 `json:"noteId"`
+}
+
 type misskeyClip struct {
 	ID             string          `json:"id"`
 	CreatedAt      string          `json:"createdAt"`
@@ -47,7 +58,7 @@ type misskeyClip struct {
 	Description    *string         `json:"description"`
 	IsPublic       bool            `json:"isPublic"`
 	FavoritedCount int64           `json:"favoritedCount"`
-	IsFavorited    bool            `json:"isFavorited"`
+	IsFavorited    *bool           `json:"isFavorited,omitempty"`
 	NotesCount     int64           `json:"notesCount,omitempty"`
 }
 
@@ -287,16 +298,68 @@ func (h *Handler) listFavoriteClips(c *gin.Context) {
 	c.JSON(stdhttp.StatusOK, out)
 }
 
+func (h *Handler) listPublicClips(c *gin.Context) {
+	var req publicClipListRequest
+	if !bindJSON(c, &req) || req.UserID.Int64() <= 0 {
+		writeError(c, stdhttp.StatusBadRequest, "userId must be a positive integer", "invalid_argument")
+		return
+	}
+	limit := int32(10)
+	if req.Limit != nil {
+		limit = *req.Limit
+	}
+	if limit < 1 || limit > 100 || req.SinceID.Int64() < 0 || req.UntilID.Int64() < 0 {
+		writeError(c, stdhttp.StatusBadRequest, "limit must be between 1 and 100 and cursors must be non-negative", "invalid_argument")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.Reaction.ListPublicCollections(ctx, &reactionpb.ListPublicCollectionsRequest{
+		UserId: req.UserID.Int64(), Limit: limit, SinceId: req.SinceID.Int64(), UntilId: req.UntilID.Int64(), ViewerUserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	h.writePublicClipList(c, ctx, resp.GetItems())
+}
+
+func (h *Handler) listNoteClips(c *gin.Context) {
+	var req noteClipsRequest
+	if !bindJSON(c, &req) || req.NoteID.Int64() <= 0 {
+		writeError(c, stdhttp.StatusBadRequest, "noteId must be a positive integer", "invalid_argument")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	entityType, ok := h.resolvePublishedClipNote(c, ctx, req.NoteID.Int64())
+	if !ok {
+		return
+	}
+	resp, err := h.clients.Reaction.ListPublicCollectionsForEntity(ctx, &reactionpb.ListPublicCollectionsForEntityRequest{
+		Entity: &reactionpb.EntityRef{EntityType: entityType, EntityId: req.NoteID.Int64()}, Limit: 100, ViewerUserId: currentUserID(c),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	h.writePublicClipList(c, ctx, resp.GetItems())
+}
+
+func (h *Handler) writePublicClipList(c *gin.Context, ctx context.Context, items []*reactionpb.CollectionInfo) {
+	out := make([]misskeyClip, 0, len(items))
+	for _, item := range items {
+		clip, ok := h.clipFromCollection(c, ctx, item, currentUserID(c), false)
+		if !ok {
+			return
+		}
+		out = append(out, clip)
+	}
+	c.JSON(stdhttp.StatusOK, out)
+}
+
 func (h *Handler) exportClipsUnavailable(c *gin.Context) {
 	writeError(c, stdhttp.StatusNotImplemented, "clip export is not implemented", "not_implemented")
-}
-
-func (h *Handler) publicClipsUnavailable(c *gin.Context) {
-	writeError(c, stdhttp.StatusNotImplemented, "public clip listing is not implemented", "not_implemented")
-}
-
-func (h *Handler) noteClipsUnavailable(c *gin.Context) {
-	writeError(c, stdhttp.StatusNotImplemented, "note clip listing is not implemented", "not_implemented")
 }
 
 func (h *Handler) requirePublishedClipNote(c *gin.Context, ctx context.Context, id int64) bool {
@@ -332,9 +395,30 @@ func (h *Handler) clipFromCollection(c *gin.Context, ctx context.Context, item *
 		return misskeyClip{}, false
 	}
 	description := optionalMisskeyText(item.GetDescription())
-	out := misskeyClip{ID: strconv.FormatInt(item.GetId(), 10), CreatedAt: formatUnixMilli(item.GetCreatedAt()), UserID: strconv.FormatInt(item.GetUserId(), 10), User: toMisskeyUserLite(user), Name: item.GetName(), Description: description, IsPublic: item.GetIsPublic(), NotesCount: item.GetItemCount()}
-	if counts, err := h.clients.Reaction.GetCounts(ctx, &reactionpb.EntityRequest{Entity: &reactionpb.EntityRef{EntityType: "collection", EntityId: item.GetId()}}); err == nil { out.FavoritedCount = counts.GetFavoriteCount() }
-	if viewerID > 0 { if favorites, err := h.clients.Reaction.ListFavorites(ctx, &reactionpb.ListFavoritesRequest{UserId: viewerID, EntityType: "collection", Limit: 100, Offset: 0}); err == nil { for _, favorite := range favorites.GetItems() { if favorite.GetEntity().GetEntityId() == item.GetId() { out.IsFavorited = true; break } } } }
+	var lastClippedAt *string
+	if item.GetLastClippedAt() > 0 {
+		formatted := formatUnixMilli(item.GetLastClippedAt())
+		lastClippedAt = &formatted
+	}
+	out := misskeyClip{ID: strconv.FormatInt(item.GetId(), 10), CreatedAt: formatUnixMilli(item.GetCreatedAt()), LastClippedAt: lastClippedAt, UserID: strconv.FormatInt(item.GetUserId(), 10), User: toMisskeyUserLite(user), Name: item.GetName(), Description: description, IsPublic: item.GetIsPublic()}
+	if viewerID == item.GetUserId() {
+		out.NotesCount = item.GetItemCount()
+	}
+	if counts, err := h.clients.Reaction.GetCounts(ctx, &reactionpb.EntityRequest{Entity: &reactionpb.EntityRef{EntityType: "collection", EntityId: item.GetId()}}); err == nil {
+		out.FavoritedCount = counts.GetFavoriteCount()
+	}
+	if viewerID > 0 {
+		isFavorited := false
+		if favorites, err := h.clients.Reaction.ListFavorites(ctx, &reactionpb.ListFavoritesRequest{UserId: viewerID, EntityType: "collection", Limit: 100, Offset: 0}); err == nil {
+			for _, favorite := range favorites.GetItems() {
+				if favorite.GetEntity().GetEntityId() == item.GetId() {
+					isFavorited = true
+					break
+				}
+			}
+		}
+		out.IsFavorited = &isFavorited
+	}
 	return out, true
 }
 
