@@ -8168,6 +8168,26 @@ a {
   align-items: center;
 }
 
+.account-security-export-options {
+  display: grid;
+  gap: 9px;
+}
+
+.account-security .account-security-export-option {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: #596171;
+  font-weight: 600;
+}
+
+.account-security .account-security-export-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
 .account-security .account-security-actions button {
   display: inline-flex;
   gap: 7px;

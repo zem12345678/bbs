@@ -91,7 +91,9 @@ type Handler struct {
 	clipExportGate                     ExportGate
 	antennaExportGate                  ExportGate
 	blockingExportGate                 ExportGate
+	followingExportGate                ExportGate
 	muteExportGate                     ExportGate
+	userListExportGate                 ExportGate
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
@@ -312,8 +314,16 @@ func (h *Handler) SetBlockingExportGate(gate ExportGate) {
 	h.blockingExportGate = gate
 }
 
+func (h *Handler) SetFollowingExportGate(gate ExportGate) {
+	h.followingExportGate = gate
+}
+
 func (h *Handler) SetMuteExportGate(gate ExportGate) {
 	h.muteExportGate = gate
+}
+
+func (h *Handler) SetUserListExportGate(gate ExportGate) {
+	h.userListExportGate = gate
 }
 
 func NewHandlerWithRealtimeAndRateLimits(
@@ -470,7 +480,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 			r.POST(prefix+"/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 			r.POST(prefix+"/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+			r.POST(prefix+"/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
+			r.POST(prefix+"/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 		}
 		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
@@ -507,7 +519,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 	api.POST("/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 	api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+	api.POST("/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 	api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
+	api.POST("/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
 		api.GET("/ping", h.instancePing)

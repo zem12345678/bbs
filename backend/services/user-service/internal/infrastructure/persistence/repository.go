@@ -957,13 +957,19 @@ func (r *Repo) ListFollowers(ctx context.Context, q domain.FollowListQuery) ([]*
 		return nil, 0, err
 	}
 	var rows []userPO
-	err := r.db.WithContext(ctx).Table("users").
+	query := r.db.WithContext(ctx).Table("users").
 		Joins("JOIN user_follows ON user_follows.follower_id = users.id").
-		Where("user_follows.followee_id = ?", q.UserID).
-		Order("user_follows.created_at DESC").
-		Limit(q.PageSize).
-		Offset((q.Page - 1) * q.PageSize).
-		Find(&rows).Error
+		Where("user_follows.followee_id = ?", q.UserID)
+	if q.AscendingByID {
+		query = query.Where("user_follows.follower_id > ?", q.AfterID).
+			Order("user_follows.follower_id ASC").
+			Limit(q.PageSize)
+	} else {
+		query = query.Order("user_follows.created_at DESC").
+			Limit(q.PageSize).
+			Offset((q.Page - 1) * q.PageSize)
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -978,13 +984,19 @@ func (r *Repo) ListFollowing(ctx context.Context, q domain.FollowListQuery) ([]*
 		return nil, 0, err
 	}
 	var rows []userPO
-	err := r.db.WithContext(ctx).Table("users").
+	query := r.db.WithContext(ctx).Table("users").
 		Joins("JOIN user_follows ON user_follows.followee_id = users.id").
-		Where("user_follows.follower_id = ?", q.UserID).
-		Order("user_follows.created_at DESC").
-		Limit(q.PageSize).
-		Offset((q.Page - 1) * q.PageSize).
-		Find(&rows).Error
+		Where("user_follows.follower_id = ?", q.UserID)
+	if q.AscendingByID {
+		query = query.Where("user_follows.followee_id > ?", q.AfterID).
+			Order("user_follows.followee_id ASC").
+			Limit(q.PageSize)
+	} else {
+		query = query.Order("user_follows.created_at DESC").
+			Limit(q.PageSize).
+			Offset((q.Page - 1) * q.PageSize)
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}

@@ -76,7 +76,9 @@ exports:
     antennaInterval: 1h
     blockingInterval: 1h
     clipInterval: 24h
+    followingInterval: 1h
     muteInterval: 1h
+    userListInterval: 1m
 
 http:
   # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.

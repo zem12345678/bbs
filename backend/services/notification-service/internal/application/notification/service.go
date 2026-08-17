@@ -359,9 +359,15 @@ func (s *Service) CreateExportCompletedNotification(ctx context.Context, command
 	case domain.ExportCompletedEntityClip:
 		title = "Clip 导出完成"
 		content = "你的 Clip 导出已完成，可以在文件库中下载。"
+	case domain.ExportCompletedEntityFollowing:
+		title = "关注列表导出完成"
+		content = "你的关注列表导出已完成，可以在文件库中下载。"
 	case domain.ExportCompletedEntityMuting:
 		title = "静音列表导出完成"
 		content = "你的静音列表导出已完成，可以在文件库中下载。"
+	case domain.ExportCompletedEntityUserList:
+		title = "用户列表导出完成"
+		content = "你的用户列表导出已完成，可以在文件库中下载。"
 	default:
 		return domain.ErrInvalidExportCompletedNotification
 	}

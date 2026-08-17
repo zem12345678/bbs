@@ -28,6 +28,53 @@ func TestGetCredentialVersionReturnsDurableValue(t *testing.T) {
 	}
 }
 
+func TestListFollowsForwardsKeysetFields(t *testing.T) {
+	repo := &followListHandlerRepo{user: &domain.User{
+		ID: 77, Username: "member", Nickname: "Member", Status: domain.StatusActive,
+		CreatedAt: time.Unix(1_700_000_000, 0), UpdatedAt: time.Unix(1_700_000_100, 0),
+	}}
+	h := NewHandler(nil, query.NewService(repo, nil))
+
+	followers, err := h.ListFollowers(context.Background(), &pb.ListFollowsRequest{
+		UserId: 42, PageSize: 7, AfterUserId: 70, AscendingByUserId: true,
+	})
+	if err != nil || len(followers.GetItems()) != 1 || followers.GetItems()[0].GetId() != 77 {
+		t.Fatalf("ListFollowers() response = %+v, error = %v", followers, err)
+	}
+	wantFollowers := domain.FollowListQuery{UserID: 42, PageSize: 7, AfterID: 70, AscendingByID: true}
+	if repo.followersQuery != wantFollowers {
+		t.Fatalf("followers query = %+v, want %+v", repo.followersQuery, wantFollowers)
+	}
+
+	following, err := h.ListFollowing(context.Background(), &pb.ListFollowsRequest{
+		UserId: 42, PageSize: 5, AfterUserId: 71, AscendingByUserId: true,
+	})
+	if err != nil || len(following.GetItems()) != 1 || following.GetItems()[0].GetId() != 77 {
+		t.Fatalf("ListFollowing() response = %+v, error = %v", following, err)
+	}
+	wantFollowing := domain.FollowListQuery{UserID: 42, PageSize: 5, AfterID: 71, AscendingByID: true}
+	if repo.followingQuery != wantFollowing {
+		t.Fatalf("following query = %+v, want %+v", repo.followingQuery, wantFollowing)
+	}
+}
+
+type followListHandlerRepo struct {
+	domain.Repository
+	user           *domain.User
+	followersQuery domain.FollowListQuery
+	followingQuery domain.FollowListQuery
+}
+
+func (r *followListHandlerRepo) ListFollowers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.followersQuery = q
+	return []*domain.User{r.user}, 1, nil
+}
+
+func (r *followListHandlerRepo) ListFollowing(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.followingQuery = q
+	return []*domain.User{r.user}, 1, nil
+}
+
 type credentialVersionRepo struct {
 	domain.Repository
 	versions map[int64]string

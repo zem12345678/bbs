@@ -220,6 +220,31 @@ test("connects user-list management and timelines to member routes", () => {
   assert.match(userSource, /bbsApi\.userListFeed\(listId, \{ limit: USER_LIST_FEED_PAGE_SIZE, offset: state\.feedOffset \}/);
 });
 
+test("connects user-list export only to the editable owned-list view", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const panel = source.slice(source.indexOf("function UserListsPanel"), source.indexOf("const EMPTY_ANTENNA_FORM"));
+  const actionStart = panel.indexOf("async function exportUserLists");
+  const exportAction = panel.slice(actionStart, panel.indexOf("if (editable && !auth)", actionStart));
+
+  assert.ok(actionStart >= 0, "exportUserLists is present");
+  assert.match(panel, /const \[exportState, setExportState\] = React\.useState\(\{ busy: false, error: "", notice: "" \}\)/);
+  assert.match(exportAction, /if \(!token \|\| !editable \|\| mode !== "owned" \|\| exportState\.busy\) return/);
+  assert.match(exportAction, /const requestToken = token/);
+  assert.match(exportAction, /const requestSession = exportSessionRef\.current/);
+  assert.match(exportAction, /const requestId = exportRequestRef\.current \+ 1/);
+  assert.match(exportAction, /await bbsApi\.exportUserLists\(requestToken\)/);
+  assert.match(exportAction, /exportSessionRef\.current === requestSession/);
+  assert.match(exportAction, /exportRequestRef\.current === requestId/);
+  assert.match(exportAction, /exportScopeRef\.current\.token === requestToken/);
+  assert.match(exportAction, /exportScopeRef\.current\.mode === requestMode/);
+  assert.match(exportAction, /notice: "用户列表导出已请求，完成后可在文件库查看。"/);
+  assert.match(exportAction, /error: error\.message \|\| "用户列表导出失败"/);
+  assert.match(panel, /React\.useEffect\(\(\) => \{\s+exportSessionRef\.current \+= 1;\s+exportRequestRef\.current \+= 1;[\s\S]*?return \(\) => \{\s+exportSessionRef\.current \+= 1;\s+exportRequestRef\.current \+= 1;[\s\S]*?\}, \[editable, mode, token\]\)/);
+  assert.match(panel, /\{mode === "owned" && \(\s+<button aria-label="导出我的用户列表" type="button" disabled=\{!token \|\| exportState\.busy \|\| action\.busy\}/);
+  assert.match(panel, /<Download size=\{17\} aria-hidden="true" \/>/);
+  assert.match(panel, /exportState\.busy \? "导出中" : "导出"/);
+});
+
 test("connects antenna export to the existing antenna manager", () => {
   const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
   const panel = source.slice(source.indexOf("function UserAntennaPanel"), source.indexOf("function antennaToForm"));
@@ -307,6 +332,28 @@ test("connects personal webhook management to account security", () => {
   assert.match(userSource, /<WebhookSecuritySection token=\{token\} \/>/);
   assert.match(apiSource, /request\("\/users\/me\/webhooks", \{ token \}\)/);
   assert.match(apiSource, /\/users\/me\/webhooks\/\$\{encodeURIComponent\(webhookId\)\}\/test/);
+});
+
+test("connects following export options to account security", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const sectionStart = userSource.indexOf("function FollowingExportSection");
+  const section = userSource.slice(sectionStart, userSource.indexOf("const ALL_FAVORITES_ID", sectionStart));
+
+  assert.ok(sectionStart >= 0, "FollowingExportSection is present");
+  assert.match(userSource, /<FollowingExportSection token=\{token\} \/>/);
+  assert.match(apiSource, /request\("\/i\/export-following", \{ method: "POST", body: payload, token \}\)/);
+  assert.match(section, /excludeMuting: false, excludeInactive: false/);
+  assert.match(section, /updateOption\("excludeInactive", event\.target\.checked\)/);
+  assert.match(section, /bbsApi\.exportFollowing\(requestOptions, requestToken\)/);
+  assert.match(section, /requestSessionRef\.current === requestSession/);
+  assert.match(section, /requestRef\.current === requestId/);
+  assert.match(section, /tokenRef\.current === requestToken/);
+  assert.match(section, /notice: "关注列表导出已请求，完成后可在文件库查看。"/);
+  assert.match(section, /error: error\.message \|\| "关注列表导出失败"/);
+  assert.match(section, /<input type="checkbox" checked=\{options\.excludeMuting\}/);
+  assert.match(section, /<input type="checkbox" checked=\{options\.excludeInactive\}/);
+  assert.match(section, /<Download size=\{17\} aria-hidden="true" \/>/);
 });
 
 test("connects account lifecycle and permanent deletion to account security", () => {

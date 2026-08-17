@@ -150,7 +150,9 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	antennaExportGate := httpiface.NewRedisAntennaExportGate(redisClient, runtimeCfg.Exports.RateLimit.AntennaInterval, 15*time.Minute)
 	blockingExportGate := httpiface.NewRedisBlockingExportGate(redisClient, runtimeCfg.Exports.RateLimit.BlockingInterval, 15*time.Minute)
 	clipExportGate := httpiface.NewRedisClipExportGate(redisClient, runtimeCfg.Exports.RateLimit.ClipInterval, 15*time.Minute)
+	followingExportGate := httpiface.NewRedisFollowingExportGate(redisClient, runtimeCfg.Exports.RateLimit.FollowingInterval, 15*time.Minute)
 	muteExportGate := httpiface.NewRedisMuteExportGate(redisClient, runtimeCfg.Exports.RateLimit.MuteInterval, 15*time.Minute)
+	userListExportGate := httpiface.NewRedisUserListExportGate(redisClient, runtimeCfg.Exports.RateLimit.UserListInterval, 15*time.Minute)
 	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
 		TicketTTL: 45 * time.Second, AllowedOrigins: v.GetStringSlice("cors.allowedOrigins"), Logger: zapLogger,
@@ -193,7 +195,9 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetAntennaExportGate(antennaExportGate)
 	handler.SetBlockingExportGate(blockingExportGate)
 	handler.SetClipExportGate(clipExportGate)
+	handler.SetFollowingExportGate(followingExportGate)
 	handler.SetMuteExportGate(muteExportGate)
+	handler.SetUserListExportGate(userListExportGate)
 	handler.SetUploadedObjectCleaner(objectCleanup)
 	handler.SetPopularityStore(popularityStore)
 	initControllers := httpiface.NewInitControllers(handler)

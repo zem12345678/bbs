@@ -127,6 +127,52 @@ func TestListSafetyRelationsUsesRepositoryResult(t *testing.T) {
 	}
 }
 
+func TestListFollowsPassesKeysetAndRejectsNegativeCursor(t *testing.T) {
+	target := basicUser(77, "bob")
+	repo := &followRepoStub{
+		repoStub:  repoStub{users: map[int64]*domain.User{42: basicUser(42, "alice"), 77: target}},
+		followers: []*domain.User{target},
+		following: []*domain.User{target},
+	}
+	svc := NewService(repo, nil)
+
+	followersQuery := domain.FollowListQuery{UserID: 42, PageSize: 7, AfterID: 70, AscendingByID: true}
+	if _, err := svc.ListFollowers(context.Background(), followersQuery); err != nil {
+		t.Fatalf("ListFollowers() error = %v", err)
+	}
+	if repo.followersQuery != followersQuery {
+		t.Fatalf("followers query = %+v, want %+v", repo.followersQuery, followersQuery)
+	}
+
+	followingQuery := domain.FollowListQuery{UserID: 42, PageSize: 5, AfterID: 71, AscendingByID: true}
+	if _, err := svc.ListFollowing(context.Background(), followingQuery); err != nil {
+		t.Fatalf("ListFollowing() error = %v", err)
+	}
+	if repo.followingQuery != followingQuery {
+		t.Fatalf("following query = %+v, want %+v", repo.followingQuery, followingQuery)
+	}
+
+	for _, list := range []struct {
+		name string
+		call func() error
+	}{
+		{name: "followers", call: func() error {
+			_, err := svc.ListFollowers(context.Background(), domain.FollowListQuery{UserID: 42, AfterID: -1})
+			return err
+		}},
+		{name: "following", call: func() error {
+			_, err := svc.ListFollowing(context.Background(), domain.FollowListQuery{UserID: 42, AfterID: -1})
+			return err
+		}},
+	} {
+		t.Run(list.name, func(t *testing.T) {
+			if err := list.call(); !errors.Is(err, domain.ErrInvalidID) {
+				t.Fatalf("negative cursor error = %v, want ErrInvalidID", err)
+			}
+		})
+	}
+}
+
 func TestListUsersDemotesPremiumProfileWhenEntitlementCheckFails(t *testing.T) {
 	repo := &repoStub{
 		users: map[int64]*domain.User{
@@ -214,6 +260,24 @@ type safetyRepoStub struct {
 	muted        []*domain.User
 	blockedQuery domain.FollowListQuery
 	mutedQuery   domain.FollowListQuery
+}
+
+type followRepoStub struct {
+	repoStub
+	followers      []*domain.User
+	following      []*domain.User
+	followersQuery domain.FollowListQuery
+	followingQuery domain.FollowListQuery
+}
+
+func (r *followRepoStub) ListFollowers(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.followersQuery = q
+	return r.followers, int64(len(r.followers)), nil
+}
+
+func (r *followRepoStub) ListFollowing(_ context.Context, q domain.FollowListQuery) ([]*domain.User, int64, error) {
+	r.followingQuery = q
+	return r.following, int64(len(r.following)), nil
 }
 
 func (r *safetyRepoStub) Block(context.Context, int64, int64) error   { return nil }

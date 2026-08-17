@@ -19,7 +19,9 @@ const (
 	ExportCompletedEntityAntenna                 = "antenna"
 	ExportCompletedEntityBlocking                = "blocking"
 	ExportCompletedEntityClip                    = "clip"
+	ExportCompletedEntityFollowing               = "following"
 	ExportCompletedEntityMuting                  = "muting"
+	ExportCompletedEntityUserList                = "userList"
 	ExportCompletedNotificationMaxIdempotencyKey = 95
 )
 

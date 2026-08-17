@@ -3058,12 +3058,14 @@ func (x *FollowRequest) GetFolloweeId() int64 {
 }
 
 type ListFollowsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	UserId            int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page              int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize          int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	AfterUserId       int64                  `protobuf:"varint,4,opt,name=after_user_id,json=afterUserId,proto3" json:"after_user_id,omitempty"`
+	AscendingByUserId bool                   `protobuf:"varint,5,opt,name=ascending_by_user_id,json=ascendingByUserId,proto3" json:"ascending_by_user_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ListFollowsRequest) Reset() {
@@ -3115,6 +3117,20 @@ func (x *ListFollowsRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *ListFollowsRequest) GetAfterUserId() int64 {
+	if x != nil {
+		return x.AfterUserId
+	}
+	return 0
+}
+
+func (x *ListFollowsRequest) GetAscendingByUserId() bool {
+	if x != nil {
+		return x.AscendingByUserId
+	}
+	return false
 }
 
 // FollowResponse reports whether the follow was applied immediately or parked as
@@ -7366,11 +7382,13 @@ const file_user_proto_rawDesc = "" +
 	"\vfollower_id\x18\x01 \x01(\x03R\n" +
 	"followerId\x12\x1f\n" +
 	"\vfollowee_id\x18\x02 \x01(\x03R\n" +
-	"followeeId\"^\n" +
+	"followeeId\"\xb3\x01\n" +
 	"\x12ListFollowsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"^\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12\"\n" +
+	"\rafter_user_id\x18\x04 \x01(\x03R\vafterUserId\x12/\n" +
+	"\x14ascending_by_user_id\x18\x05 \x01(\bR\x11ascendingByUserId\"^\n" +
 	"\x0eFollowResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +

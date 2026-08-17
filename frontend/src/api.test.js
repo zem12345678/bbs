@@ -178,6 +178,7 @@ test("maps authenticated user-list management and timeline requests", async () =
   await bbsApi.createUserList({ name: "Editors", is_public: true }, "access-token");
   await bbsApi.addUserListMember("9223372036854775000", "9223372036854774000", "access-token");
   await bbsApi.userListFeed("9223372036854775000", { limit: 10, offset: 20 }, "access-token");
+  await bbsApi.exportUserLists("access-token");
 
   assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/lists");
   assert.equal(requests[0].options.method, "POST");
@@ -186,6 +187,10 @@ test("maps authenticated user-list management and timeline requests", async () =
   assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/user-lists/9223372036854775000/members");
   assert.deepEqual(JSON.parse(requests[1].options.body), { user_id: "9223372036854774000" });
   assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/user-lists/9223372036854775000/feed?limit=10&offset=20");
+  assert.equal(requests[3].url, "http://127.0.0.1:18080/api/v1/i/export-user-lists");
+  assert.equal(requests[3].options.method, "POST");
+  assert.equal(requests[3].options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(requests[3].options.body), {});
 });
 
 test("maps MFA login and account-security requests", async () => {
@@ -731,6 +736,7 @@ test("manages authenticated user safety relationships", async () => {
   await bbsApi.unmuteUser("42", "access-token");
   await bbsApi.blockedUsers({ page: 2, page_size: 8 }, "access-token");
   await bbsApi.mutedUsers({ page: 3, page_size: 6 }, "access-token");
+  await bbsApi.exportFollowing({ excludeMuting: true, excludeInactive: true }, "access-token");
   await bbsApi.exportBlocking("access-token");
   await bbsApi.exportMute("access-token");
 
@@ -744,14 +750,16 @@ test("manages authenticated user safety relationships", async () => {
       ["/api/v1/users/42/mute", "DELETE"],
       ["/api/v1/users/me/blocked", "GET"],
       ["/api/v1/users/me/muted", "GET"],
+      ["/api/v1/i/export-following", "POST"],
       ["/api/v1/i/export-blocking", "POST"],
       ["/api/v1/i/export-mute", "POST"]
     ]
   );
   assert.equal(new URL(requests[5].url).searchParams.get("page"), "2");
   assert.equal(new URL(requests[6].url).searchParams.get("page_size"), "6");
-  assert.deepEqual(JSON.parse(requests[7].options.body), {});
+  assert.deepEqual(JSON.parse(requests[7].options.body), { excludeMuting: true, excludeInactive: true });
   assert.deepEqual(JSON.parse(requests[8].options.body), {});
+  assert.deepEqual(JSON.parse(requests[9].options.body), {});
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 

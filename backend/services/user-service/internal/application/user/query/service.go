@@ -137,7 +137,7 @@ func (s *Service) ListUsers(ctx context.Context, q domain.UserListQuery) (UserLi
 }
 
 func (s *Service) ListFollowers(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
-	if q.UserID <= 0 {
+	if q.UserID <= 0 || q.AfterID < 0 {
 		return UserListResult{}, domain.ErrInvalidID
 	}
 	items, total, err := s.repo.ListFollowers(ctx, q)
@@ -148,7 +148,7 @@ func (s *Service) ListFollowers(ctx context.Context, q domain.FollowListQuery) (
 }
 
 func (s *Service) ListFollowing(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
-	if q.UserID <= 0 {
+	if q.UserID <= 0 || q.AfterID < 0 {
 		return UserListResult{}, domain.ErrInvalidID
 	}
 	items, total, err := s.repo.ListFollowing(ctx, q)

@@ -2104,6 +2104,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
 
       <SessionSecuritySection token={token} />
 
+      <FollowingExportSection token={token} />
+
       <div className="account-security-section">
         <div className="account-security-section-heading">
           <LockKeyhole size={20} aria-hidden="true" />
@@ -2155,6 +2157,85 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
         onAuthInvalidated={onAuthInvalidated}
       />
     </section>
+  );
+}
+
+function FollowingExportSection({ token }) {
+  const [options, setOptions] = React.useState({ excludeMuting: false, excludeInactive: false });
+  const [state, setState] = React.useState({ busy: false, error: "", notice: "" });
+  const requestSessionRef = React.useRef(0);
+  const requestRef = React.useRef(0);
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
+
+  React.useEffect(() => {
+    requestSessionRef.current += 1;
+    requestRef.current += 1;
+    setState({ busy: false, error: "", notice: "" });
+    return () => {
+      requestSessionRef.current += 1;
+      requestRef.current += 1;
+    };
+  }, [token]);
+
+  function updateOption(name, value) {
+    setOptions((current) => ({ ...current, [name]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!token || state.busy) return;
+    const requestToken = token;
+    const requestSession = requestSessionRef.current;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    const requestOptions = { ...options };
+    const isCurrentRequest = () => (
+      requestSessionRef.current === requestSession &&
+      requestRef.current === requestId &&
+      tokenRef.current === requestToken
+    );
+    setState({ busy: true, error: "", notice: "" });
+    try {
+      await bbsApi.exportFollowing(requestOptions, requestToken);
+      if (!isCurrentRequest()) return;
+      setState({ busy: false, error: "", notice: "关注列表导出已请求，完成后可在文件库查看。" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState({ busy: false, error: error.message || "关注列表导出失败", notice: "" });
+    }
+  }
+
+  return (
+    <div className="account-security-section">
+      <div className="account-security-section-heading">
+        <Download size={20} aria-hidden="true" />
+        <div>
+          <strong>导出关注列表</strong>
+          <p>生成关注账号备份，可按需排除静音或长期不活跃账号。</p>
+        </div>
+      </div>
+      <form onSubmit={submit}>
+        <div className="account-security-export-options">
+          <label className="account-security-export-option">
+            <input type="checkbox" checked={options.excludeMuting} onChange={(event) => updateOption("excludeMuting", event.target.checked)} />
+            排除静音账号
+          </label>
+          <label className="account-security-export-option">
+            <input type="checkbox" checked={options.excludeInactive} onChange={(event) => updateOption("excludeInactive", event.target.checked)} />
+            排除超过 90 天未更新的账号
+          </label>
+        </div>
+        <div className="account-security-actions">
+          <button type="submit" disabled={!token || state.busy}>
+            <Download size={17} aria-hidden="true" />
+            {state.busy ? "导出中..." : "导出关注列表"}
+          </button>
+        </div>
+        {state.error && <p className="form-error" role="alert">{state.error}</p>}
+        {state.notice && <p className="form-success" role="status">{state.notice}</p>}
+      </form>
+    </div>
   );
 }
 
@@ -3436,7 +3517,12 @@ function UserListsPanel({ auth, editable, ownerId }) {
   const [state, setState] = React.useState({ items: [], total: 0, loading: false, error: "" });
   const [editor, setEditor] = React.useState(null);
   const [action, setAction] = React.useState({ busy: false, error: "", notice: "" });
+  const [exportState, setExportState] = React.useState({ busy: false, error: "", notice: "" });
   const requestRef = React.useRef(0);
+  const exportSessionRef = React.useRef(0);
+  const exportRequestRef = React.useRef(0);
+  const exportScopeRef = React.useRef({ editable, mode, token });
+  exportScopeRef.current = { editable, mode, token };
 
   const loadLists = React.useCallback(async () => {
     const requestId = requestRef.current + 1;
@@ -3473,6 +3559,16 @@ function UserListsPanel({ auth, editable, ownerId }) {
     if (!editable && mode !== "owned") setMode("owned");
   }, [editable, mode]);
 
+  React.useEffect(() => {
+    exportSessionRef.current += 1;
+    exportRequestRef.current += 1;
+    setExportState({ busy: false, error: "", notice: "" });
+    return () => {
+      exportSessionRef.current += 1;
+      exportRequestRef.current += 1;
+    };
+  }, [editable, mode, token]);
+
   async function submitList(event) {
     event.preventDefault();
     if (!editor || !token || action.busy) return;
@@ -3496,6 +3592,31 @@ function UserListsPanel({ auth, editable, ownerId }) {
     }
   }
 
+  async function exportUserLists() {
+    if (!token || !editable || mode !== "owned" || exportState.busy) return;
+    const requestToken = token;
+    const requestMode = mode;
+    const requestSession = exportSessionRef.current;
+    const requestId = exportRequestRef.current + 1;
+    exportRequestRef.current = requestId;
+    const isCurrentRequest = () => (
+      exportSessionRef.current === requestSession &&
+      exportRequestRef.current === requestId &&
+      exportScopeRef.current.token === requestToken &&
+      exportScopeRef.current.mode === requestMode &&
+      exportScopeRef.current.editable
+    );
+    setExportState({ busy: true, error: "", notice: "" });
+    try {
+      await bbsApi.exportUserLists(requestToken);
+      if (!isCurrentRequest()) return;
+      setExportState({ busy: false, error: "", notice: "用户列表导出已请求，完成后可在文件库查看。" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setExportState({ busy: false, error: error.message || "用户列表导出失败", notice: "" });
+    }
+  }
+
   if (editable && !auth) {
     return <EmptyState title="请先登录" description="登录后可以创建和管理用户列表。" />;
   }
@@ -3508,10 +3629,18 @@ function UserListsPanel({ auth, editable, ownerId }) {
           <span>{state.loading ? "正在加载..." : `${state.total} 个`}</span>
         </div>
         {editable && (
-          <button aria-label="新建用户列表" type="button" disabled={action.busy} onClick={() => setEditor({ name: "", isPublic: false })}>
-            <FolderPlus size={17} aria-hidden="true" />
-            新建
-          </button>
+          <div className="user-list-manager__header-actions">
+            {mode === "owned" && (
+              <button aria-label="导出我的用户列表" type="button" disabled={!token || exportState.busy || action.busy} onClick={exportUserLists}>
+                <Download size={17} aria-hidden="true" />
+                {exportState.busy ? "导出中" : "导出"}
+              </button>
+            )}
+            <button aria-label="新建用户列表" type="button" disabled={action.busy || exportState.busy} onClick={() => setEditor({ name: "", isPublic: false })}>
+              <FolderPlus size={17} aria-hidden="true" />
+              新建
+            </button>
+          </div>
         )}
       </header>
       {editable && (
@@ -3555,6 +3684,8 @@ function UserListsPanel({ auth, editable, ownerId }) {
           ))}
         </div>
       )}
+      {mode === "owned" && exportState.error && <p className="user-list-feedback is-error" role="alert">{exportState.error}</p>}
+      {mode === "owned" && exportState.notice && <p className="user-list-feedback" role="status">{exportState.notice}</p>}
       {action.error && <p className="user-list-feedback is-error">{action.error}</p>}
       {action.notice && <p className="user-list-feedback">{action.notice}</p>}
     </section>

@@ -435,6 +435,9 @@ export const bbsApi = {
   followingState(userId, token) {
     return request(`/users/${userId}/following-state`, { token });
   },
+  exportFollowing(payload = {}, token) {
+    return request("/i/export-following", { method: "POST", body: payload, token });
+  },
   receivedFollowRequests(params = {}, token) {
     return request(`/users/me/follow-requests${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
   },
@@ -476,6 +479,9 @@ export const bbsApi = {
   },
   exportMute(token) {
     return request("/i/export-mute", { method: "POST", body: {}, token });
+  },
+  exportUserLists(token) {
+    return request("/i/export-user-lists", { method: "POST", body: {}, token });
   },
   myUserLists(params = {}, token) {
     return request(`/users/me/lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });

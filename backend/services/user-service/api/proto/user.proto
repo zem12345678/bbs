@@ -402,6 +402,8 @@ message ListFollowsRequest {
   int64 user_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 after_user_id = 4;
+  bool ascending_by_user_id = 5;
 }
 
 // FollowResponse reports whether the follow was applied immediately or parked as

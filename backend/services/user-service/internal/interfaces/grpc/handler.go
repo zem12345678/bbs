@@ -722,7 +722,10 @@ func (h *Handler) IsFollowing(ctx context.Context, req *pb.FollowRequest) (*pb.I
 }
 
 func (h *Handler) ListFollowers(ctx context.Context, req *pb.ListFollowsRequest) (*pb.UserListResponse, error) {
-	result, err := h.qry.ListFollowers(ctx, domain.FollowListQuery{UserID: req.GetUserId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListFollowers(ctx, domain.FollowListQuery{
+		UserID: req.GetUserId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		AfterID: req.GetAfterUserId(), AscendingByID: req.GetAscendingByUserId(),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -730,7 +733,10 @@ func (h *Handler) ListFollowers(ctx context.Context, req *pb.ListFollowsRequest)
 }
 
 func (h *Handler) ListFollowing(ctx context.Context, req *pb.ListFollowsRequest) (*pb.UserListResponse, error) {
-	result, err := h.qry.ListFollowing(ctx, domain.FollowListQuery{UserID: req.GetUserId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListFollowing(ctx, domain.FollowListQuery{
+		UserID: req.GetUserId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		AfterID: req.GetAfterUserId(), AscendingByID: req.GetAscendingByUserId(),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}
