@@ -48,8 +48,8 @@ func TestBuildAntennaExportMapsReferenceFieldsAndListAccounts(t *testing.T) {
 	require.Equal(t, [][]string{{"Go", "Rust"}}, exported[0].Keywords)
 	require.Equal(t, []string{"spam"}, exported[0].ExcludeKeywords[0])
 	require.Len(t, exported[0].UserListAccts, 101)
-	require.Equal(t, "membera@bbs.example.com", exported[0].UserListAccts[0])
-	require.Equal(t, "memberw@bbs.example.com", exported[0].UserListAccts[100])
+	require.Equal(t, "membera@bbs.example.com:8443", exported[0].UserListAccts[0])
+	require.Equal(t, "memberw@bbs.example.com:8443", exported[0].UserListAccts[100])
 	require.Nil(t, exported[1].UserListAccts)
 	require.Equal(t, []int32{1, 2}, lists.pages)
 

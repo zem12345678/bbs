@@ -471,6 +471,12 @@ export const bbsApi = {
   mutedUsers(params = {}, token) {
     return request(`/users/me/muted${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
   },
+  exportBlocking(token) {
+    return request("/i/export-blocking", { method: "POST", body: {}, token });
+  },
+  exportMute(token) {
+    return request("/i/export-mute", { method: "POST", body: {}, token });
+  },
   myUserLists(params = {}, token) {
     return request(`/users/me/lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
   },

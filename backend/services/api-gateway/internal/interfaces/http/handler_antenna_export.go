@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	stdhttp "net/http"
 	"net/url"
 	"strings"
@@ -37,6 +38,7 @@ func (h *Handler) exportAntennas(c *gin.Context) {
 	}
 	h.deliverUserExport(c, userExportSpec{
 		label: "antenna", filenamePrefix: "antennas", exportedEntity: "antenna",
+		extension: ".json", contentType: "application/json",
 		gate: h.antennaExportGate, build: h.buildAntennaExport,
 	})
 }
@@ -103,9 +105,19 @@ func (h *Handler) exportAccountHost() (string, error) {
 	if err != nil || parsed.Hostname() == "" {
 		return "", errors.New("public base URL host unavailable")
 	}
-	host, err := idna.Lookup.ToASCII(strings.ToLower(parsed.Hostname()))
+	hostname := strings.ToLower(parsed.Hostname())
+	host := hostname
+	if net.ParseIP(hostname) == nil {
+		host, err = idna.Lookup.ToASCII(hostname)
+	}
 	if err != nil || host == "" {
 		return "", errors.New("public base URL host unavailable")
+	}
+	if port := parsed.Port(); port != "" {
+		return net.JoinHostPort(host, port), nil
+	}
+	if strings.Contains(host, ":") {
+		return "[" + host + "]", nil
 	}
 	return host, nil
 }

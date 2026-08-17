@@ -3528,12 +3528,14 @@ func (x *UserRelationRequest) GetTargetId() int64 {
 }
 
 type ListUserRelationsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ActorId       int64                  `protobuf:"varint,1,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
-	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ActorId             int64                  `protobuf:"varint,1,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	Page                int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize            int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	AfterTargetId       int64                  `protobuf:"varint,4,opt,name=after_target_id,json=afterTargetId,proto3" json:"after_target_id,omitempty"`
+	AscendingByTargetId bool                   `protobuf:"varint,5,opt,name=ascending_by_target_id,json=ascendingByTargetId,proto3" json:"ascending_by_target_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ListUserRelationsRequest) Reset() {
@@ -3585,6 +3587,20 @@ func (x *ListUserRelationsRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *ListUserRelationsRequest) GetAfterTargetId() int64 {
+	if x != nil {
+		return x.AfterTargetId
+	}
+	return 0
+}
+
+func (x *ListUserRelationsRequest) GetAscendingByTargetId() bool {
+	if x != nil {
+		return x.AscendingByTargetId
+	}
+	return false
 }
 
 type ListUsersRequest struct {
@@ -7381,11 +7397,13 @@ const file_user_proto_rawDesc = "" +
 	"\brequired\x18\x02 \x01(\bR\brequired\"M\n" +
 	"\x13UserRelationRequest\x12\x19\n" +
 	"\bactor_id\x18\x01 \x01(\x03R\aactorId\x12\x1b\n" +
-	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\"f\n" +
+	"\ttarget_id\x18\x02 \x01(\x03R\btargetId\"\xc3\x01\n" +
 	"\x18ListUserRelationsRequest\x12\x19\n" +
 	"\bactor_id\x18\x01 \x01(\x03R\aactorId\x12\x12\n" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"\x83\x01\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12&\n" +
+	"\x0fafter_target_id\x18\x04 \x01(\x03R\rafterTargetId\x123\n" +
+	"\x16ascending_by_target_id\x18\x05 \x01(\bR\x13ascendingByTargetId\"\x83\x01\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x12\n" +

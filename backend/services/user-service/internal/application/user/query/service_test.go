@@ -100,14 +100,15 @@ func TestListSafetyRelationsUsesRepositoryResult(t *testing.T) {
 	}
 	svc := NewService(repo, nil)
 
-	blocked, err := svc.ListBlockedUsers(context.Background(), domain.FollowListQuery{UserID: 42, Page: 2, PageSize: 7})
+	blockedQuery := domain.FollowListQuery{UserID: 42, Page: 2, PageSize: 7, AfterID: 70, AscendingByID: true}
+	blocked, err := svc.ListBlockedUsers(context.Background(), blockedQuery)
 	if err != nil {
 		t.Fatalf("ListBlockedUsers() error = %v", err)
 	}
 	if blocked.Total != 1 || len(blocked.Items) != 1 || blocked.Items[0].ID != 77 {
 		t.Fatalf("blocked result = %+v", blocked)
 	}
-	if repo.blockedQuery != (domain.FollowListQuery{UserID: 42, Page: 2, PageSize: 7}) {
+	if repo.blockedQuery != blockedQuery {
 		t.Fatalf("blocked query = %+v", repo.blockedQuery)
 	}
 
@@ -120,6 +121,9 @@ func TestListSafetyRelationsUsesRepositoryResult(t *testing.T) {
 	}
 	if repo.mutedQuery != (domain.FollowListQuery{UserID: 42, Page: 3, PageSize: 5}) {
 		t.Fatalf("muted query = %+v", repo.mutedQuery)
+	}
+	if _, err := svc.ListBlockedUsers(context.Background(), domain.FollowListQuery{UserID: 42, AfterID: -1}); !errors.Is(err, domain.ErrInvalidID) {
+		t.Fatalf("negative safety cursor error = %v, want ErrInvalidID", err)
 	}
 }
 

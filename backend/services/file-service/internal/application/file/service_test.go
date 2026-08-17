@@ -551,6 +551,27 @@ func TestCreateFileRejectsUnsafeOriginalName(t *testing.T) {
 	}
 }
 
+func TestCreateFileAcceptsEmptyFile(t *testing.T) {
+	service := NewService(newMemoryRepository(domain.Attachment{}), nil, nil, nil)
+
+	file, err := service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "exports", ObjectKey: "files/9/empty.csv", OriginalName: "empty.csv", ContentType: "text/csv", SizeBytes: 0,
+	})
+
+	if err != nil {
+		t.Fatalf("CreateFile() empty file error = %v", err)
+	}
+	if file.SizeBytes != 0 || file.OriginalName != "empty.csv" {
+		t.Fatalf("empty file = %+v", file)
+	}
+	_, err = service.CreateFile(t.Context(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/empty.bin", OriginalName: "empty.bin", ContentType: "application/octet-stream", SizeBytes: 0,
+	})
+	if !errors.Is(err, domain.ErrInvalidFile) {
+		t.Fatalf("CreateFile() empty drive file error = %v, want ErrInvalidFile", err)
+	}
+}
+
 func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	repo := newMemoryRepository(domain.Attachment{})
 	deleter := &recordingObjectDeleter{}

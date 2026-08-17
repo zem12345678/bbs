@@ -7587,6 +7587,10 @@ a {
   gap: 12px;
 }
 
+.user-safety-export-button {
+  min-width: 142px;
+}
+
 .user-safety-user-link {
   display: block;
   min-width: 0;

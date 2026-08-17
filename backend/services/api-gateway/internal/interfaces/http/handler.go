@@ -90,6 +90,8 @@ type Handler struct {
 	fileUploadLimit                    ratelimit.Limiter
 	clipExportGate                     ExportGate
 	antennaExportGate                  ExportGate
+	blockingExportGate                 ExportGate
+	muteExportGate                     ExportGate
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
@@ -306,6 +308,14 @@ func (h *Handler) SetAntennaExportGate(gate ExportGate) {
 	h.antennaExportGate = gate
 }
 
+func (h *Handler) SetBlockingExportGate(gate ExportGate) {
+	h.blockingExportGate = gate
+}
+
+func (h *Handler) SetMuteExportGate(gate ExportGate) {
+	h.muteExportGate = gate
+}
+
 func NewHandlerWithRealtimeAndRateLimits(
 	clients *clients.Clients,
 	tokenHeader string,
@@ -458,7 +468,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/users/clips", h.optionalAuth(), h.listPublicClips)
 			r.POST(prefix+"/notes/clips", h.optionalAuth(), h.listNoteClips)
 			r.POST(prefix+"/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
+			r.POST(prefix+"/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 			r.POST(prefix+"/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 		}
 		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
@@ -493,7 +505,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/users/clips", h.optionalAuth(), h.listPublicClips)
 	api.POST("/notes/clips", h.optionalAuth(), h.listNoteClips)
 	api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
+	api.POST("/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 	api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+	api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
 		api.GET("/ping", h.instancePing)

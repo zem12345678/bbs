@@ -483,6 +483,33 @@ func TestCreateExportCompletedNotificationUsesAntennaCopy(t *testing.T) {
 	}
 }
 
+func TestCreateExportCompletedNotificationUsesSafetyExportCopy(t *testing.T) {
+	tests := []struct {
+		entity string
+		title  string
+	}{
+		{entity: domain.ExportCompletedEntityBlocking, title: "屏蔽列表导出完成"},
+		{entity: domain.ExportCompletedEntityMuting, title: "静音列表导出完成"},
+	}
+	for _, test := range tests {
+		t.Run(test.entity, func(t *testing.T) {
+			repo := newMemoryRepo()
+			service := NewService(repo)
+
+			err := service.CreateExportCompletedNotification(t.Context(), domain.ExportCompletedNotificationCommand{
+				RecipientID: 42, FileID: 9003, ExportedEntity: test.entity, IdempotencyKey: test.entity + "-42-9003",
+			})
+
+			if err != nil {
+				t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+			}
+			if len(repo.created) != 1 || repo.created[0].Title != test.title || repo.created[0].EntityID != 9003 {
+				t.Fatalf("created notifications = %#v", repo.created)
+			}
+		})
+	}
+}
+
 func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
 	valid := domain.ExportCompletedNotificationCommand{
 		RecipientID:    42,

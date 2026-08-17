@@ -17,7 +17,9 @@ const (
 const (
 	NotificationTypeExportCompleted              = "export_completed"
 	ExportCompletedEntityAntenna                 = "antenna"
+	ExportCompletedEntityBlocking                = "blocking"
 	ExportCompletedEntityClip                    = "clip"
+	ExportCompletedEntityMuting                  = "muting"
 	ExportCompletedNotificationMaxIdempotencyKey = 95
 )
 

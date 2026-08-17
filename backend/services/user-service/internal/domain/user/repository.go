@@ -6,9 +6,11 @@ import (
 )
 
 type FollowListQuery struct {
-	UserID   int64
-	Page     int
-	PageSize int
+	UserID        int64
+	Page          int
+	PageSize      int
+	AfterID       int64
+	AscendingByID bool
 }
 
 type SafetyRelation struct {

@@ -75,7 +75,9 @@ files:
 exports:
   rateLimit:
     antennaInterval: 1h
+    blockingInterval: 1h
     clipInterval: 24h
+    muteInterval: 1h
 
 http:
   # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.

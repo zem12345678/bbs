@@ -74,6 +74,7 @@ func (h *Handler) exportClips(c *gin.Context) {
 	}
 	h.deliverUserExport(c, userExportSpec{
 		label: "clip", filenamePrefix: "clips", exportedEntity: "clip",
+		extension: ".json", contentType: "application/json",
 		gate: h.clipExportGate, build: h.buildClipExport,
 	})
 }

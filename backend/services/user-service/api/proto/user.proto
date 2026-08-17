@@ -454,6 +454,8 @@ message ListUserRelationsRequest {
   int64 actor_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 after_target_id = 4;
+  bool ascending_by_target_id = 5;
 }
 
 message ListUsersRequest {

@@ -205,7 +205,7 @@ func TestExportClipsPreservesObjectWhenFileRegistrationOutcomeIsUnknown(t *testi
 	}
 }
 
-func TestExportClipsPreservesObjectWhenFileRegistrationResponseHasNoFile(t *testing.T) {
+func TestExportClipsCleansObjectWhenFileRegistrationResponseHasNoFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := newFakeUserFileStore()
 	permit := &clipExportPermitStub{}
@@ -222,8 +222,8 @@ func TestExportClipsPreservesObjectWhenFileRegistrationResponseHasNoFile(t *test
 	h.exportClips(c)
 
 	require.Equal(t, stdhttp.StatusBadGateway, recorder.Code)
-	require.Len(t, store.objects, 1)
-	require.Empty(t, store.deletedKeys)
+	require.Empty(t, store.objects)
+	require.Len(t, store.deletedKeys, 1)
 	require.True(t, permit.released)
 	require.False(t, permit.committed)
 }

@@ -419,7 +419,7 @@ func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error
 	if file.BizType == "" || len(file.BizType) > maxBizTypeLength || strings.ContainsAny(file.BizType, "/\\") || strings.ContainsRune(file.BizType, '\x00') ||
 		file.OwnerID <= 0 || file.ObjectKey == "" || len(file.ObjectKey) > maxObjectKeyLength || strings.ContainsRune(file.ObjectKey, '\x00') ||
 		file.OriginalName == "" || len(file.OriginalName) > maxOriginalNameLength || strings.ContainsAny(file.OriginalName, "\\/") || strings.ContainsRune(file.OriginalName, '\x00') ||
-		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes <= 0 || file.SizeBytes > MaxFileSizeBytes || file.FolderID < 0 {
+		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes < 0 || (file.SizeBytes == 0 && file.BizType != "exports") || file.SizeBytes > MaxFileSizeBytes || file.FolderID < 0 {
 		return domain.File{}, domain.ErrInvalidFile
 	}
 	return file, nil

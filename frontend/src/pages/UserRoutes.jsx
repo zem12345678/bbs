@@ -460,11 +460,13 @@ function UserSafetyPanel({ auth }) {
   const requestSessionRef = React.useRef(0);
   const scopeRef = React.useRef({ mode, accessToken: auth?.accessToken || "" });
   const [state, setState] = React.useState({ items: [], total: 0, page: 0, loading: false, loadingMore: false, error: "", action: "" });
+  const [exportState, setExportState] = React.useState({ busy: "", error: "", notice: "" });
   scopeRef.current = { mode, accessToken: auth?.accessToken || "" };
 
   React.useEffect(() => {
     const session = requestSessionRef.current + 1;
     requestSessionRef.current = session;
+    setExportState({ busy: "", error: "", notice: "" });
     if (!auth?.accessToken) {
       setState({ items: [], total: 0, page: 0, loading: false, loadingMore: false, error: "", action: "" });
       return undefined;
@@ -497,7 +499,7 @@ function UserSafetyPanel({ auth }) {
   }, [auth?.accessToken, mode, reloadKey]);
 
   async function loadMoreRelations() {
-    if (!auth?.accessToken || state.loading || state.loadingMore || state.action || state.items.length >= state.total) return;
+    if (!auth?.accessToken || state.loading || state.loadingMore || state.action || exportState.busy || state.items.length >= state.total) return;
     const requestMode = mode;
     const requestAccessToken = auth.accessToken;
     const requestSession = requestSessionRef.current;
@@ -527,7 +529,7 @@ function UserSafetyPanel({ auth }) {
   }
 
   async function removeRelation(userId) {
-    if (!userId || !auth?.accessToken || state.action || state.loadingMore) return;
+    if (!userId || !auth?.accessToken || state.action || state.loadingMore || exportState.busy) return;
     const requestMode = mode;
     const requestAccessToken = auth.accessToken;
     const requestSession = requestSessionRef.current;
@@ -546,6 +548,25 @@ function UserSafetyPanel({ auth }) {
     }
   }
 
+  async function exportSafetyRelations(kind) {
+    if (!auth?.accessToken || exportState.busy || state.action || state.loadingMore) return;
+    const requestMode = mode;
+    const requestAccessToken = auth.accessToken;
+    const requestSession = requestSessionRef.current;
+    const isBlocking = kind === "blocking";
+    setExportState({ busy: kind, error: "", notice: "" });
+    try {
+      if (isBlocking) await bbsApi.exportBlocking(requestAccessToken);
+      else await bbsApi.exportMute(requestAccessToken);
+      if (requestSessionRef.current !== requestSession || !matchesSafetyScope(scopeRef.current, requestMode, requestAccessToken)) return;
+      setExportState({ busy: "", error: "", notice: isBlocking ? "屏蔽列表导出已请求，完成后可在文件库查看。" : "静音列表导出已请求，完成后可在文件库查看。" });
+    } catch (error) {
+      if (requestSessionRef.current === requestSession && matchesSafetyScope(scopeRef.current, requestMode, requestAccessToken)) {
+        setExportState({ busy: "", error: error.message || (isBlocking ? "屏蔽列表导出失败" : "静音列表导出失败"), notice: "" });
+      }
+    }
+  }
+
   if (!auth?.accessToken) return <EmptyState title="请先登录" description="登录后可以管理屏蔽和静音用户。" />;
   return (
     <section className="user-safety-panel">
@@ -558,6 +579,16 @@ function UserSafetyPanel({ auth }) {
         value={mode}
         onChange={setMode}
       />
+      <div className="workspace-toolbar-actions" aria-label="导出安全关系">
+        <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => exportSafetyRelations("blocking")}>
+          <Download size={16} aria-hidden="true" />{exportState.busy === "blocking" ? "导出中..." : "导出屏蔽列表"}
+        </button>
+        <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => exportSafetyRelations("mute")}>
+          <Download size={16} aria-hidden="true" />{exportState.busy === "mute" ? "导出中..." : "导出静音列表"}
+        </button>
+      </div>
+      {exportState.error && <p className="form-error" role="alert">{exportState.error}</p>}
+      {exportState.notice && <p className="form-success" role="status">{exportState.notice}</p>}
       {state.loading && <EmptyState title={mode === "blocked" ? "正在加载屏蔽列表..." : "正在加载静音列表..."} />}
       {!state.loading && state.error && state.items.length === 0 && <EmptyState title={state.error} />}
       {!state.loading && state.items.length === 0 && !state.error && <EmptyState title={mode === "blocked" ? "暂无屏蔽用户" : "暂无静音用户"} />}
@@ -3552,6 +3583,8 @@ function UserAntennaPanel({ auth }) {
   const [action, setAction] = React.useState({ busy: "", error: "", notice: "" });
   const requestRef = React.useRef(0);
   const selectedRef = React.useRef("");
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
 
   const loadAntennas = React.useCallback(async (preferredId = "") => {
     const requestId = requestRef.current + 1;
@@ -3594,6 +3627,10 @@ function UserAntennaPanel({ auth }) {
     loadAntennas();
     return () => { requestRef.current += 1; };
   }, [loadAntennas]);
+
+  React.useEffect(() => {
+    setAction({ busy: "", error: "", notice: "" });
+  }, [token]);
 
   function selectAntenna(id) {
     const selected = String(id || "");
@@ -3652,11 +3689,15 @@ function UserAntennaPanel({ auth }) {
 
   async function exportAntennas() {
     if (!token || action.busy) return;
+    const requestToken = token;
+    const requestId = requestRef.current;
     setAction({ busy: "export", error: "", notice: "" });
     try {
-      await bbsApi.exportAntennas(token);
+      await bbsApi.exportAntennas(requestToken);
+      if (requestRef.current !== requestId || tokenRef.current !== requestToken) return;
       setAction({ busy: "", error: "", notice: "天线导出已请求，完成后可在文件库查看。" });
     } catch (error) {
+      if (requestRef.current !== requestId || tokenRef.current !== requestToken) return;
       setAction({ busy: "", error: error.message || "天线导出失败", notice: "" });
     }
   }

@@ -731,6 +731,8 @@ test("manages authenticated user safety relationships", async () => {
   await bbsApi.unmuteUser("42", "access-token");
   await bbsApi.blockedUsers({ page: 2, page_size: 8 }, "access-token");
   await bbsApi.mutedUsers({ page: 3, page_size: 6 }, "access-token");
+  await bbsApi.exportBlocking("access-token");
+  await bbsApi.exportMute("access-token");
 
   assert.deepEqual(
     requests.map(({ url, options }) => [new URL(url).pathname, options.method || "GET"]),
@@ -741,11 +743,15 @@ test("manages authenticated user safety relationships", async () => {
       ["/api/v1/users/42/mute", "POST"],
       ["/api/v1/users/42/mute", "DELETE"],
       ["/api/v1/users/me/blocked", "GET"],
-      ["/api/v1/users/me/muted", "GET"]
+      ["/api/v1/users/me/muted", "GET"],
+      ["/api/v1/i/export-blocking", "POST"],
+      ["/api/v1/i/export-mute", "POST"]
     ]
   );
   assert.equal(new URL(requests[5].url).searchParams.get("page"), "2");
   assert.equal(new URL(requests[6].url).searchParams.get("page_size"), "6");
+  assert.deepEqual(JSON.parse(requests[7].options.body), {});
+  assert.deepEqual(JSON.parse(requests[8].options.body), {});
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 

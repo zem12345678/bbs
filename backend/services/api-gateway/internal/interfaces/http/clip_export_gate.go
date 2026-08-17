@@ -21,8 +21,10 @@ var (
 )
 
 const (
-	clipExportKeyPrefix    = "rate:exports:clips:user:"
-	antennaExportKeyPrefix = "rate:exports:antennas:user:"
+	clipExportKeyPrefix     = "rate:exports:clips:user:"
+	antennaExportKeyPrefix  = "rate:exports:antennas:user:"
+	blockingExportKeyPrefix = "rate:exports:blocking:user:"
+	muteExportKeyPrefix     = "rate:exports:muting:user:"
 )
 
 type ExportGate interface {
@@ -50,6 +52,14 @@ func NewRedisClipExportGate(client redis.Cmdable, interval, lockTTL time.Duratio
 
 func NewRedisAntennaExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
 	return newRedisExportGate(client, antennaExportKeyPrefix, interval, lockTTL)
+}
+
+func NewRedisBlockingExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
+	return newRedisExportGate(client, blockingExportKeyPrefix, interval, lockTTL)
+}
+
+func NewRedisMuteExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
+	return newRedisExportGate(client, muteExportKeyPrefix, interval, lockTTL)
 }
 
 func newRedisExportGate(client redis.Cmdable, keyPrefix string, interval, lockTTL time.Duration) ExportGate {

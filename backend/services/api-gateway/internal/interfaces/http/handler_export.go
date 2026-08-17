@@ -21,6 +21,8 @@ type userExportSpec struct {
 	label          string
 	filenamePrefix string
 	exportedEntity string
+	extension      string
+	contentType    string
 	gate           ExportGate
 	build          func(context.Context, int64) ([]byte, error)
 }
@@ -52,20 +54,20 @@ func (h *Handler) deliverUserExport(c *gin.Context, spec userExportSpec) {
 		writeRPCError(c, err)
 		return
 	}
-	objectName, err := uploadedAvatarName(".json")
+	objectName, err := uploadedAvatarName(spec.extension)
 	if err != nil {
 		writeError(c, stdhttp.StatusInternalServerError, "create export file name failed", "internal_error")
 		return
 	}
-	filename := spec.filenamePrefix + "-" + time.Now().Format("2006-01-02-15-04-05") + ".json"
+	filename := spec.filenamePrefix + "-" + time.Now().Format("2006-01-02-15-04-05") + spec.extension
 	objectKey := "files/" + strconv.FormatInt(userID, 10) + "/exports/" + objectName
-	if err := h.attachments.Upload(ctx, objectKey, bytes.NewReader(payload), int64(len(payload)), "application/json"); err != nil {
+	if err := h.attachments.Upload(ctx, objectKey, bytes.NewReader(payload), int64(len(payload)), spec.contentType); err != nil {
 		writeError(c, stdhttp.StatusBadGateway, "store "+spec.label+" export failed", "storage_unavailable")
 		return
 	}
 	created, err := h.clients.File.CreateFile(ctx, &filepb.CreateFileRequest{
 		OwnerId: userID, BizType: "exports", ObjectKey: objectKey, OriginalName: filename,
-		ContentType: "application/json", SizeBytes: int64(len(payload)),
+		ContentType: spec.contentType, SizeBytes: int64(len(payload)),
 	})
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {
@@ -77,6 +79,9 @@ func (h *Handler) deliverUserExport(c *gin.Context, spec userExportSpec) {
 		return
 	}
 	if created.GetFile() == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), requestTimeout)
+		_ = h.cleanupUploadedObject(cleanupCtx, objectKey)
+		cleanupCancel()
 		writeError(c, stdhttp.StatusBadGateway, "file metadata unavailable", "service_unavailable")
 		return
 	}

@@ -46,25 +46,29 @@ func TestRedisExportGatesUseIndependentEntityKeys(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	clipGate := NewRedisClipExportGate(client, 24*time.Hour, 15*time.Minute)
-	antennaGate := NewRedisAntennaExportGate(client, time.Hour, 15*time.Minute)
+	gates := []ExportGate{
+		NewRedisAntennaExportGate(client, time.Hour, 15*time.Minute),
+		NewRedisBlockingExportGate(client, time.Hour, 15*time.Minute),
+		NewRedisClipExportGate(client, 24*time.Hour, 15*time.Minute),
+		NewRedisMuteExportGate(client, time.Hour, 15*time.Minute),
+	}
 
-	clipPermit, err := clipGate.Begin(context.Background(), 42)
-	require.NoError(t, err)
-	require.NoError(t, clipPermit.Commit(context.Background()))
-
-	antennaPermit, err := antennaGate.Begin(context.Background(), 42)
-	require.NoError(t, err)
-	require.NoError(t, antennaPermit.Commit(context.Background()))
-	_, err = antennaGate.Begin(context.Background(), 42)
-	require.ErrorIs(t, err, errExportRateLimited)
-	_, err = clipGate.Begin(context.Background(), 42)
-	require.ErrorIs(t, err, errExportRateLimited)
+	for _, gate := range gates {
+		permit, err := gate.Begin(context.Background(), 42)
+		require.NoError(t, err)
+		require.NoError(t, permit.Commit(context.Background()))
+	}
+	for _, gate := range gates {
+		_, err := gate.Begin(context.Background(), 42)
+		require.ErrorIs(t, err, errExportRateLimited)
+	}
 
 	server.FastForward(time.Hour + time.Millisecond)
-	antennaPermit, err = antennaGate.Begin(context.Background(), 42)
-	require.NoError(t, err)
-	require.NoError(t, antennaPermit.Release(context.Background()))
-	_, err = clipGate.Begin(context.Background(), 42)
+	for _, gate := range []ExportGate{gates[0], gates[1], gates[3]} {
+		permit, err := gate.Begin(context.Background(), 42)
+		require.NoError(t, err)
+		require.NoError(t, permit.Release(context.Background()))
+	}
+	_, err := gates[2].Begin(context.Background(), 42)
 	require.ErrorIs(t, err, errExportRateLimited)
 }

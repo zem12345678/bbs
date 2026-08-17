@@ -168,11 +168,18 @@ test("keeps user safety controls connected to authenticated routes", () => {
   assert.match(userSource, /bbsApi\.userSafetyState\(profileUserId, auth\.accessToken\)/);
   assert.match(userSource, /bbsApi\.blockUser\(profileUserId, auth\.accessToken\)/);
   assert.match(userSource, /bbsApi\.muteUser\(profileUserId, auth\.accessToken\)/);
+  assert.match(userSource, /bbsApi\.exportBlocking\(requestAccessToken\)/);
+  assert.match(userSource, /bbsApi\.exportMute\(requestAccessToken\)/);
   assert.match(userSource, /function UserSafetyPanel\(\{ auth \}\)/);
   assert.match(userSource, /const relationSessionRef = React\.useRef\(0\)/);
   assert.match(userSource, /const requestSessionRef = React\.useRef\(0\)/);
   assert.match(userSource, /const page = state\.page \+ 1/);
   assert.match(userSource, /window\.confirm\(message\)/);
+  assert.match(userSource, /className="workspace-toolbar-actions" aria-label="导出安全关系"/);
+  assert.match(userSource, /导出屏蔽列表/);
+  assert.match(userSource, /导出静音列表/);
+  assert.match(userSource, /requestSessionRef\.current !== requestSession/);
+  assert.match(userSource, /matchesSafetyScope\(scopeRef\.current, requestMode, requestAccessToken\)/);
 });
 
 test("lets authenticated users remove followers only from their own follower list", () => {
@@ -222,7 +229,8 @@ test("connects antenna export to the existing antenna manager", () => {
   assert.ok(actionStart >= 0, "exportAntennas is present");
   assert.match(exportAction, /if \(!token \|\| action\.busy\) return/);
   assert.match(exportAction, /setAction\(\{ busy: "export", error: "", notice: "" \}\)/);
-  assert.match(exportAction, /await bbsApi\.exportAntennas\(token\)/);
+  assert.match(exportAction, /await bbsApi\.exportAntennas\(requestToken\)/);
+  assert.match(exportAction, /requestRef\.current !== requestId \|\| tokenRef\.current !== requestToken/);
   assert.match(exportAction, /notice: "天线导出已请求，完成后可在文件库查看。"/);
   assert.match(exportAction, /error: error\.message \|\| "天线导出失败"/);
   assert.match(panel, /className="user-list-manager__header-actions"/);

@@ -774,7 +774,10 @@ func (h *Handler) GetSafetyRelation(ctx context.Context, req *pb.UserRelationReq
 }
 
 func (h *Handler) ListBlockedUsers(ctx context.Context, req *pb.ListUserRelationsRequest) (*pb.UserListResponse, error) {
-	result, err := h.qry.ListBlockedUsers(ctx, domain.FollowListQuery{UserID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListBlockedUsers(ctx, domain.FollowListQuery{
+		UserID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		AfterID: req.GetAfterTargetId(), AscendingByID: req.GetAscendingByTargetId(),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -782,7 +785,10 @@ func (h *Handler) ListBlockedUsers(ctx context.Context, req *pb.ListUserRelation
 }
 
 func (h *Handler) ListMutedUsers(ctx context.Context, req *pb.ListUserRelationsRequest) (*pb.UserListResponse, error) {
-	result, err := h.qry.ListMutedUsers(ctx, domain.FollowListQuery{UserID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListMutedUsers(ctx, domain.FollowListQuery{
+		UserID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		AfterID: req.GetAfterTargetId(), AscendingByID: req.GetAscendingByTargetId(),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}

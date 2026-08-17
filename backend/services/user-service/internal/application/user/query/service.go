@@ -85,6 +85,9 @@ func (s *Service) GetSafetyRelation(ctx context.Context, actorID, targetID int64
 }
 
 func (s *Service) ListBlockedUsers(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
+	if q.AfterID < 0 {
+		return UserListResult{}, domain.ErrInvalidID
+	}
 	repo, err := s.safetyRepository(q.UserID, 0)
 	if err != nil {
 		return UserListResult{}, err
@@ -97,6 +100,9 @@ func (s *Service) ListBlockedUsers(ctx context.Context, q domain.FollowListQuery
 }
 
 func (s *Service) ListMutedUsers(ctx context.Context, q domain.FollowListQuery) (UserListResult, error) {
+	if q.AfterID < 0 {
+		return UserListResult{}, domain.ErrInvalidID
+	}
 	repo, err := s.safetyRepository(q.UserID, 0)
 	if err != nil {
 		return UserListResult{}, err

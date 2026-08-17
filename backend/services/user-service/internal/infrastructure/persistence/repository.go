@@ -895,13 +895,20 @@ func (r *Repo) listSafetyUsers(ctx context.Context, q domain.FollowListQuery, ta
 		return nil, 0, err
 	}
 	var rows []userPO
-	err := r.db.WithContext(ctx).Table("users").
+	query := r.db.WithContext(ctx).Table("users").
 		Joins("JOIN "+table+" ON "+table+".target_id = users.id").
-		Where(table+".actor_id = ?", q.UserID).
-		Order(table + ".created_at DESC").
-		Limit(q.PageSize).
-		Offset((q.Page - 1) * q.PageSize).
-		Find(&rows).Error
+		Where(table+".actor_id = ?", q.UserID)
+	if q.AscendingByID {
+		query = query.Where(table+".target_id > ?", q.AfterID).
+			Order(table + ".target_id ASC").
+			Limit(q.PageSize)
+	} else {
+		query = query.Order(table + ".created_at DESC").
+			Order(table + ".target_id DESC").
+			Limit(q.PageSize).
+			Offset((q.Page - 1) * q.PageSize)
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}
