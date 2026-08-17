@@ -171,5 +171,6 @@ type FeedFilteredClient interface {
 type CreditClient = creditpb.CreditServiceClient
 type MallClient = mallpb.MallServiceClient
 type NotificationClient = notificationpb.NotificationServiceClient
+type NotificationInternalClient = notificationpb.InternalNotificationServiceClient
 type FileClient = filepb.FileServiceClient
 type ChatClient = chatpb.ChatServiceClient

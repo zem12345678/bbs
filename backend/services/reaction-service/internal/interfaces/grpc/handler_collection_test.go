@@ -85,6 +85,47 @@ func TestListCollectionItemsMapsEntityAndMilliseconds(t *testing.T) {
 	}
 }
 
+func TestCollectionHandlersUseExclusiveAscendingIDCursor(t *testing.T) {
+	repo := &collectionRepositoryStub{
+		collections: []*domain.Collection{{ID: 11, UserID: 42, Name: "Later"}},
+		items: []*domain.CollectionItem{{
+			ID: 21, CollectionID: 11, Entity: domain.EntityRef{Type: domain.EntityArticle, ID: 88},
+		}},
+	}
+	h := newCollectionHandler(repo)
+
+	collections, err := h.ListCollections(context.Background(), &pb.ListCollectionsRequest{
+		UserId: 42, Limit: 10, AfterId: 7, AscendingById: true,
+	})
+	if err != nil {
+		t.Fatalf("list collections by ID: %v", err)
+	}
+	if len(collections.GetItems()) != 1 || collections.GetItems()[0].GetId() != 11 || repo.collectionsAfterID != 7 {
+		t.Fatalf("collections = %+v, after ID = %d", collections.GetItems(), repo.collectionsAfterID)
+	}
+
+	items, err := h.ListCollectionItems(context.Background(), &pb.ListCollectionItemsRequest{
+		UserId: 42, CollectionId: 11, Limit: 10, AfterId: 17, AscendingById: true,
+	})
+	if err != nil {
+		t.Fatalf("list collection items by ID: %v", err)
+	}
+	if len(items.GetItems()) != 1 || items.GetItems()[0].GetId() != 21 || repo.itemsAfterID != 17 {
+		t.Fatalf("items = %+v, after ID = %d", items.GetItems(), repo.itemsAfterID)
+	}
+}
+
+func TestCollectionHandlersRejectNegativeIDCursor(t *testing.T) {
+	h := newCollectionHandler(&collectionRepositoryStub{})
+
+	_, err := h.ListCollections(context.Background(), &pb.ListCollectionsRequest{
+		UserId: 42, AfterId: -1, AscendingById: true,
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("negative cursor status = %s, want %s", status.Code(err), codes.InvalidArgument)
+	}
+}
+
 func TestCollectionHandlerMapsLastClippedAtMilliseconds(t *testing.T) {
 	lastClippedAt := time.UnixMilli(1_800_000_000_456)
 	response := toCollectionPb(&domain.Collection{ID: 7, LastClippedAt: &lastClippedAt})
@@ -121,11 +162,14 @@ func newCollectionHandler(repo domain.CollectionRepository) *Handler {
 }
 
 type collectionRepositoryStub struct {
-	items             []*domain.CollectionItem
-	publicCollections []*domain.Collection
-	listItemsErr      error
-	lastUserID        int64
-	lastCollectionID  int64
+	collections        []*domain.Collection
+	items              []*domain.CollectionItem
+	publicCollections  []*domain.Collection
+	listItemsErr       error
+	lastUserID         int64
+	lastCollectionID   int64
+	collectionsAfterID int64
+	itemsAfterID       int64
 }
 
 func (r *collectionRepositoryStub) CreateCollection(_ context.Context, collection *domain.Collection) error {
@@ -143,7 +187,12 @@ func (r *collectionRepositoryStub) UpdateCollection(_ context.Context, userID, c
 func (r *collectionRepositoryStub) DeleteCollection(context.Context, int64, int64) error { return nil }
 
 func (r *collectionRepositoryStub) ListCollections(context.Context, int64, int, int) ([]*domain.Collection, int64, error) {
-	return nil, 0, nil
+	return r.collections, int64(len(r.collections)), nil
+}
+
+func (r *collectionRepositoryStub) ListCollectionsAfterID(_ context.Context, _ int64, afterID int64, _ int) ([]*domain.Collection, int64, error) {
+	r.collectionsAfterID = afterID
+	return r.collections, int64(len(r.collections)), nil
 }
 
 func (r *collectionRepositoryStub) AddCollectionItem(_ context.Context, userID, collectionID int64, _ domain.EntityRef) (bool, error) {
@@ -159,6 +208,11 @@ func (r *collectionRepositoryStub) RemoveCollectionItem(_ context.Context, userI
 }
 
 func (r *collectionRepositoryStub) ListCollectionItems(context.Context, int64, int64, domain.EntityType, int, int) ([]*domain.CollectionItem, int64, error) {
+	return r.items, int64(len(r.items)), r.listItemsErr
+}
+
+func (r *collectionRepositoryStub) ListCollectionItemsAfterID(_ context.Context, _ int64, _ int64, _ domain.EntityType, afterID int64, _ int) ([]*domain.CollectionItem, int64, error) {
+	r.itemsAfterID = afterID
 	return r.items, int64(len(r.items)), r.listItemsErr
 }
 

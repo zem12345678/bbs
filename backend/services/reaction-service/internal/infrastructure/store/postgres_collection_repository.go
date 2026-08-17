@@ -201,6 +201,33 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, user
 	return out, total, nil
 }
 
+func (r *PostgresCollectionRepository) ListCollectionsAfterID(ctx context.Context, userID, afterID int64, limit int) ([]*domain.Collection, int64, error) {
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
+	limit, _ = normalizeCollectionPage(limit, 0)
+	query := r.db.WithContext(ctx).Model(&collectionPO{}).Where("user_id = ?", userID)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []collectionPO
+	if err := query.
+		Select(`favorite_collections.*,
+  (SELECT COUNT(*) FROM favorite_collection_items WHERE collection_id = favorite_collections.id) AS item_count`).
+		Where("id > ?", afterID).Order("id ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*domain.Collection, 0, len(rows))
+	for i := range rows {
+		out = append(out, toCollectionEntity(&rows[i]))
+	}
+	return out, total, nil
+}
+
 func (r *PostgresCollectionRepository) AddCollectionItem(ctx context.Context, userID, collectionID int64, entity domain.EntityRef) (bool, error) {
 	if err := validateCollectionAccess(userID, collectionID, entity); err != nil {
 		return false, err
@@ -281,6 +308,46 @@ func (r *PostgresCollectionRepository) ListCollectionItems(ctx context.Context, 
 		}
 		var rows []collectionItemPO
 		if err := query.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+			return err
+		}
+		out = make([]*domain.CollectionItem, 0, len(rows))
+		for i := range rows {
+			out = append(out, toCollectionItemEntity(&rows[i]))
+		}
+		return nil
+	})
+	return out, total, err
+}
+
+func (r *PostgresCollectionRepository) ListCollectionItemsAfterID(ctx context.Context, userID, collectionID int64, entityType domain.EntityType, afterID int64, limit int) ([]*domain.CollectionItem, int64, error) {
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if collectionID <= 0 {
+		return nil, 0, domain.ErrInvalidCollectionID
+	}
+	if entityType != "" && !domain.ValidCollectionEntityType(entityType) {
+		return nil, 0, domain.ErrInvalidCollectionEntityType
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
+	limit, _ = normalizeCollectionPage(limit, 0)
+	var out []*domain.CollectionItem
+	var total int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockOwnedCollection(tx, userID, collectionID); err != nil {
+			return err
+		}
+		query := tx.Model(&collectionItemPO{}).Where("collection_id = ?", collectionID)
+		if entityType != "" {
+			query = query.Where("entity_type = ?", string(entityType))
+		}
+		if err := query.Count(&total).Error; err != nil {
+			return err
+		}
+		var rows []collectionItemPO
+		if err := query.Where("id > ?", afterID).Order("id ASC").Limit(limit).Find(&rows).Error; err != nil {
 			return err
 		}
 		out = make([]*domain.CollectionItem, 0, len(rows))

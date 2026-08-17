@@ -555,6 +555,9 @@ export const bbsApi = {
   clips(token) {
     return request("/clips/list", { method: "POST", body: {}, token });
   },
+  exportClips(token) {
+    return request("/i/export-clips", { method: "POST", body: {}, token });
+  },
   createClip(payload, token) {
     return request("/clips/create", { method: "POST", body: payload, token });
   },

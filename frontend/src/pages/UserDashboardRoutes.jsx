@@ -7,7 +7,7 @@ import NotificationPreferencesPanel from "../components/notifications/Notificati
 import { creditBalance, listItems, listTotal, notificationRead, unreadCount } from "../lib/apiShapes";
 import { dashboardOverviewLoadState, dashboardOverviewMetric } from "../lib/dashboardOverview";
 import { digitalEntitlementGrantKey, digitalEntitlementGrantType, digitalEntitlementLookupLimit, entitlementMatchesFocus, entitlementUsageTarget, isActiveMembershipEntitlement, isActiveThemeEntitlement, loadEntitlementsForFocus, normalizeEntitlementGrantTypeFilter, normalizeEntitlementStatusFilter } from "../lib/entitlements";
-import { ROOT_FILE_FOLDER_ID, fileFolderMoveOptions, fileFolderOptionLabel, fileFolderParentPayload, loadFileFolderTree, mergeKnownFileFolders, normalizeFileFolderId } from "../lib/fileFolders";
+import { ROOT_FILE_FOLDER_ID, fileFolderMoveOptions, fileFolderOptionLabel, fileFolderParentPayload, focusedFileAfterDelete, focusedFileAfterUpdate, loadFileFolderTree, mergeKnownFileFolders, normalizeFileFolderId, withoutFocusedFileParam } from "../lib/fileFolders";
 import { loadAllListPages, loadListForFocus } from "../lib/focusedLists";
 import { creditEntryMeta, creditReasonLabel, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { clearCheckoutAttemptForOrder, paymentAttemptKey } from "../lib/idempotencyKeys";
@@ -455,6 +455,8 @@ function ContentManagerPanel({ auth }) {
 }
 
 function FileLibraryPanel({ auth }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusedFileId = toId(searchParams.get("file_id"));
   const fileInputRef = React.useRef(null);
   const fileSessionRef = React.useRef(0);
   const fileTokenRef = React.useRef(auth.accessToken);
@@ -464,10 +466,12 @@ function FileLibraryPanel({ auth }) {
   const folderTreeRequestVersionRef = React.useRef(0);
   const folderTreeCacheRef = React.useRef(null);
   const fileUsageRequestVersionRef = React.useRef(0);
+  const focusedFileRequestVersionRef = React.useRef(0);
   const fileActionSubmittingRef = React.useRef(false);
   const [fileActionBusy, setFileActionBusy] = React.useState(false);
   const [folderPath, setFolderPath] = React.useState([]);
   const [knownFolders, setKnownFolders] = React.useState([]);
+  const [focusedFile, setFocusedFile] = React.useState(null);
   const [editor, setEditor] = React.useState(null);
   const [folderOptionsState, setFolderOptionsState] = React.useState({ loading: false, error: "" });
   const [folderState, setFolderState] = React.useState({
@@ -657,10 +661,12 @@ function FileLibraryPanel({ auth }) {
     folderTreeRequestVersionRef.current += 1;
     folderTreeCacheRef.current = null;
     fileUsageRequestVersionRef.current += 1;
+    focusedFileRequestVersionRef.current += 1;
     fileActionSubmittingRef.current = false;
     setFileActionBusy(false);
     setFolderPath([]);
     setKnownFolders([]);
+    setFocusedFile(null);
     setEditor(null);
     setFolderOptionsState({ loading: false, error: "" });
     setFolderState({
@@ -711,6 +717,60 @@ function FileLibraryPanel({ auth }) {
   React.useEffect(loadFiles, [loadFiles]);
   React.useEffect(loadFolders, [loadFolders]);
   React.useEffect(loadFileUsage, [loadFileUsage]);
+
+  React.useEffect(() => {
+    let alive = true;
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const requestVersion = ++focusedFileRequestVersionRef.current;
+    const isCurrentRequest = () => alive
+      && requestVersion === focusedFileRequestVersionRef.current
+      && isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!focusedFileId || !requestToken || !isCurrentRequest()) {
+      setFocusedFile(null);
+      return () => {
+        alive = false;
+      };
+    }
+
+    bbsApi.getFile(focusedFileId, requestToken)
+      .then(async (file) => {
+        if (!isCurrentRequest()) return;
+        const folderId = normalizeFileFolderId(file?.folder_id ?? file?.folderId);
+        let folders = [];
+        if (folderId !== ROOT_FILE_FOLDER_ID) {
+          folders = await loadFileFolderTree((params) => bbsApi.fileFolders(params, requestToken));
+          if (!isCurrentRequest()) return;
+        }
+        const folderById = new Map(folders.map((folder) => [normalizeFileFolderId(folder?.id), folder]));
+        const targetFolder = folderById.get(folderId);
+        setKnownFolders(folders);
+        folderTreeCacheRef.current = folders;
+        setFolderPath(targetFolder
+          ? (targetFolder.path || [folderId]).map((id) => {
+              const folder = folderById.get(normalizeFileFolderId(id));
+              return { id: normalizeFileFolderId(id), name: String(folder?.name || "未命名文件夹") };
+            })
+          : []);
+        setFocusedFile(file);
+      })
+      .catch((error) => {
+        if (!isCurrentRequest()) return;
+        setFocusedFile(null);
+        setState((current) => ({ ...current, error: error.message || "目标文件加载失败" }));
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.accessToken, focusedFileId]);
+
+  React.useEffect(() => {
+    if (!focusedFileId || !sameId(focusedFile?.id, focusedFileId)) return;
+    const focusedFolderId = normalizeFileFolderId(focusedFile?.folder_id ?? focusedFile?.folderId);
+    if (focusedFolderId !== currentFolderId) return;
+    document.getElementById(`file-${focusedFileId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [currentFolderId, focusedFile, focusedFileId, state.items]);
 
   function refreshFiles() {
     if (state.loading || state.loadingMore || fileActionSubmittingRef.current) return;
@@ -782,6 +842,33 @@ function FileLibraryPanel({ auth }) {
     }
   }
 
+  async function exportClips() {
+    const requestToken = auth.accessToken;
+    const fileSession = fileSessionRef.current;
+    const isCurrentRequest = () => isCurrentFileSessionRequest(requestToken, fileSession);
+    if (!requestToken || !isCurrentRequest() || fileActionSubmittingRef.current) return;
+    fileActionSubmittingRef.current = true;
+    setFileActionBusy(true);
+    setState((current) => ({ ...current, action: "export-clips", error: "", notice: "" }));
+    try {
+      await bbsApi.exportClips(requestToken);
+      if (!isCurrentRequest()) return;
+      setFolderPath([]);
+      setState((current) => ({ ...current, notice: "Clip 导出文件已生成，可在文件库下载。" }));
+      loadFileUsage();
+      if (currentFolderId === ROOT_FILE_FOLDER_ID) loadFiles();
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setState((current) => ({ ...current, error: error.message || "Clip 导出失败" }));
+    } finally {
+      if (isCurrentRequest()) {
+        fileActionSubmittingRef.current = false;
+        setFileActionBusy(false);
+        setState((current) => ({ ...current, action: "" }));
+      }
+    }
+  }
+
   async function downloadFile(file) {
     const fileId = toId(file?.id);
     const requestToken = auth.accessToken;
@@ -832,6 +919,11 @@ function FileLibraryPanel({ auth }) {
         offset: Math.max(0, current.offset - 1),
         notice: "文件已删除。"
       }));
+      if (sameId(fileId, focusedFileId)) {
+        focusedFileRequestVersionRef.current += 1;
+        setFocusedFile((current) => focusedFileAfterDelete(current, fileId));
+        setSearchParams((current) => withoutFocusedFileParam(current, fileId), { replace: true });
+      }
       loadFileUsage();
     } catch (error) {
       if (!isCurrentRequest()) return;
@@ -988,6 +1080,7 @@ function FileLibraryPanel({ auth }) {
           offset: destinationId === requestFolderId ? current.offset : Math.max(0, current.offset - 1),
           notice: "文件信息已更新。"
         }));
+        setFocusedFile((current) => focusedFileAfterUpdate(current, fileId, updated));
         loadFolders();
       }
       setEditor(null);
@@ -1047,6 +1140,11 @@ function FileLibraryPanel({ auth }) {
     [knownFolders]
   );
   const editorNeedsFolderOptions = editor?.type === "edit-folder" || editor?.type === "edit-file";
+  const focusedFileInCurrentFolder = sameId(focusedFile?.id, focusedFileId)
+    && normalizeFileFolderId(focusedFile?.folder_id ?? focusedFile?.folderId) === currentFolderId;
+  const visibleFiles = focusedFileInCurrentFolder && !state.items.some((file) => sameId(file?.id, focusedFileId))
+    ? [focusedFile, ...state.items]
+    : state.items;
   const rowCount = state.total + folderState.total;
 
   return (
@@ -1174,6 +1272,10 @@ function FileLibraryPanel({ auth }) {
               {state.action === "upload" ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}
               {state.action === "upload" ? "上传中" : "上传文件"}
             </button>
+            <button disabled={fileActionBusy || state.loading || state.loadingMore} type="button" onClick={exportClips}>
+              {state.action === "export-clips" ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
+              {state.action === "export-clips" ? "导出中" : "导出 Clip"}
+            </button>
             <button disabled={fileActionBusy || state.loading || state.loadingMore || folderState.loading || folderState.loadingMore} type="button" onClick={refreshFiles}>
               <RefreshCcw className={state.loading || folderState.loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
               刷新
@@ -1210,18 +1312,21 @@ function FileLibraryPanel({ auth }) {
             />
           );
         })}
-        {state.items.map((file) => {
+        {visibleFiles.map((file) => {
           const fileId = toId(file?.id);
+          const focused = sameId(fileId, focusedFileId);
           const managedMedia = isManagedMediaFile(file);
           const downloading = state.action === `download-${fileId}`;
           const deleting = state.action === `delete-${fileId}`;
           return (
             <WorkspaceRow
+              elementId={`file-${fileId}`}
+              focused={focused}
               key={fileId}
               title={file.original_name || `文件 #${fileId}`}
               description={`${file.content_type || "未知类型"} · ${formatFileSize(file.size_bytes ?? file.sizeBytes)}${file.comment ? ` · ${file.comment}` : ""}`}
               meta={`${fileSourceLabel(file)} · ${timeAgoMillis(file.created_at || file.createdAt)}`}
-              status={file.is_sensitive || file.isSensitive ? "敏感内容" : managedMedia ? "系统媒体" : fileStatusLabel(file.status)}
+              status={focused ? "当前定位" : file.is_sensitive || file.isSensitive ? "敏感内容" : managedMedia ? "系统媒体" : fileStatusLabel(file.status)}
               actions={
                 <>
                   <button aria-label={`下载文件 ${file.original_name || fileId}`} disabled={fileActionBusy} type="button" onClick={() => downloadFile(file)}>
@@ -3949,9 +4054,9 @@ function interactionPostKey(post) {
   return id ? `${post?.kind || ""}:${id}` : "";
 }
 
-function WorkspaceRow({ actions, description, focused = false, media = [], meta, status, tags = [], title }) {
+function WorkspaceRow({ actions, description, elementId, focused = false, media = [], meta, status, tags = [], title }) {
   return (
-    <article className={`moderation-row panel ${focused ? "is-focused" : ""}`}>
+    <article className={`moderation-row panel ${focused ? "is-focused" : ""}`} id={elementId}>
       <div>
         <strong>{title}</strong>
         <p>{description}</p>

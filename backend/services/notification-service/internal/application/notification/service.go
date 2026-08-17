@@ -339,6 +339,26 @@ func (s *Service) DispatchSystemNotifications(ctx context.Context, command domai
 	return s.repo.CreateSystemNotifications(ctx, command, time.Now())
 }
 
+func (s *Service) CreateExportCompletedNotification(ctx context.Context, command domain.ExportCompletedNotificationCommand) error {
+	command.ExportedEntity = strings.TrimSpace(command.ExportedEntity)
+	command.IdempotencyKey = strings.TrimSpace(command.IdempotencyKey)
+	if command.RecipientID <= 0 || command.FileID <= 0 || command.ExportedEntity != domain.ExportCompletedEntityClip ||
+		command.IdempotencyKey == "" || utf8.RuneCountInString(command.IdempotencyKey) > domain.ExportCompletedNotificationMaxIdempotencyKey ||
+		strings.ContainsRune(command.IdempotencyKey, '\x00') {
+		return domain.ErrInvalidExportCompletedNotification
+	}
+
+	return s.repo.Create(ctx, domain.Notification{
+		UserID:     command.RecipientID,
+		Type:       domain.NotificationTypeExportCompleted,
+		Title:      "Clip 导出完成",
+		Content:    "你的 Clip 导出已完成，可以在文件库中下载。",
+		EntityType: "file",
+		EntityID:   command.FileID,
+		SourceID:   command.FileID,
+	}, "export_completed:"+command.IdempotencyKey, time.Now())
+}
+
 func normalizeSystemNotificationCommand(command domain.SystemNotificationCommand) (domain.SystemNotificationCommand, error) {
 	if command.ActorID <= 0 || len(command.RecipientIDs) == 0 || len(command.RecipientIDs) > domain.SystemNotificationMaxRecipients {
 		return domain.SystemNotificationCommand{}, domain.ErrInvalidSystemNotification

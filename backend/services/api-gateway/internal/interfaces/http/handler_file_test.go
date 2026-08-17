@@ -396,10 +396,14 @@ type fakeUserFileClient struct {
 	deleteResp *filepb.FileResponse
 	createErr  error
 	getErr     error
+	onCreate   func()
 }
 
 func (f *fakeUserFileClient) CreateFile(_ context.Context, req *filepb.CreateFileRequest, _ ...grpc.CallOption) (*filepb.FileResponse, error) {
 	f.createReq = req
+	if f.onCreate != nil {
+		f.onCreate()
+	}
 	if f.createErr != nil {
 		return nil, f.createErr
 	}

@@ -67,6 +67,14 @@ test("labels directed system notifications distinctly", () => {
   assert.equal(notificationTargetLabel(notification), "查看");
 });
 
+test("routes export completion notifications to the generated file", () => {
+  const notification = { type: "export_completed", entity_type: "file", entity_id: "9223372036854775807" };
+
+  assert.equal(notificationTarget(notification), "/dashboard/files?file_id=9223372036854775807");
+  assert.equal(notificationTargetLabel(notification), "查看文件");
+  assert.equal(notificationGroupLabel(notification), "数据导出");
+});
+
 test("routes follow request notifications to their actionable destination", () => {
   const received = { type: "follow_request_received", entity_type: "user", entity_id: 22, actor_id: 22 };
   const accepted = { type: "follow_request_accepted", entity_type: "user", entity_id: 33, actor_id: 33 };

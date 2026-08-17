@@ -15,6 +15,12 @@ const (
 )
 
 const (
+	NotificationTypeExportCompleted              = "export_completed"
+	ExportCompletedEntityClip                    = "clip"
+	ExportCompletedNotificationMaxIdempotencyKey = 95
+)
+
+const (
 	WebPushSubscriptionStateActive = "active"
 	WebPushMaxEndpointBytes        = 2048
 	WebPushMaxKeyBytes             = 512
@@ -41,12 +47,13 @@ const (
 )
 
 var (
-	ErrInvalidSystemNotification      = errors.New("invalid system notification")
-	ErrInvalidUserErasure             = errors.New("invalid user erasure")
-	ErrInvalidNotificationPreferences = errors.New("invalid notification preferences")
-	ErrInvalidWebPushSubscription     = errors.New("invalid web push subscription")
-	ErrWebPushDisabled                = errors.New("web push is disabled")
-	ErrWebPushSubscriptionLimit       = errors.New("web push subscription limit reached")
+	ErrInvalidSystemNotification          = errors.New("invalid system notification")
+	ErrInvalidExportCompletedNotification = errors.New("invalid export completed notification")
+	ErrInvalidUserErasure                 = errors.New("invalid user erasure")
+	ErrInvalidNotificationPreferences     = errors.New("invalid notification preferences")
+	ErrInvalidWebPushSubscription         = errors.New("invalid web push subscription")
+	ErrWebPushDisabled                    = errors.New("web push is disabled")
+	ErrWebPushSubscriptionLimit           = errors.New("web push subscription limit reached")
 )
 
 type Notification struct {
@@ -120,6 +127,7 @@ type WebPushOutboxRepository interface {
 func DefaultNotificationPreferences() []NotificationPreference {
 	types := []string{
 		SystemNotificationType,
+		NotificationTypeExportCompleted,
 		NotificationTypeFollow,
 		NotificationTypeFollowRequestReceived,
 		NotificationTypeFollowRequestAccepted,
@@ -181,6 +189,13 @@ type SystemNotificationCommand struct {
 	Title          string
 	Content        string
 	ActorID        int64
+	IdempotencyKey string
+}
+
+type ExportCompletedNotificationCommand struct {
+	RecipientID    int64
+	FileID         int64
+	ExportedEntity string
 	IdempotencyKey string
 }
 

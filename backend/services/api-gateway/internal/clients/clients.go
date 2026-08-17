@@ -33,6 +33,7 @@ type Clients struct {
 	Credit                CreditClient
 	Mall                  MallClient
 	Notification          NotificationClient
+	NotificationInternal  NotificationInternalClient
 	File                  FileClient
 	Chat                  ChatClient
 

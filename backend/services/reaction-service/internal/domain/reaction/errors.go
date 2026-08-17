@@ -17,6 +17,7 @@ var (
 	ErrInvalidCollectionName           = errors.New("REACTION_INVALID_COLLECTION_NAME")
 	ErrInvalidCollectionDescription    = errors.New("REACTION_INVALID_COLLECTION_DESCRIPTION")
 	ErrInvalidCollectionEntityType     = errors.New("REACTION_INVALID_COLLECTION_ENTITY_TYPE")
+	ErrInvalidCollectionCursor         = errors.New("REACTION_INVALID_COLLECTION_CURSOR")
 	ErrCollectionNotFound              = errors.New("REACTION_COLLECTION_NOT_FOUND")
 	ErrCollectionNameExists            = errors.New("REACTION_COLLECTION_NAME_EXISTS")
 	ErrCollectionRepositoryUnavailable = errors.New("REACTION_COLLECTION_REPOSITORY_UNAVAILABLE")

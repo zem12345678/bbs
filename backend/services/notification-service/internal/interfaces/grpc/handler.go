@@ -186,6 +186,19 @@ func (h *Handler) DispatchSystemNotifications(ctx context.Context, req *pb.Dispa
 	return &pb.DispatchSystemNotificationsResponse{DeliveredCount: delivered}, nil
 }
 
+func (h *Handler) CreateExportCompletedNotification(ctx context.Context, req *pb.CreateExportCompletedNotificationRequest) (*pb.MutationResponse, error) {
+	err := h.service.CreateExportCompletedNotification(ctx, domain.ExportCompletedNotificationCommand{
+		RecipientID:    req.GetRecipientId(),
+		FileID:         req.GetFileId(),
+		ExportedEntity: req.GetExportedEntity(),
+		IdempotencyKey: req.GetIdempotencyKey(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) EraseUserData(ctx context.Context, req *pb.EraseUserDataRequest) (*pb.MutationResponse, error) {
 	if err := h.service.EraseUserData(ctx, req.GetUserId(), req.GetDeletionJobId(), req.GetPolicyVersion()); err != nil {
 		return nil, toStatus(err)

@@ -689,3 +689,106 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "notification.proto",
 }
+
+const (
+	InternalNotificationService_CreateExportCompletedNotification_FullMethodName = "/bbs.notification.v1.InternalNotificationService/CreateExportCompletedNotification"
+)
+
+// InternalNotificationServiceClient is the client API for InternalNotificationService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type InternalNotificationServiceClient interface {
+	CreateExportCompletedNotification(ctx context.Context, in *CreateExportCompletedNotificationRequest, opts ...grpc.CallOption) (*MutationResponse, error)
+}
+
+type internalNotificationServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewInternalNotificationServiceClient(cc grpc.ClientConnInterface) InternalNotificationServiceClient {
+	return &internalNotificationServiceClient{cc}
+}
+
+func (c *internalNotificationServiceClient) CreateExportCompletedNotification(ctx context.Context, in *CreateExportCompletedNotificationRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, InternalNotificationService_CreateExportCompletedNotification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// InternalNotificationServiceServer is the server API for InternalNotificationService service.
+// All implementations must embed UnimplementedInternalNotificationServiceServer
+// for forward compatibility.
+type InternalNotificationServiceServer interface {
+	CreateExportCompletedNotification(context.Context, *CreateExportCompletedNotificationRequest) (*MutationResponse, error)
+	mustEmbedUnimplementedInternalNotificationServiceServer()
+}
+
+// UnimplementedInternalNotificationServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedInternalNotificationServiceServer struct{}
+
+func (UnimplementedInternalNotificationServiceServer) CreateExportCompletedNotification(context.Context, *CreateExportCompletedNotificationRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateExportCompletedNotification not implemented")
+}
+func (UnimplementedInternalNotificationServiceServer) mustEmbedUnimplementedInternalNotificationServiceServer() {
+}
+func (UnimplementedInternalNotificationServiceServer) testEmbeddedByValue() {}
+
+// UnsafeInternalNotificationServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to InternalNotificationServiceServer will
+// result in compilation errors.
+type UnsafeInternalNotificationServiceServer interface {
+	mustEmbedUnimplementedInternalNotificationServiceServer()
+}
+
+func RegisterInternalNotificationServiceServer(s grpc.ServiceRegistrar, srv InternalNotificationServiceServer) {
+	// If the following call panics, it indicates UnimplementedInternalNotificationServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&InternalNotificationService_ServiceDesc, srv)
+}
+
+func _InternalNotificationService_CreateExportCompletedNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateExportCompletedNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InternalNotificationServiceServer).CreateExportCompletedNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InternalNotificationService_CreateExportCompletedNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InternalNotificationServiceServer).CreateExportCompletedNotification(ctx, req.(*CreateExportCompletedNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// InternalNotificationService_ServiceDesc is the grpc.ServiceDesc for InternalNotificationService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var InternalNotificationService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bbs.notification.v1.InternalNotificationService",
+	HandlerType: (*InternalNotificationServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateExportCompletedNotification",
+			Handler:    _InternalNotificationService_CreateExportCompletedNotification_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "notification.proto",
+}

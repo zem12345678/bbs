@@ -63,6 +63,7 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE", "6")
 	t.Setenv("BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL", "9m")
 	t.Setenv("BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE", "8")
+	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_CLIP_INTERVAL", "36h")
 	t.Setenv("BBS_GATEWAY_LOG_LEVEL", "debug")
 	t.Setenv("BBS_GATEWAY_LOG_STDOUT", "true")
 	t.Setenv("BBS_GATEWAY_TRACE_ENV", "prod")
@@ -150,6 +151,9 @@ upstreams:
 	}
 	if cfg.Files.RateLimit.UploadInterval != 9*time.Minute || cfg.Files.RateLimit.UploadRate != 8 {
 		t.Fatalf("file upload rate limit = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)
+	}
+	if cfg.Exports.RateLimit.ClipInterval != 36*time.Hour {
+		t.Fatalf("clip export interval = %s", cfg.Exports.RateLimit.ClipInterval)
 	}
 	if v.GetString("log.level") != "debug" {
 		t.Fatalf("log level = %q", v.GetString("log.level"))
@@ -347,6 +351,9 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	}
 	if cfg.Files.RateLimit.UploadInterval != time.Minute || cfg.Files.RateLimit.UploadRate != 10 {
 		t.Fatalf("file upload defaults = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)
+	}
+	if cfg.Exports.RateLimit.ClipInterval != 24*time.Hour {
+		t.Fatalf("clip export default interval = %s", cfg.Exports.RateLimit.ClipInterval)
 	}
 	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" || cfg.Upstreams.Chat == "" {
 		t.Fatalf("expected default upstreams, got %#v", cfg.Upstreams)

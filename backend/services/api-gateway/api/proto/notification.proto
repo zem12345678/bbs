@@ -23,6 +23,10 @@ service NotificationService {
   rpc TestWebhook(TestWebhookRequest) returns (MutationResponse);
 }
 
+service InternalNotificationService {
+  rpc CreateExportCompletedNotification(CreateExportCompletedNotificationRequest) returns (MutationResponse);
+}
+
 message Notification {
   int64 id = 1;
   int64 user_id = 2;
@@ -189,4 +193,11 @@ message TestWebhookRequest {
 message MutationResponse {
   bool success = 1;
   string message = 2;
+}
+
+message CreateExportCompletedNotificationRequest {
+  int64 recipient_id = 1;
+  int64 file_id = 2;
+  string exported_entity = 3;
+  string idempotency_key = 4;
 }

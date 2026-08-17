@@ -21,10 +21,10 @@ func TestInitServersRegistersInternalNotificationWriterSeparately(t *testing.T) 
 	for _, method := range internal.Methods {
 		methods[method.Name] = struct{}{}
 	}
-	if len(methods) != 2 {
+	if len(methods) != 3 {
 		t.Fatalf("internal notification methods = %#v", internal.Methods)
 	}
-	for _, name := range []string{"DispatchSystemNotifications", "EraseUserData"} {
+	for _, name := range []string{"DispatchSystemNotifications", "CreateExportCompletedNotification", "EraseUserData"} {
 		if _, ok := methods[name]; !ok {
 			t.Fatalf("internal notification methods = %#v", internal.Methods)
 		}

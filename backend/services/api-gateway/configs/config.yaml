@@ -72,6 +72,10 @@ files:
     uploadInterval: 1m
     uploadRate: 10
 
+exports:
+  rateLimit:
+    clipInterval: 24h
+
 http:
   # Local default. Containers should set BBS_GATEWAY_HTTP_HOST=0.0.0.0.
   host: "127.0.0.1"

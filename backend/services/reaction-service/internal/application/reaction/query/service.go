@@ -113,6 +113,20 @@ func (s *Service) ListCollections(ctx context.Context, userID int64, limit, offs
 	return s.collections.ListCollections(ctx, userID, limit, offset)
 }
 
+func (s *Service) ListCollectionsAfterID(ctx context.Context, userID, afterID int64, limit int) ([]*domain.Collection, int64, error) {
+	collections, ok := s.collections.(domain.CollectionKeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrCollectionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
+	return collections.ListCollectionsAfterID(ctx, userID, afterID, limit)
+}
+
 func (s *Service) ListCollectionItems(ctx context.Context, userID, collectionID int64, entityType domain.EntityType, limit, offset int) ([]*domain.CollectionItem, int64, error) {
 	if s.collections == nil {
 		return nil, 0, domain.ErrCollectionRepositoryUnavailable
@@ -127,6 +141,26 @@ func (s *Service) ListCollectionItems(ctx context.Context, userID, collectionID 
 		return nil, 0, domain.ErrInvalidCollectionEntityType
 	}
 	return s.collections.ListCollectionItems(ctx, userID, collectionID, entityType, limit, offset)
+}
+
+func (s *Service) ListCollectionItemsAfterID(ctx context.Context, userID, collectionID int64, entityType domain.EntityType, afterID int64, limit int) ([]*domain.CollectionItem, int64, error) {
+	collections, ok := s.collections.(domain.CollectionKeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrCollectionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if collectionID <= 0 {
+		return nil, 0, domain.ErrInvalidCollectionID
+	}
+	if entityType != "" && !domain.ValidCollectionEntityType(entityType) {
+		return nil, 0, domain.ErrInvalidCollectionEntityType
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
+	return collections.ListCollectionItemsAfterID(ctx, userID, collectionID, entityType, afterID, limit)
 }
 
 func (s *Service) GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*domain.Collection, error) {

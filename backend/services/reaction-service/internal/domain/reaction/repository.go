@@ -59,6 +59,13 @@ type CollectionRepository interface {
 	ListCollectionItems(ctx context.Context, userID, collectionID int64, entityType EntityType, limit, offset int) ([]*CollectionItem, int64, error)
 }
 
+// CollectionKeysetRepository provides stable, exclusive ID traversal for
+// long-running consumers without changing the existing offset list behavior.
+type CollectionKeysetRepository interface {
+	ListCollectionsAfterID(ctx context.Context, userID, afterID int64, limit int) ([]*Collection, int64, error)
+	ListCollectionItemsAfterID(ctx context.Context, userID, collectionID int64, entityType EntityType, afterID int64, limit int) ([]*CollectionItem, int64, error)
+}
+
 type PublicCollectionRepository interface {
 	GetCollection(ctx context.Context, collectionID, viewerUserID int64) (*Collection, error)
 	ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*CollectionItem, int64, error)

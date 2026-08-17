@@ -41,6 +41,9 @@ export function notificationTarget(item) {
   if (entityType === "article" && entityId) {
     return `/article/${entityId}${commentHash}`;
   }
+  if (entityType === "file" && entityId) {
+    return `/dashboard/files?file_id=${encodeURIComponent(entityId)}`;
+  }
   if (entityType === "user") {
     const userId = actorId || entityId;
     return userId ? `/user/${userId}` : "";
@@ -82,6 +85,7 @@ export function notificationTargetLabel(item) {
   if (type === "comment") return "查看评论";
   if (entityType === "topic") return "查看话题";
   if (entityType === "article") return "查看文章";
+  if (entityType === "file") return "查看文件";
   if (entityType === "user" || (item?.type || "") === "follow") return "查看用户";
   if (entityType === "mall_order") {
     if (mallNotificationGroup(item) === "refund") return "查看售后";
@@ -116,6 +120,7 @@ export function notificationGroupLabel(item) {
   }
   const type = item?.type || "";
   if (type === "system") return "系统";
+  if (type === "export_completed") return "数据导出";
   if (type === "reply") return "回复";
   if (type === "comment") return "评论";
   if (type === "like") return "点赞";

@@ -1817,6 +1817,74 @@ func (x *DispatchSystemNotificationsResponse) GetDeliveredCount() int32 {
 	return 0
 }
 
+type CreateExportCompletedNotificationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RecipientId    int64                  `protobuf:"varint,1,opt,name=recipient_id,json=recipientId,proto3" json:"recipient_id,omitempty"`
+	FileId         int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	ExportedEntity string                 `protobuf:"bytes,3,opt,name=exported_entity,json=exportedEntity,proto3" json:"exported_entity,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateExportCompletedNotificationRequest) Reset() {
+	*x = CreateExportCompletedNotificationRequest{}
+	mi := &file_notification_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateExportCompletedNotificationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateExportCompletedNotificationRequest) ProtoMessage() {}
+
+func (x *CreateExportCompletedNotificationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_notification_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateExportCompletedNotificationRequest.ProtoReflect.Descriptor instead.
+func (*CreateExportCompletedNotificationRequest) Descriptor() ([]byte, []int) {
+	return file_notification_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *CreateExportCompletedNotificationRequest) GetRecipientId() int64 {
+	if x != nil {
+		return x.RecipientId
+	}
+	return 0
+}
+
+func (x *CreateExportCompletedNotificationRequest) GetFileId() int64 {
+	if x != nil {
+		return x.FileId
+	}
+	return 0
+}
+
+func (x *CreateExportCompletedNotificationRequest) GetExportedEntity() string {
+	if x != nil {
+		return x.ExportedEntity
+	}
+	return ""
+}
+
+func (x *CreateExportCompletedNotificationRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
 type EraseUserDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1828,7 +1896,7 @@ type EraseUserDataRequest struct {
 
 func (x *EraseUserDataRequest) Reset() {
 	*x = EraseUserDataRequest{}
-	mi := &file_notification_proto_msgTypes[29]
+	mi := &file_notification_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1840,7 +1908,7 @@ func (x *EraseUserDataRequest) String() string {
 func (*EraseUserDataRequest) ProtoMessage() {}
 
 func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_notification_proto_msgTypes[29]
+	mi := &file_notification_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1853,7 +1921,7 @@ func (x *EraseUserDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EraseUserDataRequest.ProtoReflect.Descriptor instead.
 func (*EraseUserDataRequest) Descriptor() ([]byte, []int) {
-	return file_notification_proto_rawDescGZIP(), []int{29}
+	return file_notification_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *EraseUserDataRequest) GetUserId() int64 {
@@ -2023,7 +2091,12 @@ const file_notification_proto_rawDesc = "" +
 	"\bactor_id\x18\x04 \x01(\x03R\aactorId\x12'\n" +
 	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"N\n" +
 	"#DispatchSystemNotificationsResponse\x12'\n" +
-	"\x0fdelivered_count\x18\x01 \x01(\x05R\x0edeliveredCount\"~\n" +
+	"\x0fdelivered_count\x18\x01 \x01(\x05R\x0edeliveredCount\"\xb8\x01\n" +
+	"(CreateExportCompletedNotificationRequest\x12!\n" +
+	"\frecipient_id\x18\x01 \x01(\x03R\vrecipientId\x12\x17\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId\x12'\n" +
+	"\x0fexported_entity\x18\x03 \x01(\tR\x0eexportedEntity\x12'\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"~\n" +
 	"\x14EraseUserDataRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12&\n" +
 	"\x0fdeletion_job_id\x18\x02 \x01(\x03R\rdeletionJobId\x12%\n" +
@@ -2044,9 +2117,10 @@ const file_notification_proto_rawDesc = "" +
 	"\vShowWebhook\x12'.bbs.notification.v1.ShowWebhookRequest\x1a$.bbs.notification.v1.WebhookResponse\x12`\n" +
 	"\rUpdateWebhook\x12).bbs.notification.v1.UpdateWebhookRequest\x1a$.bbs.notification.v1.WebhookResponse\x12a\n" +
 	"\rDeleteWebhook\x12).bbs.notification.v1.DeleteWebhookRequest\x1a%.bbs.notification.v1.MutationResponse\x12]\n" +
-	"\vTestWebhook\x12'.bbs.notification.v1.TestWebhookRequest\x1a%.bbs.notification.v1.MutationResponse2\x93\x02\n" +
+	"\vTestWebhook\x12'.bbs.notification.v1.TestWebhookRequest\x1a%.bbs.notification.v1.MutationResponse2\x9f\x03\n" +
 	"\x1bInternalNotificationService\x12\x90\x01\n" +
-	"\x1bDispatchSystemNotifications\x127.bbs.notification.v1.DispatchSystemNotificationsRequest\x1a8.bbs.notification.v1.DispatchSystemNotificationsResponse\x12a\n" +
+	"\x1bDispatchSystemNotifications\x127.bbs.notification.v1.DispatchSystemNotificationsRequest\x1a8.bbs.notification.v1.DispatchSystemNotificationsResponse\x12\x89\x01\n" +
+	"!CreateExportCompletedNotification\x12=.bbs.notification.v1.CreateExportCompletedNotificationRequest\x1a%.bbs.notification.v1.MutationResponse\x12a\n" +
 	"\rEraseUserData\x12).bbs.notification.v1.EraseUserDataRequest\x1a%.bbs.notification.v1.MutationResponseB>Z<notification-service/api/proto/notificationpb;notificationpbb\x06proto3"
 
 var (
@@ -2061,38 +2135,39 @@ func file_notification_proto_rawDescGZIP() []byte {
 	return file_notification_proto_rawDescData
 }
 
-var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_notification_proto_goTypes = []any{
-	(*Notification)(nil),                         // 0: bbs.notification.v1.Notification
-	(*ListNotificationsRequest)(nil),             // 1: bbs.notification.v1.ListNotificationsRequest
-	(*ListNotificationsResponse)(nil),            // 2: bbs.notification.v1.ListNotificationsResponse
-	(*CountUnreadRequest)(nil),                   // 3: bbs.notification.v1.CountUnreadRequest
-	(*CountUnreadResponse)(nil),                  // 4: bbs.notification.v1.CountUnreadResponse
-	(*MarkReadRequest)(nil),                      // 5: bbs.notification.v1.MarkReadRequest
-	(*MarkAllReadRequest)(nil),                   // 6: bbs.notification.v1.MarkAllReadRequest
-	(*NotificationPreference)(nil),               // 7: bbs.notification.v1.NotificationPreference
-	(*GetPreferencesRequest)(nil),                // 8: bbs.notification.v1.GetPreferencesRequest
-	(*UpdatePreferencesRequest)(nil),             // 9: bbs.notification.v1.UpdatePreferencesRequest
-	(*PreferencesResponse)(nil),                  // 10: bbs.notification.v1.PreferencesResponse
-	(*GetWebPushConfigRequest)(nil),              // 11: bbs.notification.v1.GetWebPushConfigRequest
-	(*WebPushConfigResponse)(nil),                // 12: bbs.notification.v1.WebPushConfigResponse
-	(*RegisterWebPushSubscriptionRequest)(nil),   // 13: bbs.notification.v1.RegisterWebPushSubscriptionRequest
-	(*GetWebPushSubscriptionRequest)(nil),        // 14: bbs.notification.v1.GetWebPushSubscriptionRequest
-	(*UnregisterWebPushSubscriptionRequest)(nil), // 15: bbs.notification.v1.UnregisterWebPushSubscriptionRequest
-	(*WebPushSubscriptionResponse)(nil),          // 16: bbs.notification.v1.WebPushSubscriptionResponse
-	(*Webhook)(nil),                              // 17: bbs.notification.v1.Webhook
-	(*ListWebhooksRequest)(nil),                  // 18: bbs.notification.v1.ListWebhooksRequest
-	(*WebhookListResponse)(nil),                  // 19: bbs.notification.v1.WebhookListResponse
-	(*CreateWebhookRequest)(nil),                 // 20: bbs.notification.v1.CreateWebhookRequest
-	(*WebhookResponse)(nil),                      // 21: bbs.notification.v1.WebhookResponse
-	(*ShowWebhookRequest)(nil),                   // 22: bbs.notification.v1.ShowWebhookRequest
-	(*UpdateWebhookRequest)(nil),                 // 23: bbs.notification.v1.UpdateWebhookRequest
-	(*DeleteWebhookRequest)(nil),                 // 24: bbs.notification.v1.DeleteWebhookRequest
-	(*TestWebhookRequest)(nil),                   // 25: bbs.notification.v1.TestWebhookRequest
-	(*MutationResponse)(nil),                     // 26: bbs.notification.v1.MutationResponse
-	(*DispatchSystemNotificationsRequest)(nil),   // 27: bbs.notification.v1.DispatchSystemNotificationsRequest
-	(*DispatchSystemNotificationsResponse)(nil),  // 28: bbs.notification.v1.DispatchSystemNotificationsResponse
-	(*EraseUserDataRequest)(nil),                 // 29: bbs.notification.v1.EraseUserDataRequest
+	(*Notification)(nil),                             // 0: bbs.notification.v1.Notification
+	(*ListNotificationsRequest)(nil),                 // 1: bbs.notification.v1.ListNotificationsRequest
+	(*ListNotificationsResponse)(nil),                // 2: bbs.notification.v1.ListNotificationsResponse
+	(*CountUnreadRequest)(nil),                       // 3: bbs.notification.v1.CountUnreadRequest
+	(*CountUnreadResponse)(nil),                      // 4: bbs.notification.v1.CountUnreadResponse
+	(*MarkReadRequest)(nil),                          // 5: bbs.notification.v1.MarkReadRequest
+	(*MarkAllReadRequest)(nil),                       // 6: bbs.notification.v1.MarkAllReadRequest
+	(*NotificationPreference)(nil),                   // 7: bbs.notification.v1.NotificationPreference
+	(*GetPreferencesRequest)(nil),                    // 8: bbs.notification.v1.GetPreferencesRequest
+	(*UpdatePreferencesRequest)(nil),                 // 9: bbs.notification.v1.UpdatePreferencesRequest
+	(*PreferencesResponse)(nil),                      // 10: bbs.notification.v1.PreferencesResponse
+	(*GetWebPushConfigRequest)(nil),                  // 11: bbs.notification.v1.GetWebPushConfigRequest
+	(*WebPushConfigResponse)(nil),                    // 12: bbs.notification.v1.WebPushConfigResponse
+	(*RegisterWebPushSubscriptionRequest)(nil),       // 13: bbs.notification.v1.RegisterWebPushSubscriptionRequest
+	(*GetWebPushSubscriptionRequest)(nil),            // 14: bbs.notification.v1.GetWebPushSubscriptionRequest
+	(*UnregisterWebPushSubscriptionRequest)(nil),     // 15: bbs.notification.v1.UnregisterWebPushSubscriptionRequest
+	(*WebPushSubscriptionResponse)(nil),              // 16: bbs.notification.v1.WebPushSubscriptionResponse
+	(*Webhook)(nil),                                  // 17: bbs.notification.v1.Webhook
+	(*ListWebhooksRequest)(nil),                      // 18: bbs.notification.v1.ListWebhooksRequest
+	(*WebhookListResponse)(nil),                      // 19: bbs.notification.v1.WebhookListResponse
+	(*CreateWebhookRequest)(nil),                     // 20: bbs.notification.v1.CreateWebhookRequest
+	(*WebhookResponse)(nil),                          // 21: bbs.notification.v1.WebhookResponse
+	(*ShowWebhookRequest)(nil),                       // 22: bbs.notification.v1.ShowWebhookRequest
+	(*UpdateWebhookRequest)(nil),                     // 23: bbs.notification.v1.UpdateWebhookRequest
+	(*DeleteWebhookRequest)(nil),                     // 24: bbs.notification.v1.DeleteWebhookRequest
+	(*TestWebhookRequest)(nil),                       // 25: bbs.notification.v1.TestWebhookRequest
+	(*MutationResponse)(nil),                         // 26: bbs.notification.v1.MutationResponse
+	(*DispatchSystemNotificationsRequest)(nil),       // 27: bbs.notification.v1.DispatchSystemNotificationsRequest
+	(*DispatchSystemNotificationsResponse)(nil),      // 28: bbs.notification.v1.DispatchSystemNotificationsResponse
+	(*CreateExportCompletedNotificationRequest)(nil), // 29: bbs.notification.v1.CreateExportCompletedNotificationRequest
+	(*EraseUserDataRequest)(nil),                     // 30: bbs.notification.v1.EraseUserDataRequest
 }
 var file_notification_proto_depIdxs = []int32{
 	0,  // 0: bbs.notification.v1.ListNotificationsResponse.items:type_name -> bbs.notification.v1.Notification
@@ -2117,27 +2192,29 @@ var file_notification_proto_depIdxs = []int32{
 	24, // 19: bbs.notification.v1.NotificationService.DeleteWebhook:input_type -> bbs.notification.v1.DeleteWebhookRequest
 	25, // 20: bbs.notification.v1.NotificationService.TestWebhook:input_type -> bbs.notification.v1.TestWebhookRequest
 	27, // 21: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:input_type -> bbs.notification.v1.DispatchSystemNotificationsRequest
-	29, // 22: bbs.notification.v1.InternalNotificationService.EraseUserData:input_type -> bbs.notification.v1.EraseUserDataRequest
-	2,  // 23: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
-	4,  // 24: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
-	26, // 25: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
-	26, // 26: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
-	10, // 27: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	10, // 28: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
-	12, // 29: bbs.notification.v1.NotificationService.GetWebPushConfig:output_type -> bbs.notification.v1.WebPushConfigResponse
-	16, // 30: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
-	16, // 31: bbs.notification.v1.NotificationService.GetWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
-	26, // 32: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:output_type -> bbs.notification.v1.MutationResponse
-	19, // 33: bbs.notification.v1.NotificationService.ListWebhooks:output_type -> bbs.notification.v1.WebhookListResponse
-	21, // 34: bbs.notification.v1.NotificationService.CreateWebhook:output_type -> bbs.notification.v1.WebhookResponse
-	21, // 35: bbs.notification.v1.NotificationService.ShowWebhook:output_type -> bbs.notification.v1.WebhookResponse
-	21, // 36: bbs.notification.v1.NotificationService.UpdateWebhook:output_type -> bbs.notification.v1.WebhookResponse
-	26, // 37: bbs.notification.v1.NotificationService.DeleteWebhook:output_type -> bbs.notification.v1.MutationResponse
-	26, // 38: bbs.notification.v1.NotificationService.TestWebhook:output_type -> bbs.notification.v1.MutationResponse
-	28, // 39: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:output_type -> bbs.notification.v1.DispatchSystemNotificationsResponse
-	26, // 40: bbs.notification.v1.InternalNotificationService.EraseUserData:output_type -> bbs.notification.v1.MutationResponse
-	23, // [23:41] is the sub-list for method output_type
-	5,  // [5:23] is the sub-list for method input_type
+	29, // 22: bbs.notification.v1.InternalNotificationService.CreateExportCompletedNotification:input_type -> bbs.notification.v1.CreateExportCompletedNotificationRequest
+	30, // 23: bbs.notification.v1.InternalNotificationService.EraseUserData:input_type -> bbs.notification.v1.EraseUserDataRequest
+	2,  // 24: bbs.notification.v1.NotificationService.ListNotifications:output_type -> bbs.notification.v1.ListNotificationsResponse
+	4,  // 25: bbs.notification.v1.NotificationService.CountUnread:output_type -> bbs.notification.v1.CountUnreadResponse
+	26, // 26: bbs.notification.v1.NotificationService.MarkRead:output_type -> bbs.notification.v1.MutationResponse
+	26, // 27: bbs.notification.v1.NotificationService.MarkAllRead:output_type -> bbs.notification.v1.MutationResponse
+	10, // 28: bbs.notification.v1.NotificationService.GetPreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	10, // 29: bbs.notification.v1.NotificationService.UpdatePreferences:output_type -> bbs.notification.v1.PreferencesResponse
+	12, // 30: bbs.notification.v1.NotificationService.GetWebPushConfig:output_type -> bbs.notification.v1.WebPushConfigResponse
+	16, // 31: bbs.notification.v1.NotificationService.RegisterWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	16, // 32: bbs.notification.v1.NotificationService.GetWebPushSubscription:output_type -> bbs.notification.v1.WebPushSubscriptionResponse
+	26, // 33: bbs.notification.v1.NotificationService.UnregisterWebPushSubscription:output_type -> bbs.notification.v1.MutationResponse
+	19, // 34: bbs.notification.v1.NotificationService.ListWebhooks:output_type -> bbs.notification.v1.WebhookListResponse
+	21, // 35: bbs.notification.v1.NotificationService.CreateWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	21, // 36: bbs.notification.v1.NotificationService.ShowWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	21, // 37: bbs.notification.v1.NotificationService.UpdateWebhook:output_type -> bbs.notification.v1.WebhookResponse
+	26, // 38: bbs.notification.v1.NotificationService.DeleteWebhook:output_type -> bbs.notification.v1.MutationResponse
+	26, // 39: bbs.notification.v1.NotificationService.TestWebhook:output_type -> bbs.notification.v1.MutationResponse
+	28, // 40: bbs.notification.v1.InternalNotificationService.DispatchSystemNotifications:output_type -> bbs.notification.v1.DispatchSystemNotificationsResponse
+	26, // 41: bbs.notification.v1.InternalNotificationService.CreateExportCompletedNotification:output_type -> bbs.notification.v1.MutationResponse
+	26, // 42: bbs.notification.v1.InternalNotificationService.EraseUserData:output_type -> bbs.notification.v1.MutationResponse
+	24, // [24:43] is the sub-list for method output_type
+	5,  // [5:24] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -2154,7 +2231,7 @@ func file_notification_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_notification_proto_rawDesc), len(file_notification_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

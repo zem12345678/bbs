@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"testing"
+	"time"
 
 	pb "notification-service/api/proto/notificationpb"
 	app "notification-service/internal/application/notification"
@@ -59,6 +60,34 @@ func TestNotificationPreferencesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCreateExportCompletedNotificationDelegates(t *testing.T) {
+	repo := &exportCompletedHandlerRepository{}
+	handler := NewHandler(app.NewService(repo))
+
+	response, err := handler.CreateExportCompletedNotification(t.Context(), &pb.CreateExportCompletedNotificationRequest{
+		RecipientId: 42, FileId: 9001, ExportedEntity: "clip", IdempotencyKey: "export-42-9001",
+	})
+	if err != nil {
+		t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+	}
+	if !response.GetSuccess() {
+		t.Fatalf("response = %#v", response)
+	}
+	if repo.item.UserID != 42 || repo.item.Type != domain.NotificationTypeExportCompleted || repo.item.EntityType != "file" || repo.item.EntityID != 9001 || repo.eventID != "export_completed:export-42-9001" {
+		t.Fatalf("repository notification = %#v, event ID = %q", repo.item, repo.eventID)
+	}
+}
+
+func TestCreateExportCompletedNotificationRejectsInvalidRequest(t *testing.T) {
+	handler := NewHandler(app.NewService(&exportCompletedHandlerRepository{}))
+	_, err := handler.CreateExportCompletedNotification(t.Context(), &pb.CreateExportCompletedNotificationRequest{
+		RecipientId: 42, FileId: 9001, ExportedEntity: "note", IdempotencyKey: "export-42-9001",
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("CreateExportCompletedNotification() code = %s, want %s; err=%v", status.Code(err), codes.InvalidArgument, err)
+	}
+}
+
 type erasureHandlerRepository struct {
 	domain.Repository
 	userID        int64
@@ -69,6 +98,18 @@ type erasureHandlerRepository struct {
 type preferencesHandlerRepository struct {
 	domain.Repository
 	items []domain.NotificationPreference
+}
+
+type exportCompletedHandlerRepository struct {
+	domain.Repository
+	item    domain.Notification
+	eventID string
+}
+
+func (r *exportCompletedHandlerRepository) Create(_ context.Context, item domain.Notification, eventID string, _ time.Time) error {
+	r.item = item
+	r.eventID = eventID
+	return nil
 }
 
 func (r *preferencesHandlerRepository) ListPreferences(context.Context, int64) ([]domain.NotificationPreference, error) {

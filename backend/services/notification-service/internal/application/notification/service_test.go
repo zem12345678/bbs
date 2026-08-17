@@ -429,6 +429,78 @@ func TestDispatchSystemNotificationsRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestCreateExportCompletedNotificationCreatesIdempotentFileNotification(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+	command := domain.ExportCompletedNotificationCommand{
+		RecipientID:    42,
+		FileID:         9001,
+		ExportedEntity: " clip ",
+		IdempotencyKey: " export-42-9001 ",
+	}
+
+	if err := service.CreateExportCompletedNotification(t.Context(), command); err != nil {
+		t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+	}
+	if err := service.CreateExportCompletedNotification(t.Context(), command); err != nil {
+		t.Fatalf("retry CreateExportCompletedNotification() error = %v", err)
+	}
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	got := repo.created[0]
+	if got.UserID != 42 || got.Type != domain.NotificationTypeExportCompleted || got.EntityType != "file" || got.EntityID != 9001 || got.SourceID != 9001 || got.ActorID != 0 {
+		t.Fatalf("notification = %#v", got)
+	}
+	if got.Title == "" || got.Content == "" {
+		t.Fatalf("notification copy = title %q content %q", got.Title, got.Content)
+	}
+	if len(repo.createdEventIDs) != 1 {
+		t.Fatalf("created event IDs = %#v", repo.createdEventIDs)
+	}
+	if _, ok := repo.createdEventIDs["42:export_completed:export-42-9001"]; !ok {
+		t.Fatalf("created event IDs = %#v", repo.createdEventIDs)
+	}
+}
+
+func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
+	valid := domain.ExportCompletedNotificationCommand{
+		RecipientID:    42,
+		FileID:         9001,
+		ExportedEntity: domain.ExportCompletedEntityClip,
+		IdempotencyKey: "export-42-9001",
+	}
+	tests := []struct {
+		name   string
+		mutate func(*domain.ExportCompletedNotificationCommand)
+	}{
+		{name: "invalid recipient", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.RecipientID = 0 }},
+		{name: "invalid file", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.FileID = 0 }},
+		{name: "unsupported entity", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.ExportedEntity = "note" }},
+		{name: "empty idempotency key", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.IdempotencyKey = " " }},
+		{name: "long idempotency key", mutate: func(command *domain.ExportCompletedNotificationCommand) {
+			command.IdempotencyKey = strings.Repeat("k", domain.ExportCompletedNotificationMaxIdempotencyKey+1)
+		}},
+		{name: "nul idempotency key", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.IdempotencyKey = "bad\x00key" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newMemoryRepo()
+			service := NewService(repo)
+			command := valid
+			tt.mutate(&command)
+			err := service.CreateExportCompletedNotification(t.Context(), command)
+			if !errors.Is(err, domain.ErrInvalidExportCompletedNotification) {
+				t.Fatalf("CreateExportCompletedNotification() error = %v, want ErrInvalidExportCompletedNotification", err)
+			}
+			if len(repo.created) != 0 {
+				t.Fatalf("repository should not be called, got %#v", repo.created)
+			}
+		})
+	}
+}
+
 func TestEraseUserDataValidatesAndDelegates(t *testing.T) {
 	repo := newMemoryRepo()
 	service := NewService(repo)
@@ -580,25 +652,27 @@ type userErasure struct {
 }
 
 type memoryRepo struct {
-	contents       map[string]domain.ContentRef
-	articles       map[int64]domain.ArticleRef
-	comments       map[int64]domain.CommentRef
-	pending        []pendingNotification
-	pendingReplies []pendingReplyNotification
-	created        []domain.Notification
-	systemCommands []domain.SystemNotificationCommand
-	systemKeys     map[string]struct{}
-	systemErr      error
-	preferences    []domain.NotificationPreference
-	erasures       []userErasure
+	contents        map[string]domain.ContentRef
+	articles        map[int64]domain.ArticleRef
+	comments        map[int64]domain.CommentRef
+	pending         []pendingNotification
+	pendingReplies  []pendingReplyNotification
+	created         []domain.Notification
+	createdEventIDs map[string]struct{}
+	systemCommands  []domain.SystemNotificationCommand
+	systemKeys      map[string]struct{}
+	systemErr       error
+	preferences     []domain.NotificationPreference
+	erasures        []userErasure
 }
 
 func newMemoryRepo() *memoryRepo {
 	return &memoryRepo{
-		contents:   map[string]domain.ContentRef{},
-		articles:   map[int64]domain.ArticleRef{},
-		comments:   map[int64]domain.CommentRef{},
-		systemKeys: map[string]struct{}{},
+		contents:        map[string]domain.ContentRef{},
+		articles:        map[int64]domain.ArticleRef{},
+		comments:        map[int64]domain.CommentRef{},
+		createdEventIDs: map[string]struct{}{},
+		systemKeys:      map[string]struct{}{},
 	}
 }
 
@@ -727,7 +801,12 @@ func (r *memoryRepo) FlushPendingReplyNotifications(_ context.Context, parent do
 	return nil
 }
 
-func (r *memoryRepo) Create(_ context.Context, item domain.Notification, _ string, _ time.Time) error {
+func (r *memoryRepo) Create(_ context.Context, item domain.Notification, sourceEventID string, _ time.Time) error {
+	eventKey := stringID(item.UserID) + ":" + sourceEventID
+	if _, exists := r.createdEventIDs[eventKey]; exists {
+		return nil
+	}
+	r.createdEventIDs[eventKey] = struct{}{}
 	r.created = append(r.created, item)
 	return nil
 }

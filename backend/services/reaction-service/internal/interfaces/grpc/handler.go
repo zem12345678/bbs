@@ -36,7 +36,7 @@ func toStatus(err error) error {
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote), errors.Is(err, domain.ErrInvalidReportAction):
 		code = codes.InvalidArgument
-	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType):
+	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType), errors.Is(err, domain.ErrInvalidCollectionCursor):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
@@ -297,7 +297,16 @@ func (h *Handler) DeleteCollection(ctx context.Context, req *pb.DeleteCollection
 }
 
 func (h *Handler) ListCollections(ctx context.Context, req *pb.ListCollectionsRequest) (*pb.ListCollectionsResponse, error) {
-	rows, total, err := h.qry.ListCollections(ctx, req.GetUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	var (
+		rows  []*domain.Collection
+		total int64
+		err   error
+	)
+	if req.GetAscendingById() {
+		rows, total, err = h.qry.ListCollectionsAfterID(ctx, req.GetUserId(), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		rows, total, err = h.qry.ListCollections(ctx, req.GetUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -325,7 +334,16 @@ func (h *Handler) RemoveCollectionItem(ctx context.Context, req *pb.CollectionIt
 }
 
 func (h *Handler) ListCollectionItems(ctx context.Context, req *pb.ListCollectionItemsRequest) (*pb.CollectionItemsResponse, error) {
-	rows, total, err := h.qry.ListCollectionItems(ctx, req.GetUserId(), req.GetCollectionId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
+	var (
+		rows  []*domain.CollectionItem
+		total int64
+		err   error
+	)
+	if req.GetAscendingById() {
+		rows, total, err = h.qry.ListCollectionItemsAfterID(ctx, req.GetUserId(), req.GetCollectionId(), domain.EntityType(req.GetEntityType()), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		rows, total, err = h.qry.ListCollectionItems(ctx, req.GetUserId(), req.GetCollectionId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}

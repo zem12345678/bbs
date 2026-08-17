@@ -5,9 +5,12 @@ import {
   fileFolderMoveOptions,
   fileFolderOptionLabel,
   fileFolderParentPayload,
+  focusedFileAfterDelete,
+  focusedFileAfterUpdate,
   loadFileFolderTree,
   mergeKnownFileFolders,
-  normalizeFileFolderId
+  normalizeFileFolderId,
+  withoutFocusedFileParam
 } from "./fileFolders.js";
 
 test("normalizes the root folder without losing precise folder ids", () => {
@@ -54,4 +57,42 @@ test("merges loaded folders with ancestry and excludes recursive move targets", 
     fileFolderMoveOptions(allFolders, design.id).map((folder) => folder.id),
     ["20"]
   );
+});
+
+test("keeps the notification-focused file synchronized across edit, move, and delete", () => {
+  const focused = {
+    id: "9223372036854775807",
+    original_name: "clips-old.json",
+    folder_id: null,
+    content_type: "application/json"
+  };
+  const updated = focusedFileAfterUpdate(focused, focused.id, {
+    id: focused.id,
+    original_name: "clips-new.json",
+    folder_id: "9007199254740993"
+  });
+
+  assert.deepEqual(updated, {
+    id: "9223372036854775807",
+    original_name: "clips-new.json",
+    folder_id: "9007199254740993",
+    content_type: "application/json"
+  });
+  assert.equal(focusedFileAfterUpdate(focused, "123", { original_name: "unrelated.json" }), focused);
+  assert.equal(focusedFileAfterDelete(updated, updated.id), null);
+  assert.equal(focusedFileAfterDelete(updated, "123"), updated);
+});
+
+test("clears only the deleted focused file query parameter", () => {
+  const searchParams = new URLSearchParams("file_id=9223372036854775807&source=notification");
+
+  assert.equal(
+    withoutFocusedFileParam(searchParams, "9223372036854775807").toString(),
+    "source=notification"
+  );
+  assert.equal(
+    withoutFocusedFileParam(searchParams, "123").toString(),
+    "file_id=9223372036854775807&source=notification"
+  );
+  assert.equal(searchParams.toString(), "file_id=9223372036854775807&source=notification");
 });

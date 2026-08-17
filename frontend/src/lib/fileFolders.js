@@ -13,6 +13,22 @@ export function fileFolderParentPayload(value) {
   return id === ROOT_FILE_FOLDER_ID ? null : id;
 }
 
+export function focusedFileAfterUpdate(current, fileId, updated) {
+  const targetId = toId(fileId);
+  if (!targetId || toId(current?.id) !== targetId || !updated) return current;
+  return { ...current, ...updated, id: toId(updated?.id) || targetId };
+}
+
+export function focusedFileAfterDelete(current, fileId) {
+  return toId(current?.id) === toId(fileId) ? null : current;
+}
+
+export function withoutFocusedFileParam(searchParams, fileId) {
+  const next = new URLSearchParams(searchParams);
+  if (toId(next.get("file_id")) === toId(fileId)) next.delete("file_id");
+  return next;
+}
+
 export function mergeKnownFileFolders(current = [], folders = [], ancestors = []) {
   const byId = new Map(current.map((folder) => [normalizeFileFolderId(folder?.id), folder]));
   const ancestorIds = ancestors

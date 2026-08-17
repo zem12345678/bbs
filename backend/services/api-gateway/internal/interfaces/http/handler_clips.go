@@ -358,10 +358,6 @@ func (h *Handler) writePublicClipList(c *gin.Context, ctx context.Context, items
 	c.JSON(stdhttp.StatusOK, out)
 }
 
-func (h *Handler) exportClipsUnavailable(c *gin.Context) {
-	writeError(c, stdhttp.StatusNotImplemented, "clip export is not implemented", "not_implemented")
-}
-
 func (h *Handler) requirePublishedClipNote(c *gin.Context, ctx context.Context, id int64) bool {
 	_, ok := h.resolvePublishedClipNote(c, ctx, id)
 	return ok

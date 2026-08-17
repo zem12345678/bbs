@@ -37,5 +37,6 @@ func (c *Clients) initNotification(grpcClient *iocgrpc.Client, o Options) error 
 		return err
 	}
 	c.Notification = notificationpb.NewNotificationServiceClient(conn)
+	c.NotificationInternal = notificationpb.NewInternalNotificationServiceClient(conn)
 	return nil
 }

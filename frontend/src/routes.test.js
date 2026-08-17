@@ -757,6 +757,33 @@ test("dashboard file library refreshes storage usage and protects managed media"
   assert.match(managedMedia, /bizType === "images" \|\| bizType === "avatars"/);
 });
 
+test("dashboard file library exports clips and focuses notification-linked files", () => {
+  const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
+  const filePanel = source.slice(source.indexOf("function FileLibraryPanel"), source.indexOf("function InteractionsPanel"));
+  const exportStart = filePanel.indexOf("async function exportClips");
+  const exportAction = filePanel.slice(exportStart, filePanel.indexOf("async function downloadFile", exportStart));
+
+  assert.match(filePanel, /const \[searchParams, setSearchParams\] = useSearchParams\(\)/);
+  assert.match(filePanel, /const focusedFileId = toId\(searchParams\.get\("file_id"\)\)/);
+  assert.match(filePanel, /bbsApi\.getFile\(focusedFileId, requestToken\)/);
+  assert.match(filePanel, /loadFileFolderTree\(\(params\) => bbsApi\.fileFolders\(params, requestToken\)\)/);
+  assert.match(filePanel, /setFolderPath\(targetFolder/);
+  assert.match(filePanel, /document\.getElementById\(`file-\$\{focusedFileId\}`\)\?\.scrollIntoView/);
+  assert.match(filePanel, /const visibleFiles = focusedFileInCurrentFolder/);
+  assert.match(filePanel, /elementId=\{`file-\$\{fileId\}`\}/);
+  assert.match(filePanel, /focused=\{focused\}/);
+  assert.match(filePanel, /setFocusedFile\(\(current\) => focusedFileAfterDelete\(current, fileId\)\)/);
+  assert.match(filePanel, /setSearchParams\(\(current\) => withoutFocusedFileParam\(current, fileId\), \{ replace: true \}\)/);
+  assert.match(filePanel, /setFocusedFile\(\(current\) => focusedFileAfterUpdate\(current, fileId, updated\)\)/);
+
+  assert.match(exportAction, /await bbsApi\.exportClips\(requestToken\)/);
+  assert.match(exportAction, /const isCurrentRequest = \(\) => isCurrentFileSessionRequest\(requestToken, fileSession\)/);
+  assert.match(exportAction, /fileActionSubmittingRef\.current = true;\s*setFileActionBusy\(true\)/);
+  assert.match(exportAction, /notice: "Clip 导出文件已生成，可在文件库下载。"/);
+  assert.match(exportAction, /setFolderPath\(\[\]\)/);
+  assert.match(exportAction, /finally \{\s*if \(isCurrentRequest\(\)\)/);
+});
+
 test("dashboard file actions serialize mutations and ignore stale auth sessions", () => {
   const source = fs.readFileSync(new URL("./pages/UserDashboardRoutes.jsx", import.meta.url), "utf8");
   const filePanel = source.slice(source.indexOf("function FileLibraryPanel"), source.indexOf("function InteractionsPanel"));
@@ -770,11 +797,12 @@ test("dashboard file actions serialize mutations and ignore stale auth sessions"
   assert.match(filePanel, /const folderLoadRequestVersionRef = React\.useRef\(0\)/);
   assert.match(filePanel, /const folderTreeRequestVersionRef = React\.useRef\(0\)/);
   assert.match(filePanel, /const folderTreeCacheRef = React\.useRef\(null\)/);
+  assert.match(filePanel, /const focusedFileRequestVersionRef = React\.useRef\(0\)/);
   assert.match(filePanel, /const fileActionSubmittingRef = React\.useRef\(false\)/);
   assert.match(filePanel, /function isCurrentFileSessionRequest\(requestToken, session\)/);
   assert.match(filePanel, /function isCurrentFileScopeRequest\(requestToken, session, folderId\)/);
   assert.match(filePanel, /aria-current=\{folderPath\.length === 0 \? "page" : undefined\}/);
-  assert.match(filePanel, /React\.useLayoutEffect\(\(\) => \{\s*fileSessionRef\.current \+= 1;\s*fileLoadRequestVersionRef\.current \+= 1;\s*folderLoadRequestVersionRef\.current \+= 1;\s*folderTreeRequestVersionRef\.current \+= 1;\s*folderTreeCacheRef\.current = null;\s*fileUsageRequestVersionRef\.current \+= 1;\s*fileActionSubmittingRef\.current = false/);
+  assert.match(filePanel, /React\.useLayoutEffect\(\(\) => \{\s*fileSessionRef\.current \+= 1;\s*fileLoadRequestVersionRef\.current \+= 1;\s*folderLoadRequestVersionRef\.current \+= 1;\s*folderTreeRequestVersionRef\.current \+= 1;\s*folderTreeCacheRef\.current = null;\s*fileUsageRequestVersionRef\.current \+= 1;\s*focusedFileRequestVersionRef\.current \+= 1;\s*fileActionSubmittingRef\.current = false/);
   assert.match(filePanel, /const cachedFolders = folderTreeCacheRef\.current;\s*if \(cachedFolders !== null\) \{\s*setKnownFolders\(cachedFolders\);\s*setFolderOptionsState\(\{ loading: false, error: "" \}\);\s*return;/);
   assert.match(filePanel, /folderTreeCacheRef\.current = folders;\s*setKnownFolders\(folders\)/);
 

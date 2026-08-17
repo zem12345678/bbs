@@ -2,6 +2,11 @@ import React from "react";
 import { Bell } from "lucide-react";
 import { bbsApi } from "../../api";
 import {
+  NOTIFICATION_PREFERENCES,
+  defaultNotificationPreferences,
+  mergeNotificationPreferences
+} from "../../lib/notificationPreferences";
+import {
   ensureWebPushSubscription,
   existingWebPushSubscription,
   registerWebPushServiceWorker,
@@ -11,28 +16,8 @@ import {
   webPushSupported
 } from "../../lib/webPush";
 
-const NOTIFICATION_PREFERENCES = [
-  { type: "system", label: "系统通知", description: "平台维护和运营通知" },
-  { type: "follow", label: "新增关注", description: "有人关注你的账号" },
-  { type: "follow_request_received", label: "关注申请", description: "有人申请关注你的账号" },
-  { type: "follow_request_accepted", label: "申请通过", description: "你的关注申请已被接受" },
-  { type: "comment", label: "内容评论", description: "有人评论你的文章或话题" },
-  { type: "reply", label: "评论回复", description: "有人回复你的评论" },
-  { type: "like", label: "点赞", description: "有人点赞你的内容" },
-  { type: "favorite", label: "收藏", description: "有人收藏你的内容" },
-  { type: "qa_answer_accepted", label: "回答被采纳", description: "你的回答被采纳并获得积分" },
-  { type: "mall_order_paid", label: "订单支付", description: "商城订单支付完成" },
-  { type: "mall_order_shipped", label: "订单发货", description: "商城订单已发货" },
-  { type: "mall_order_completed", label: "订单完成", description: "商城订单已完成" },
-  { type: "mall_refund_approved", label: "售后通过", description: "商城退款申请已通过" },
-  { type: "mall_refund_rejected", label: "售后拒绝", description: "商城退款申请未通过" },
-  { type: "mall_digital_entitlement_revoked", label: "权益撤销", description: "数字权益被撤销" },
-  { type: "mall_review_published", label: "评价展示", description: "商品评价已展示" },
-  { type: "mall_review_hidden", label: "评价隐藏", description: "商品评价被隐藏" }
-];
-
 export default function NotificationPreferencesPanel({ auth }) {
-  const [items, setItems] = React.useState(defaultPreferences());
+  const [items, setItems] = React.useState(defaultNotificationPreferences());
   const [state, setState] = React.useState({ loading: true, saving: false, error: "", message: "" });
 
   React.useEffect(() => {
@@ -45,7 +30,7 @@ export default function NotificationPreferencesPanel({ auth }) {
     bbsApi.notificationPreferences(auth.accessToken)
       .then((data) => {
         if (!alive) return;
-        setItems(mergePreferences(data?.items || data?.preferences));
+        setItems(mergeNotificationPreferences(data?.items || data?.preferences));
         setState({ loading: false, saving: false, error: "", message: "" });
       })
       .catch((error) => {
@@ -67,7 +52,7 @@ export default function NotificationPreferencesPanel({ auth }) {
     setState((current) => ({ ...current, saving: true, error: "", message: "" }));
     try {
       const data = await bbsApi.updateNotificationPreferences(items, auth.accessToken);
-      setItems(mergePreferences(data?.items || data?.preferences));
+      setItems(mergeNotificationPreferences(data?.items || data?.preferences));
       setState({ loading: false, saving: false, error: "", message: "通知设置已保存。" });
     } catch (error) {
       setState({ loading: false, saving: false, error: error.message || "通知设置保存失败", message: "" });
@@ -225,13 +210,4 @@ function browserPushStatus(state) {
   if (state.phase === "on") return "已开启，新站内消息可在系统通知中提醒。";
   if (state.phase === "error") return "浏览器推送暂时不可用，请稍后重试。";
   return "未开启，开启时浏览器会请求通知权限。";
-}
-
-function defaultPreferences() {
-  return NOTIFICATION_PREFERENCES.map(({ type }) => ({ type, enabled: true }));
-}
-
-function mergePreferences(items) {
-  const overrides = new Map((Array.isArray(items) ? items : []).map((item) => [item.type || item.notification_type, item.enabled !== false]));
-  return defaultPreferences().map((item) => ({ ...item, enabled: overrides.has(item.type) ? overrides.get(item.type) : true }));
 }

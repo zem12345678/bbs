@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/reaction.proto
+// source: reaction.proto
 
 package reactionpb
 
@@ -953,5 +953,5 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/reaction.proto",
+	Metadata: "reaction.proto",
 }
