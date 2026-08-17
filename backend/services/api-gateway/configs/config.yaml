@@ -74,6 +74,7 @@ files:
 
 exports:
   rateLimit:
+    antennaInterval: 1h
     clipInterval: 24h
 
 http:

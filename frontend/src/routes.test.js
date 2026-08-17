@@ -213,6 +213,23 @@ test("connects user-list management and timelines to member routes", () => {
   assert.match(userSource, /bbsApi\.userListFeed\(listId, \{ limit: USER_LIST_FEED_PAGE_SIZE, offset: state\.feedOffset \}/);
 });
 
+test("connects antenna export to the existing antenna manager", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const panel = source.slice(source.indexOf("function UserAntennaPanel"), source.indexOf("function antennaToForm"));
+  const actionStart = panel.indexOf("async function exportAntennas");
+  const exportAction = panel.slice(actionStart, panel.indexOf("\n\n  if (!auth)", actionStart));
+
+  assert.ok(actionStart >= 0, "exportAntennas is present");
+  assert.match(exportAction, /if \(!token \|\| action\.busy\) return/);
+  assert.match(exportAction, /setAction\(\{ busy: "export", error: "", notice: "" \}\)/);
+  assert.match(exportAction, /await bbsApi\.exportAntennas\(token\)/);
+  assert.match(exportAction, /notice: "天线导出已请求，完成后可在文件库查看。"/);
+  assert.match(exportAction, /error: error\.message \|\| "天线导出失败"/);
+  assert.match(panel, /className="user-list-manager__header-actions"/);
+  assert.match(panel, /<Download size=\{17\} aria-hidden="true" \/>/);
+  assert.match(panel, /action\.busy === "export" \? "导出中" : "导出"/);
+});
+
 test("connects two-factor login and account security management", () => {
   const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");

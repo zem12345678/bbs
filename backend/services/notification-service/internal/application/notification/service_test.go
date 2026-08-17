@@ -463,6 +463,26 @@ func TestCreateExportCompletedNotificationCreatesIdempotentFileNotification(t *t
 	}
 }
 
+func TestCreateExportCompletedNotificationUsesAntennaCopy(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+
+	err := service.CreateExportCompletedNotification(t.Context(), domain.ExportCompletedNotificationCommand{
+		RecipientID: 42, FileID: 9002, ExportedEntity: domain.ExportCompletedEntityAntenna, IdempotencyKey: "antenna-42-9002",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+	}
+	if len(repo.created) != 1 {
+		t.Fatalf("created notifications = %d, want 1", len(repo.created))
+	}
+	got := repo.created[0]
+	if got.Title != "天线导出完成" || !strings.Contains(got.Content, "天线导出") || got.EntityID != 9002 {
+		t.Fatalf("notification = %#v", got)
+	}
+}
+
 func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
 	valid := domain.ExportCompletedNotificationCommand{
 		RecipientID:    42,

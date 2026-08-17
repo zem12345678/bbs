@@ -3650,6 +3650,17 @@ function UserAntennaPanel({ auth }) {
     }
   }
 
+  async function exportAntennas() {
+    if (!token || action.busy) return;
+    setAction({ busy: "export", error: "", notice: "" });
+    try {
+      await bbsApi.exportAntennas(token);
+      setAction({ busy: "", error: "", notice: "天线导出已请求，完成后可在文件库查看。" });
+    } catch (error) {
+      setAction({ busy: "", error: error.message || "天线导出失败", notice: "" });
+    }
+  }
+
   if (!auth) return <EmptyState title="请先登录" description="登录后可以创建和管理天线订阅。" />;
   const selected = state.items.find((item) => String(item.id) === String(state.selected));
   return (
@@ -3657,7 +3668,10 @@ function UserAntennaPanel({ auth }) {
       <section className="user-antenna-manager panel">
         <header className="user-list-manager__header">
           <div><strong>我的天线订阅</strong><span>{state.loading ? "正在加载..." : `${state.items.length} 个`}</span></div>
-          <button aria-label="新建天线" type="button" disabled={Boolean(action.busy)} onClick={startCreate}><Radio size={17} aria-hidden="true" />新建</button>
+          <div className="user-list-manager__header-actions">
+            <button type="button" disabled={!token || Boolean(action.busy)} onClick={exportAntennas}><Download size={17} aria-hidden="true" />{action.busy === "export" ? "导出中" : "导出"}</button>
+            <button aria-label="新建天线" type="button" disabled={Boolean(action.busy)} onClick={startCreate}><Radio size={17} aria-hidden="true" />新建</button>
+          </div>
         </header>
         {state.error && <p className="user-list-feedback is-error">{state.error}</p>}
         {!state.loading && state.items.length === 0 && !form && <p className="user-list-feedback">暂无天线订阅</p>}

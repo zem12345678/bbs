@@ -342,17 +342,29 @@ func (s *Service) DispatchSystemNotifications(ctx context.Context, command domai
 func (s *Service) CreateExportCompletedNotification(ctx context.Context, command domain.ExportCompletedNotificationCommand) error {
 	command.ExportedEntity = strings.TrimSpace(command.ExportedEntity)
 	command.IdempotencyKey = strings.TrimSpace(command.IdempotencyKey)
-	if command.RecipientID <= 0 || command.FileID <= 0 || command.ExportedEntity != domain.ExportCompletedEntityClip ||
+	if command.RecipientID <= 0 || command.FileID <= 0 ||
 		command.IdempotencyKey == "" || utf8.RuneCountInString(command.IdempotencyKey) > domain.ExportCompletedNotificationMaxIdempotencyKey ||
 		strings.ContainsRune(command.IdempotencyKey, '\x00') {
+		return domain.ErrInvalidExportCompletedNotification
+	}
+	title := ""
+	content := ""
+	switch command.ExportedEntity {
+	case domain.ExportCompletedEntityAntenna:
+		title = "天线导出完成"
+		content = "你的天线导出已完成，可以在文件库中下载。"
+	case domain.ExportCompletedEntityClip:
+		title = "Clip 导出完成"
+		content = "你的 Clip 导出已完成，可以在文件库中下载。"
+	default:
 		return domain.ErrInvalidExportCompletedNotification
 	}
 
 	return s.repo.Create(ctx, domain.Notification{
 		UserID:     command.RecipientID,
 		Type:       domain.NotificationTypeExportCompleted,
-		Title:      "Clip 导出完成",
-		Content:    "你的 Clip 导出已完成，可以在文件库中下载。",
+		Title:      title,
+		Content:    content,
 		EntityType: "file",
 		EntityID:   command.FileID,
 		SourceID:   command.FileID,

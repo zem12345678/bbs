@@ -39,5 +39,32 @@ func TestRedisClipExportGateLocksExecutionAndCountsOnlyCommittedExports(t *testi
 func TestRedisClipExportGateRejectsInvalidConfiguration(t *testing.T) {
 	gate := NewRedisClipExportGate(nil, time.Hour, time.Minute)
 	_, err := gate.Begin(context.Background(), 42)
-	require.EqualError(t, err, "clip export gate unavailable")
+	require.EqualError(t, err, "export gate unavailable")
+}
+
+func TestRedisExportGatesUseIndependentEntityKeys(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	clipGate := NewRedisClipExportGate(client, 24*time.Hour, 15*time.Minute)
+	antennaGate := NewRedisAntennaExportGate(client, time.Hour, 15*time.Minute)
+
+	clipPermit, err := clipGate.Begin(context.Background(), 42)
+	require.NoError(t, err)
+	require.NoError(t, clipPermit.Commit(context.Background()))
+
+	antennaPermit, err := antennaGate.Begin(context.Background(), 42)
+	require.NoError(t, err)
+	require.NoError(t, antennaPermit.Commit(context.Background()))
+	_, err = antennaGate.Begin(context.Background(), 42)
+	require.ErrorIs(t, err, errExportRateLimited)
+	_, err = clipGate.Begin(context.Background(), 42)
+	require.ErrorIs(t, err, errExportRateLimited)
+
+	server.FastForward(time.Hour + time.Millisecond)
+	antennaPermit, err = antennaGate.Begin(context.Background(), 42)
+	require.NoError(t, err)
+	require.NoError(t, antennaPermit.Release(context.Background()))
+	_, err = clipGate.Begin(context.Background(), 42)
+	require.ErrorIs(t, err, errExportRateLimited)
 }

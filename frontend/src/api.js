@@ -335,6 +335,9 @@ export const bbsApi = {
   listAntennas(token) {
     return request("/users/me/antennas", { token });
   },
+  exportAntennas(token) {
+    return request("/i/export-antennas", { method: "POST", body: {}, token });
+  },
   createAntenna(payload, token) {
     return request("/users/me/antennas", { method: "POST", body: payload, token });
   },

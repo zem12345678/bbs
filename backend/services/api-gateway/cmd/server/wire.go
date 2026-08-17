@@ -147,6 +147,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
 	)
+	antennaExportGate := httpiface.NewRedisAntennaExportGate(redisClient, runtimeCfg.Exports.RateLimit.AntennaInterval, 15*time.Minute)
 	clipExportGate := httpiface.NewRedisClipExportGate(redisClient, runtimeCfg.Exports.RateLimit.ClipInterval, 15*time.Minute)
 	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
@@ -187,6 +188,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
 	handler.SetFileUploadLimit(fileUploadLimit)
+	handler.SetAntennaExportGate(antennaExportGate)
 	handler.SetClipExportGate(clipExportGate)
 	handler.SetUploadedObjectCleaner(objectCleanup)
 	handler.SetPopularityStore(popularityStore)

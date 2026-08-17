@@ -88,7 +88,8 @@ type Handler struct {
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
 	fileUploadLimit                    ratelimit.Limiter
-	clipExportGate                     ClipExportGate
+	clipExportGate                     ExportGate
+	antennaExportGate                  ExportGate
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
 	popularity                         popularityStore
@@ -301,6 +302,10 @@ func (h *Handler) SetClipExportGate(gate ClipExportGate) {
 	h.clipExportGate = gate
 }
 
+func (h *Handler) SetAntennaExportGate(gate ExportGate) {
+	h.antennaExportGate = gate
+}
+
 func NewHandlerWithRealtimeAndRateLimits(
 	clients *clients.Clients,
 	tokenHeader string,
@@ -452,6 +457,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			clips.POST("/my-favorites", h.requireAuthScope("read"), h.listFavoriteClips)
 			r.POST(prefix+"/users/clips", h.optionalAuth(), h.listPublicClips)
 			r.POST(prefix+"/notes/clips", h.optionalAuth(), h.listNoteClips)
+			r.POST(prefix+"/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 			r.POST(prefix+"/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
 		}
 		for _, prefix := range []string{"/api", ""} {
@@ -486,6 +492,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/clips/my-favorites", h.requireAuthScope("read"), h.listFavoriteClips)
 	api.POST("/users/clips", h.optionalAuth(), h.listPublicClips)
 	api.POST("/notes/clips", h.optionalAuth(), h.listNoteClips)
+	api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 	api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)

@@ -7139,6 +7139,7 @@ a {
 }
 
 .user-list-manager__header > button,
+.user-list-manager__header-actions button,
 .user-list-editor button,
 .user-list-detail__actions button,
 .user-list-member-search button,
@@ -7155,6 +7156,12 @@ a {
   background: var(--blue);
   border: 1px solid var(--blue);
   border-radius: 6px;
+}
+
+.user-list-manager__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .user-list-manager__switch {
@@ -11627,7 +11634,12 @@ a {
   }
 
   .user-list-manager__header > button,
+  .user-list-manager__header-actions button,
   .user-list-member-search button {
+    width: 100%;
+  }
+
+  .user-list-manager__header-actions {
     width: 100%;
   }
 

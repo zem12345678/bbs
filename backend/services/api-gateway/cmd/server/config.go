@@ -53,7 +53,8 @@ type runtimeConfig struct {
 	}
 	Exports struct {
 		RateLimit struct {
-			ClipInterval time.Duration
+			AntennaInterval time.Duration
+			ClipInterval    time.Duration
 		}
 	}
 	Chat struct {
@@ -113,6 +114,7 @@ const (
 	defaultSearchUserRate            = 10
 	defaultFileUploadInterval        = time.Minute
 	defaultFileUploadRate            = 10
+	defaultAntennaExportInterval     = time.Hour
 	defaultClipExportInterval        = 24 * time.Hour
 )
 
@@ -166,6 +168,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Search.RateLimit.UserRate = positiveInt(v.GetInt("search.rateLimit.userRate"), defaultSearchUserRate)
 	cfg.Files.RateLimit.UploadInterval = positiveDuration(v.GetDuration("files.rateLimit.uploadInterval"), defaultFileUploadInterval)
 	cfg.Files.RateLimit.UploadRate = positiveInt(v.GetInt("files.rateLimit.uploadRate"), defaultFileUploadRate)
+	cfg.Exports.RateLimit.AntennaInterval = positiveDuration(v.GetDuration("exports.rateLimit.antennaInterval"), defaultAntennaExportInterval)
 	cfg.Exports.RateLimit.ClipInterval = positiveDuration(v.GetDuration("exports.rateLimit.clipInterval"), defaultClipExportInterval)
 	cfg.Chat.RateLimit.TicketInterval = positiveDuration(v.GetDuration("chat.rateLimit.ticketInterval"), defaultChatTicketInterval)
 	cfg.Chat.RateLimit.TicketRate = positiveInt(v.GetInt("chat.rateLimit.ticketRate"), defaultChatTicketRate)
@@ -218,6 +221,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("search.rateLimit.userRate", cfg.Search.RateLimit.UserRate)
 	v.Set("files.rateLimit.uploadInterval", cfg.Files.RateLimit.UploadInterval)
 	v.Set("files.rateLimit.uploadRate", cfg.Files.RateLimit.UploadRate)
+	v.Set("exports.rateLimit.antennaInterval", cfg.Exports.RateLimit.AntennaInterval)
 	v.Set("exports.rateLimit.clipInterval", cfg.Exports.RateLimit.ClipInterval)
 	v.Set("chat.rateLimit.ticketInterval", cfg.Chat.RateLimit.TicketInterval)
 	v.Set("chat.rateLimit.ticketRate", cfg.Chat.RateLimit.TicketRate)
@@ -561,6 +565,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "search.rateLimit.userRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE")
 	bindEnv(v, "files.rateLimit.uploadInterval", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL")
 	bindEnv(v, "files.rateLimit.uploadRate", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE")
+	bindEnv(v, "exports.rateLimit.antennaInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_ANTENNA_INTERVAL")
 	bindEnv(v, "exports.rateLimit.clipInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_CLIP_INTERVAL")
 	bindEnv(v, "http.trustedProxies", "BBS_GATEWAY_HTTP_TRUSTED_PROXIES")
 	bindEnv(v, "http.host", "BBS_GATEWAY_HTTP_HOST")

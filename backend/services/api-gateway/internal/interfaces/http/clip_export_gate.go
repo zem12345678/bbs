@@ -12,57 +12,76 @@ import (
 )
 
 var (
-	errClipExportRateLimited = errors.New("clip export rate limit exceeded")
-	errClipExportInProgress  = errors.New("clip export already in progress")
+	errExportRateLimited = errors.New("export rate limit exceeded")
+	errExportInProgress  = errors.New("export already in progress")
+
+	// Keep the existing names for the focused Clip tests and callers.
+	errClipExportRateLimited = errExportRateLimited
+	errClipExportInProgress  = errExportInProgress
 )
 
-const clipExportKeyPrefix = "rate:exports:clips:user:"
+const (
+	clipExportKeyPrefix    = "rate:exports:clips:user:"
+	antennaExportKeyPrefix = "rate:exports:antennas:user:"
+)
 
-type ClipExportGate interface {
-	Begin(context.Context, int64) (ClipExportPermit, error)
+type ExportGate interface {
+	Begin(context.Context, int64) (ExportPermit, error)
 }
 
-type ClipExportPermit interface {
+type ExportPermit interface {
 	Commit(context.Context) error
 	Release(context.Context) error
 }
 
-type redisClipExportGate struct {
-	redis    redis.Cmdable
-	interval time.Duration
-	lockTTL  time.Duration
+type ClipExportGate = ExportGate
+type ClipExportPermit = ExportPermit
+
+type redisExportGate struct {
+	redis     redis.Cmdable
+	keyPrefix string
+	interval  time.Duration
+	lockTTL   time.Duration
 }
 
 func NewRedisClipExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ClipExportGate {
-	return &redisClipExportGate{redis: client, interval: interval, lockTTL: lockTTL}
+	return newRedisExportGate(client, clipExportKeyPrefix, interval, lockTTL)
 }
 
-func (g *redisClipExportGate) Begin(ctx context.Context, userID int64) (ClipExportPermit, error) {
+func NewRedisAntennaExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
+	return newRedisExportGate(client, antennaExportKeyPrefix, interval, lockTTL)
+}
+
+func newRedisExportGate(client redis.Cmdable, keyPrefix string, interval, lockTTL time.Duration) ExportGate {
+	return &redisExportGate{redis: client, keyPrefix: keyPrefix, interval: interval, lockTTL: lockTTL}
+}
+
+func (g *redisExportGate) Begin(ctx context.Context, userID int64) (ExportPermit, error) {
 	if g == nil || g.redis == nil || userID <= 0 || g.interval <= 0 || g.lockTTL <= 0 {
-		return nil, errors.New("clip export gate unavailable")
+		return nil, errors.New("export gate unavailable")
 	}
 	token, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
-	key := clipExportKeyPrefix + strconv.FormatInt(userID, 10)
-	result, err := g.redis.Eval(ctx, clipExportBeginScript, []string{key + ":completed", key + ":lock"}, token.String(), g.lockTTL.Milliseconds()).Int()
+	key := g.keyPrefix + strconv.FormatInt(userID, 10)
+	result, err := g.redis.Eval(ctx, exportBeginScript, []string{key + ":completed", key + ":lock"}, token.String(), g.lockTTL.Milliseconds()).Int()
 	if err != nil {
 		return nil, err
 	}
 	switch result {
 	case 1:
-		return nil, errClipExportRateLimited
+		return nil, errExportRateLimited
 	case 2:
-		return nil, errClipExportInProgress
+		return nil, errExportInProgress
 	case 0:
-		return &redisClipExportPermit{redis: g.redis, completedKey: key + ":completed", lockKey: key + ":lock", token: token.String(), interval: g.interval}, nil
+		return &redisExportPermit{redis: g.redis, completedKey: key + ":completed", lockKey: key + ":lock", token: token.String(), interval: g.interval}, nil
 	default:
-		return nil, fmt.Errorf("unexpected clip export gate result: %d", result)
+		return nil, fmt.Errorf("unexpected export gate result: %d", result)
 	}
 }
 
-type redisClipExportPermit struct {
+type redisExportPermit struct {
 	redis        redis.Cmdable
 	completedKey string
 	lockKey      string
@@ -70,23 +89,23 @@ type redisClipExportPermit struct {
 	interval     time.Duration
 }
 
-func (p *redisClipExportPermit) Commit(ctx context.Context) error {
-	result, err := p.redis.Eval(ctx, clipExportCommitScript, []string{p.completedKey, p.lockKey}, p.token, p.interval.Milliseconds()).Int()
+func (p *redisExportPermit) Commit(ctx context.Context) error {
+	result, err := p.redis.Eval(ctx, exportCommitScript, []string{p.completedKey, p.lockKey}, p.token, p.interval.Milliseconds()).Int()
 	if err != nil {
 		return err
 	}
 	if result != 1 {
-		return errors.New("clip export permit expired")
+		return errors.New("export permit expired")
 	}
 	return nil
 }
 
-func (p *redisClipExportPermit) Release(ctx context.Context) error {
-	_, err := p.redis.Eval(ctx, clipExportReleaseScript, []string{p.lockKey}, p.token).Result()
+func (p *redisExportPermit) Release(ctx context.Context) error {
+	_, err := p.redis.Eval(ctx, exportReleaseScript, []string{p.lockKey}, p.token).Result()
 	return err
 }
 
-const clipExportBeginScript = `
+const exportBeginScript = `
 if redis.call('EXISTS', KEYS[1]) == 1 then
   return 1
 end
@@ -96,7 +115,7 @@ end
 return 2
 `
 
-const clipExportCommitScript = `
+const exportCommitScript = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
   return 1
 end
@@ -108,7 +127,7 @@ redis.call('DEL', KEYS[2])
 return 1
 `
 
-const clipExportReleaseScript = `
+const exportReleaseScript = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
   return redis.call('DEL', KEYS[1])
 end
