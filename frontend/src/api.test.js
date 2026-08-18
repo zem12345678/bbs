@@ -790,6 +790,7 @@ test("manages authenticated user safety relationships", async () => {
   await bbsApi.exportMute("access-token");
   await bbsApi.importBlocking("9001", "access-token");
   await bbsApi.importMuting("9002", "access-token");
+  await bbsApi.importFollowing("9003", true, "access-token");
 
   assert.deepEqual(
     requests.map(({ url, options }) => [new URL(url).pathname, options.method || "GET"]),
@@ -805,7 +806,8 @@ test("manages authenticated user safety relationships", async () => {
       ["/api/v1/i/export-blocking", "POST"],
       ["/api/v1/i/export-mute", "POST"],
       ["/api/v1/i/import-blocking", "POST"],
-      ["/api/v1/i/import-muting", "POST"]
+      ["/api/v1/i/import-muting", "POST"],
+      ["/api/v1/i/import-following", "POST"]
     ]
   );
   assert.equal(new URL(requests[5].url).searchParams.get("page"), "2");
@@ -815,6 +817,7 @@ test("manages authenticated user safety relationships", async () => {
   assert.deepEqual(JSON.parse(requests[9].options.body), {});
   assert.deepEqual(JSON.parse(requests[10].options.body), { fileId: "9001" });
   assert.deepEqual(JSON.parse(requests[11].options.body), { fileId: "9002" });
+  assert.deepEqual(JSON.parse(requests[12].options.body), { fileId: "9003", withReplies: true });
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 

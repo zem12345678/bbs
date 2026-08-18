@@ -489,6 +489,13 @@ export const bbsApi = {
   importMuting(fileId, token) {
     return request("/i/import-muting", { method: "POST", body: { fileId: String(fileId) }, token });
   },
+  importFollowing(fileId, withReplies = false, token) {
+    return request("/i/import-following", {
+      method: "POST",
+      body: { fileId: String(fileId), withReplies: Boolean(withReplies) },
+      token
+    });
+  },
   exportUserLists(token) {
     return request("/i/export-user-lists", { method: "POST", body: {}, token });
   },

@@ -393,6 +393,23 @@ test("connects following export options to account security", () => {
   assert.match(section, /<Download size=\{17\} aria-hidden="true" \/>/);
 });
 
+test("connects following import to the editable following list", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const sectionStart = userSource.indexOf("function UserFollowPanel");
+  const section = userSource.slice(sectionStart, userSource.indexOf("function followRows", sectionStart));
+
+  assert.ok(sectionStart >= 0, "UserFollowPanel is present");
+  assert.match(userSource, /activeValue === "followed" && <UserFollowPanel auth=\{auth\} direction="following" editable=\{sameId\(auth\?\.user\?\.id, userId\)\}/);
+  assert.match(apiSource, /request\("\/i\/import-following", \{[\s\S]*withReplies: Boolean\(withReplies\)/);
+  assert.match(section, /const canImportFollowing = editable && direction === "following" && Boolean\(accessToken\)/);
+  assert.match(section, /bbsApi\.importFollowing\(fileId, requestWithReplies, requestAccessToken\)/);
+  assert.match(section, /importScopeRef\.current\.accessToken === requestScope\.accessToken/);
+  assert.match(section, /导入文件不能超过 64 KiB/);
+  assert.match(section, /关注列表已导入/);
+  assert.match(section, /<Upload size=\{16\} aria-hidden="true" \/>/);
+});
+
 test("connects complete account data export to account security", () => {
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
   const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");

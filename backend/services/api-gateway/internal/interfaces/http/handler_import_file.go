@@ -23,7 +23,11 @@ func bindImportFileID(c *gin.Context) (int64, bool) {
 	if !bindJSON(c, &request) {
 		return 0, false
 	}
-	fileID, err := strconv.ParseInt(strings.TrimSpace(request.FileID), 10, 64)
+	return parseImportFileID(c, request.FileID)
+}
+
+func parseImportFileID(c *gin.Context, value string) (int64, bool) {
+	fileID, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	if err != nil || fileID <= 0 {
 		writeError(c, stdhttp.StatusBadRequest, "fileId must be a positive integer", "bad_request")
 		return 0, false

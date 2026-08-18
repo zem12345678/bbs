@@ -169,7 +169,7 @@ export function UserRoutePage({ auth, view = "profile", onAuthInvalidated }) {
       {activeValue === "articles" && <UserArticlesPanel auth={auth} userId={userId} />}
       {activeValue === "badges" && <UserBadgesPanel userId={userId} />}
       {activeValue === "fans" && <UserFollowPanel auth={auth} direction="followers" editable={sameId(auth?.user?.id, userId)} userId={userId} />}
-      {activeValue === "followed" && <UserFollowPanel direction="following" userId={userId} />}
+      {activeValue === "followed" && <UserFollowPanel auth={auth} direction="following" editable={sameId(auth?.user?.id, userId)} userId={userId} />}
     </>
   );
 }
@@ -3503,7 +3503,13 @@ function appendUniqueBadgeRows(currentRows, pageRows) {
 function UserFollowPanel({ auth, direction, editable = false, userId }) {
   const accessToken = auth?.accessToken || "";
   const removeRequestRef = React.useRef(0);
+  const importRequestRef = React.useRef(0);
+  const importInputRef = React.useRef(null);
+  const importScopeRef = React.useRef({ accessToken, direction, editable, userId });
+  importScopeRef.current = { accessToken, direction, editable, userId };
   const [removal, setRemoval] = React.useState({ busy: "", error: "" });
+  const [importState, setImportState] = React.useState({ busy: false, error: "", notice: "" });
+  const [withReplies, setWithReplies] = React.useState(false);
   const [state, setState] = React.useState({
     rows: [],
     total: 0,
@@ -3579,15 +3585,20 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
     };
   }, [accessToken, editable, loadFollows]);
 
+  React.useEffect(() => {
+    importRequestRef.current += 1;
+    setImportState({ busy: false, error: "", notice: "" });
+  }, [accessToken, direction, editable, userId]);
+
   function loadMoreFollows() {
-    if (state.loading || state.loadingMore || removal.busy || state.rows.length >= state.total) return;
+    if (state.loading || state.loadingMore || removal.busy || importState.busy || state.rows.length >= state.total) return;
     loadFollows(state.page + 1, true);
   }
 
   const canRemove = editable && direction === "followers" && Boolean(accessToken);
 
   async function removeFollower(row) {
-    if (!canRemove || !row?.key || removal.busy || state.loadingMore) return;
+    if (!canRemove || !row?.key || removal.busy || importState.busy || state.loadingMore) return;
     const confirmed = typeof globalThis.confirm !== "function" || globalThis.confirm(`确定将“${row.title}”移出粉丝列表吗？`);
     if (!confirmed) return;
     const requestId = removeRequestRef.current + 1;
@@ -3608,12 +3619,67 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
     }
   }
 
-  if (state.loading) return <EmptyState title="正在加载用户列表..." />;
-  if (state.error && state.rows.length === 0) return <EmptyState title={state.error} />;
-  if (state.rows.length === 0) return <EmptyState title={direction === "followers" ? "暂无粉丝" : "暂无关注"} />;
+  const canImportFollowing = editable && direction === "following" && Boolean(accessToken);
+
+  async function importFollowing(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!canImportFollowing || !file || importState.busy || removal.busy || state.loadingMore) return;
+    if (file.size > 64 * 1024) {
+      setImportState({ busy: false, error: "导入文件不能超过 64 KiB", notice: "" });
+      return;
+    }
+    const requestID = importRequestRef.current + 1;
+    importRequestRef.current = requestID;
+    const requestAccessToken = accessToken;
+    const requestScope = { accessToken: requestAccessToken, direction, editable, userId };
+    const requestWithReplies = withReplies;
+    const isCurrentRequest = () => importRequestRef.current === requestID &&
+      importScopeRef.current.accessToken === requestScope.accessToken &&
+      importScopeRef.current.direction === requestScope.direction &&
+      importScopeRef.current.editable === requestScope.editable &&
+      String(importScopeRef.current.userId || "") === String(requestScope.userId || "");
+    setImportState({ busy: true, error: "", notice: "" });
+    try {
+      const uploaded = await bbsApi.uploadFile(file, requestAccessToken, "imports");
+      if (!isCurrentRequest()) return;
+      const fileId = uploaded?.file?.id || uploaded?.id;
+      if (!fileId) throw new Error("导入文件上传失败");
+      await bbsApi.importFollowing(fileId, requestWithReplies, requestAccessToken);
+      if (!isCurrentRequest()) return;
+      setImportState({ busy: false, error: "", notice: "关注列表已导入" });
+      loadFollows();
+    } catch (error) {
+      if (isCurrentRequest()) {
+        setImportState({ busy: false, error: error.message || "关注列表导入失败", notice: "" });
+      }
+    }
+  }
+
+  const importControls = canImportFollowing ? (
+    <>
+      <div className="workspace-toolbar-actions" aria-label="导入关注列表">
+        <button type="button" disabled={importState.busy || Boolean(removal.busy) || state.loadingMore} onClick={() => importInputRef.current?.click()}>
+          <Upload size={16} aria-hidden="true" />{importState.busy ? "导入中..." : "导入关注列表"}
+        </button>
+        <label>
+          <input type="checkbox" checked={withReplies} onChange={(event) => setWithReplies(event.target.checked)} disabled={importState.busy} />
+          包含回复设置
+        </label>
+      </div>
+      <input ref={importInputRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={importState.busy || Boolean(removal.busy) || state.loadingMore} onChange={importFollowing} />
+      {importState.error && <p className="form-error" role="alert">{importState.error}</p>}
+      {importState.notice && <p className="form-success" role="status">{importState.notice}</p>}
+    </>
+  ) : null;
+
+  if (state.loading) return <>{importControls}<EmptyState title="正在加载用户列表..." /></>;
+  if (state.error && state.rows.length === 0) return <>{importControls}<EmptyState title={state.error} /></>;
+  if (state.rows.length === 0) return <>{importControls}<EmptyState title={direction === "followers" ? "暂无粉丝" : "暂无关注"} /></>;
   const label = direction === "followers" ? "粉丝" : "关注";
   return (
     <>
+      {importControls}
       {canRemove ? (
         <div className="data-rows">
           {state.rows.map((row) => (
@@ -3623,7 +3689,7 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
                 {row.description && <p>{row.description}</p>}
               </div>
               {row.meta && <span>{row.meta}</span>}
-              <button aria-label={`移除粉丝 ${row.title}`} type="button" disabled={Boolean(removal.busy) || state.loadingMore} onClick={() => removeFollower(row)}>
+              <button aria-label={`移除粉丝 ${row.title}`} type="button" disabled={Boolean(removal.busy) || importState.busy || state.loadingMore} onClick={() => removeFollower(row)}>
                 {removal.busy === String(row.key) ? "移除中..." : "移除"}
               </button>
             </article>
@@ -3634,7 +3700,7 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
       {state.rows.length < state.total && (
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? `正在加载更多${label}...` : state.error || `继续查看更多${label}。`}</span>
-          <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore || Boolean(removal.busy)} onClick={loadMoreFollows}>
+          <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore || Boolean(removal.busy) || importState.busy} onClick={loadMoreFollows}>
             {state.loadingMore ? "加载中" : "加载更多"}
           </button>
         </div>
