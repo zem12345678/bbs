@@ -2248,11 +2248,14 @@ function UserFavoritesPanel({ auth }) {
   const collectionsRequestRef = React.useRef(0);
   const postsRequestRef = React.useRef(0);
   const actionBusyRef = React.useRef("");
+  const favoriteExportSessionRef = React.useRef(0);
+  const favoriteExportRequestRef = React.useRef(0);
   const [activeCollectionId, setActiveCollectionId] = React.useState(ALL_FAVORITES_ID);
   const [collectionsState, setCollectionsState] = React.useState({ items: [], loading: false, error: "" });
   const [editor, setEditor] = React.useState(null);
   const [choices, setChoices] = React.useState({});
   const [action, setAction] = React.useState({ busy: "", error: "", notice: "" });
+  const [exportState, setExportState] = React.useState({ busy: false, error: "", notice: "" });
   const [state, setState] = React.useState({
     posts: [],
     total: 0,
@@ -2295,9 +2298,14 @@ function UserFavoritesPanel({ auth }) {
     setEditor(null);
     setChoices({});
     setActiveCollectionId(ALL_FAVORITES_ID);
+    favoriteExportSessionRef.current += 1;
+    favoriteExportRequestRef.current += 1;
+    setExportState({ busy: false, error: "", notice: "" });
     loadCollections();
     return () => {
       collectionsRequestRef.current += 1;
+      favoriteExportSessionRef.current += 1;
+      favoriteExportRequestRef.current += 1;
     };
   }, [loadCollections]);
 
@@ -2404,6 +2412,28 @@ function UserFavoritesPanel({ auth }) {
     if (actionBusyRef.current !== key) return;
     actionBusyRef.current = "";
     setAction({ busy: "", error: next.error || "", notice: next.notice || "" });
+  }
+
+  async function exportFavorites() {
+    if (!token || exportState.busy || actionBusyRef.current) return;
+    const requestToken = token;
+    const requestSession = favoriteExportSessionRef.current;
+    const requestId = favoriteExportRequestRef.current + 1;
+    favoriteExportRequestRef.current = requestId;
+    const isCurrentRequest = () => (
+      favoriteExportSessionRef.current === requestSession &&
+      favoriteExportRequestRef.current === requestId &&
+      authTokenRef.current === requestToken
+    );
+    setExportState({ busy: true, error: "", notice: "" });
+    try {
+      await bbsApi.exportFavorites(requestToken);
+      if (!isCurrentRequest()) return;
+      setExportState({ busy: false, error: "", notice: "收藏导出已请求，完成后可在文件库查看。" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setExportState({ busy: false, error: error.message || "收藏导出失败", notice: "" });
+    }
   }
 
   async function submitEditor(event) {
@@ -2538,7 +2568,11 @@ function UserFavoritesPanel({ auth }) {
             <strong>收藏夹</strong>
             <span>{collectionsState.loading ? "正在加载..." : `${collectionsState.items.length} 个`}</span>
           </div>
-          <button type="button" onClick={startCreate} disabled={Boolean(action.busy)}>
+          <button type="button" onClick={exportFavorites} disabled={!token || Boolean(action.busy) || exportState.busy}>
+            <Download size={17} aria-hidden="true" />
+            {exportState.busy ? "导出中" : "导出收藏"}
+          </button>
+          <button type="button" onClick={startCreate} disabled={Boolean(action.busy) || exportState.busy}>
             <FolderPlus size={17} aria-hidden="true" />
             新建
           </button>
@@ -2607,6 +2641,8 @@ function UserFavoritesPanel({ auth }) {
         {collectionsState.error && <p className="collection-feedback is-error">{collectionsState.error}</p>}
         {action.error && <p className="collection-feedback is-error">{action.error}</p>}
         {action.notice && <p className="collection-feedback">{action.notice}</p>}
+        {exportState.error && <p className="collection-feedback is-error" role="alert">{exportState.error}</p>}
+        {exportState.notice && <p className="collection-feedback" role="status">{exportState.notice}</p>}
       </section>
 
       {state.loading && <EmptyState title="正在加载收藏内容..." />}

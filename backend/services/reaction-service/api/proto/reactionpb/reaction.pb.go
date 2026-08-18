@@ -567,6 +567,8 @@ type ListFavoritesRequest struct {
 	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
 	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	AfterId       int64                  `protobuf:"varint,5,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	AscendingById bool                   `protobuf:"varint,6,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -627,6 +629,20 @@ func (x *ListFavoritesRequest) GetOffset() int32 {
 		return x.Offset
 	}
 	return 0
+}
+
+func (x *ListFavoritesRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListFavoritesRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
 }
 
 type FavoriteListResponse struct {
@@ -2556,13 +2572,15 @@ const file_reaction_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x04 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x05 \x01(\x03R\tupdatedAt\"~\n" +
+	"updated_at\x18\x05 \x01(\x03R\tupdatedAt\"\xc1\x01\n" +
 	"\x14ListFavoritesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
 	"entityType\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x04 \x01(\x05R\x06offset\"a\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\bafter_id\x18\x05 \x01(\x03R\aafterId\x12&\n" +
+	"\x0fascending_by_id\x18\x06 \x01(\bR\rascendingById\"a\n" +
 	"\x14FavoriteListResponse\x123\n" +
 	"\x05items\x18\x01 \x03(\v2\x1d.bbs.reaction.v1.FavoriteInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"F\n" +

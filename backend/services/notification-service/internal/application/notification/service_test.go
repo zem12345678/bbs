@@ -537,6 +537,20 @@ func TestCreateExportCompletedNotificationUsesRelationshipExportCopy(t *testing.
 	}
 }
 
+func TestCreateExportCompletedNotificationUsesFavoriteExportCopy(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+	err := service.CreateExportCompletedNotification(t.Context(), domain.ExportCompletedNotificationCommand{
+		RecipientID: 42, FileID: 9005, ExportedEntity: domain.ExportCompletedEntityFavorite, IdempotencyKey: "favorite-42-9005",
+	})
+	if err != nil {
+		t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+	}
+	if len(repo.created) != 1 || repo.created[0].Title != "收藏导出完成" || repo.created[0].EntityID != 9005 {
+		t.Fatalf("created notifications = %#v", repo.created)
+	}
+}
+
 func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
 	valid := domain.ExportCompletedNotificationCommand{
 		RecipientID:    42,

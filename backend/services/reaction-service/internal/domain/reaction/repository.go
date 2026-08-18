@@ -46,6 +46,12 @@ type FavoriteRepository interface {
 	ListFavorites(ctx context.Context, userID int64, entityType EntityType, limit, offset int) ([]*Favorite, int64, error)
 }
 
+// FavoriteKeysetRepository provides stable, exclusive relation-ID traversal
+// without changing the existing offset list behavior.
+type FavoriteKeysetRepository interface {
+	ListFavoritesAfterID(ctx context.Context, userID int64, entityType EntityType, afterID int64, limit int) ([]*Favorite, int64, error)
+}
+
 // CollectionRepository is intentionally separate from FavoriteRepository:
 // collection membership is user-curated metadata and must not alter the
 // global favorite count or Redis favorite cache.

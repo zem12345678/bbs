@@ -36,7 +36,7 @@ func toStatus(err error) error {
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote), errors.Is(err, domain.ErrInvalidReportAction):
 		code = codes.InvalidArgument
-	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType), errors.Is(err, domain.ErrInvalidCollectionCursor):
+	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType), errors.Is(err, domain.ErrInvalidCollectionCursor), errors.Is(err, domain.ErrInvalidFavoriteCursor):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
@@ -213,7 +213,16 @@ func (h *Handler) GetCounts(ctx context.Context, req *pb.EntityRequest) (*pb.Cou
 }
 
 func (h *Handler) ListFavorites(ctx context.Context, req *pb.ListFavoritesRequest) (*pb.FavoriteListResponse, error) {
-	rows, total, err := h.qry.ListFavorites(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
+	var (
+		rows  []*domain.Favorite
+		total int64
+		err   error
+	)
+	if req.GetAscendingById() {
+		rows, total, err = h.qry.ListFavoritesAfterID(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		rows, total, err = h.qry.ListFavorites(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}

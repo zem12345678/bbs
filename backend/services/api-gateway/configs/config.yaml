@@ -77,6 +77,7 @@ exports:
     antennaInterval: 1h
     blockingInterval: 1h
     clipInterval: 24h
+    favoriteInterval: 24h
     followingInterval: 1h
     muteInterval: 1h
     userListInterval: 1m

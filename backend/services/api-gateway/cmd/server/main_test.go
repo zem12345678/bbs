@@ -66,6 +66,7 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_ANTENNA_INTERVAL", "90m")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_BLOCKING_INTERVAL", "75m")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_CLIP_INTERVAL", "36h")
+	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_FAVORITE_INTERVAL", "38h")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_FOLLOWING_INTERVAL", "70m")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_MUTE_INTERVAL", "80m")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_USER_LIST_INTERVAL", "2m")
@@ -158,10 +159,10 @@ upstreams:
 		t.Fatalf("file upload rate limit = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)
 	}
 	if cfg.Exports.RateLimit.AntennaInterval != 90*time.Minute || cfg.Exports.RateLimit.BlockingInterval != 75*time.Minute ||
-		cfg.Exports.RateLimit.ClipInterval != 36*time.Hour || cfg.Exports.RateLimit.FollowingInterval != 70*time.Minute ||
+		cfg.Exports.RateLimit.ClipInterval != 36*time.Hour || cfg.Exports.RateLimit.FavoriteInterval != 38*time.Hour || cfg.Exports.RateLimit.FollowingInterval != 70*time.Minute ||
 		cfg.Exports.RateLimit.MuteInterval != 80*time.Minute || cfg.Exports.RateLimit.UserListInterval != 2*time.Minute {
-		t.Fatalf("export intervals = antenna %s blocking %s clip %s following %s mute %s user-list %s", cfg.Exports.RateLimit.AntennaInterval,
-			cfg.Exports.RateLimit.BlockingInterval, cfg.Exports.RateLimit.ClipInterval, cfg.Exports.RateLimit.FollowingInterval,
+		t.Fatalf("export intervals = antenna %s blocking %s clip %s favorite %s following %s mute %s user-list %s", cfg.Exports.RateLimit.AntennaInterval,
+			cfg.Exports.RateLimit.BlockingInterval, cfg.Exports.RateLimit.ClipInterval, cfg.Exports.RateLimit.FavoriteInterval, cfg.Exports.RateLimit.FollowingInterval,
 			cfg.Exports.RateLimit.MuteInterval, cfg.Exports.RateLimit.UserListInterval)
 	}
 	if v.GetString("log.level") != "debug" {
@@ -362,10 +363,10 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 		t.Fatalf("file upload defaults = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)
 	}
 	if cfg.Exports.RateLimit.AntennaInterval != time.Hour || cfg.Exports.RateLimit.BlockingInterval != time.Hour ||
-		cfg.Exports.RateLimit.ClipInterval != 24*time.Hour || cfg.Exports.RateLimit.FollowingInterval != time.Hour ||
+		cfg.Exports.RateLimit.ClipInterval != 24*time.Hour || cfg.Exports.RateLimit.FavoriteInterval != 24*time.Hour || cfg.Exports.RateLimit.FollowingInterval != time.Hour ||
 		cfg.Exports.RateLimit.MuteInterval != time.Hour || cfg.Exports.RateLimit.UserListInterval != time.Minute {
-		t.Fatalf("export default intervals = antenna %s blocking %s clip %s following %s mute %s user-list %s", cfg.Exports.RateLimit.AntennaInterval,
-			cfg.Exports.RateLimit.BlockingInterval, cfg.Exports.RateLimit.ClipInterval, cfg.Exports.RateLimit.FollowingInterval,
+		t.Fatalf("export default intervals = antenna %s blocking %s clip %s favorite %s following %s mute %s user-list %s", cfg.Exports.RateLimit.AntennaInterval,
+			cfg.Exports.RateLimit.BlockingInterval, cfg.Exports.RateLimit.ClipInterval, cfg.Exports.RateLimit.FavoriteInterval, cfg.Exports.RateLimit.FollowingInterval,
 			cfg.Exports.RateLimit.MuteInterval, cfg.Exports.RateLimit.UserListInterval)
 	}
 	if cfg.Upstreams.Admin == "" || cfg.Upstreams.User == "" || cfg.Upstreams.Notification == "" || cfg.Upstreams.Chat == "" {

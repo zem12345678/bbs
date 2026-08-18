@@ -89,6 +89,8 @@ message ListFavoritesRequest {
   string entity_type = 2;
   int32 limit = 3;
   int32 offset = 4;
+  int64 after_id = 5;
+  bool ascending_by_id = 6;
 }
 
 message FavoriteListResponse {

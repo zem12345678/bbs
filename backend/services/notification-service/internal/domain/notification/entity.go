@@ -19,6 +19,7 @@ const (
 	ExportCompletedEntityAntenna                 = "antenna"
 	ExportCompletedEntityBlocking                = "blocking"
 	ExportCompletedEntityClip                    = "clip"
+	ExportCompletedEntityFavorite                = "favorite"
 	ExportCompletedEntityFollowing               = "following"
 	ExportCompletedEntityMuting                  = "muting"
 	ExportCompletedEntityUserList                = "userList"

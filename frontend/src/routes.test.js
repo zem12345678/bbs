@@ -201,6 +201,11 @@ test("keeps named collection management inside the existing favorites route", ()
   assert.match(source, /bbsApi\.deleteCollection/);
   assert.match(source, /bbsApi\.addCollectionItem/);
   assert.match(source, /bbsApi\.removeCollectionItem/);
+  assert.match(source, /bbsApi\.exportFavorites\(requestToken\)/);
+  assert.match(source, /favoriteExportSessionRef\.current === requestSession/);
+  assert.match(source, /favoriteExportRequestRef\.current === requestId/);
+  assert.match(source, /收藏导出已请求，完成后可在文件库查看。/);
+  assert.match(source, /<Download size=\{17\} aria-hidden="true" \/>/);
 });
 
 test("connects user-list management and timelines to member routes", () => {

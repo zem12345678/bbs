@@ -170,6 +170,43 @@ func (r *PostgresFavoriteRepository) ListFavorites(ctx context.Context, userID i
 	return out, total, nil
 }
 
+func (r *PostgresFavoriteRepository) ListFavoritesAfterID(ctx context.Context, userID int64, entityType domain.EntityType, afterID int64, limit int) ([]*domain.Favorite, int64, error) {
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if entityType != "" && !entityType.Valid() {
+		return nil, 0, domain.ErrInvalidEntityType
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidFavoriteCursor
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	query := r.db.WithContext(ctx).Model(&favoritePO{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID)
+	if entityType != "" {
+		query = query.Where("entity_type = ?", string(entityType))
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []favoritePO
+	if err := query.Where("id > ?", afterID).Order("id ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*domain.Favorite, 0, len(rows))
+	for i := range rows {
+		out = append(out, toFavoriteEntity(&rows[i]))
+	}
+	return out, total, nil
+}
+
 func toFavoriteEntity(po *favoritePO) *domain.Favorite {
 	if po == nil {
 		return nil

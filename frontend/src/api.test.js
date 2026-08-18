@@ -80,6 +80,21 @@ test("loads public custom emojis without authentication", async () => {
   assert.equal(data.emojis[0].name, "party");
 });
 
+test("requests favorite export with the interactive bearer token", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return new Response(null, { status: 204 });
+  };
+
+  await bbsApi.exportFavorites("access-token");
+
+  assert.equal(captured.url, "http://127.0.0.1:18080/api/v1/i/export-favorites");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(captured.options.body), {});
+});
+
 test("keeps int64 mall ids quoted in mutation payloads", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

@@ -56,6 +56,7 @@ type runtimeConfig struct {
 			AntennaInterval   time.Duration
 			BlockingInterval  time.Duration
 			ClipInterval      time.Duration
+			FavoriteInterval  time.Duration
 			FollowingInterval time.Duration
 			MuteInterval      time.Duration
 			UserListInterval  time.Duration
@@ -121,6 +122,7 @@ const (
 	defaultAntennaExportInterval     = time.Hour
 	defaultBlockingExportInterval    = time.Hour
 	defaultClipExportInterval        = 24 * time.Hour
+	defaultFavoriteExportInterval    = 24 * time.Hour
 	defaultFollowingExportInterval   = time.Hour
 	defaultMuteExportInterval        = time.Hour
 	defaultUserListExportInterval    = time.Minute
@@ -179,6 +181,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Exports.RateLimit.AntennaInterval = positiveDuration(v.GetDuration("exports.rateLimit.antennaInterval"), defaultAntennaExportInterval)
 	cfg.Exports.RateLimit.BlockingInterval = positiveDuration(v.GetDuration("exports.rateLimit.blockingInterval"), defaultBlockingExportInterval)
 	cfg.Exports.RateLimit.ClipInterval = positiveDuration(v.GetDuration("exports.rateLimit.clipInterval"), defaultClipExportInterval)
+	cfg.Exports.RateLimit.FavoriteInterval = positiveDuration(v.GetDuration("exports.rateLimit.favoriteInterval"), defaultFavoriteExportInterval)
 	cfg.Exports.RateLimit.FollowingInterval = positiveDuration(v.GetDuration("exports.rateLimit.followingInterval"), defaultFollowingExportInterval)
 	cfg.Exports.RateLimit.MuteInterval = positiveDuration(v.GetDuration("exports.rateLimit.muteInterval"), defaultMuteExportInterval)
 	cfg.Exports.RateLimit.UserListInterval = positiveDuration(v.GetDuration("exports.rateLimit.userListInterval"), defaultUserListExportInterval)
@@ -236,6 +239,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("exports.rateLimit.antennaInterval", cfg.Exports.RateLimit.AntennaInterval)
 	v.Set("exports.rateLimit.blockingInterval", cfg.Exports.RateLimit.BlockingInterval)
 	v.Set("exports.rateLimit.clipInterval", cfg.Exports.RateLimit.ClipInterval)
+	v.Set("exports.rateLimit.favoriteInterval", cfg.Exports.RateLimit.FavoriteInterval)
 	v.Set("exports.rateLimit.followingInterval", cfg.Exports.RateLimit.FollowingInterval)
 	v.Set("exports.rateLimit.muteInterval", cfg.Exports.RateLimit.MuteInterval)
 	v.Set("exports.rateLimit.userListInterval", cfg.Exports.RateLimit.UserListInterval)
@@ -584,6 +588,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "exports.rateLimit.antennaInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_ANTENNA_INTERVAL")
 	bindEnv(v, "exports.rateLimit.blockingInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_BLOCKING_INTERVAL")
 	bindEnv(v, "exports.rateLimit.clipInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_CLIP_INTERVAL")
+	bindEnv(v, "exports.rateLimit.favoriteInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_FAVORITE_INTERVAL")
 	bindEnv(v, "exports.rateLimit.followingInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_FOLLOWING_INTERVAL")
 	bindEnv(v, "exports.rateLimit.muteInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_MUTE_INTERVAL")
 	bindEnv(v, "exports.rateLimit.userListInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_USER_LIST_INTERVAL")

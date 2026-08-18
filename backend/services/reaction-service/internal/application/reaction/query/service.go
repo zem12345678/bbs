@@ -103,6 +103,23 @@ func (s *Service) ListFavorites(ctx context.Context, userID int64, entityType do
 	return s.favorites.ListFavorites(ctx, userID, entityType, limit, offset)
 }
 
+func (s *Service) ListFavoritesAfterID(ctx context.Context, userID int64, entityType domain.EntityType, afterID int64, limit int) ([]*domain.Favorite, int64, error) {
+	favorites, ok := s.favorites.(domain.FavoriteKeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrReportNotFound
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if entityType != "" && !entityType.Valid() {
+		return nil, 0, domain.ErrInvalidEntityType
+	}
+	if afterID < 0 {
+		return nil, 0, domain.ErrInvalidFavoriteCursor
+	}
+	return favorites.ListFavoritesAfterID(ctx, userID, entityType, afterID, limit)
+}
+
 func (s *Service) ListCollections(ctx context.Context, userID int64, limit, offset int) ([]*domain.Collection, int64, error) {
 	if s.collections == nil {
 		return nil, 0, domain.ErrCollectionRepositoryUnavailable
