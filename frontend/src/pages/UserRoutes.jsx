@@ -2151,6 +2151,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
 
       <AccountDataExportSection token={token} />
 
+      <NoteImportSection token={token} />
+
       <FollowingExportSection token={token} />
 
       <div className="account-security-section">
@@ -2267,6 +2269,99 @@ function AccountDataExportSection({ token }) {
           {state.busy ? "归档中..." : "生成账户数据归档"}
         </button>
       </div>
+      {state.error && <p className="form-error" role="alert">{state.error}</p>}
+      {state.notice && <p className="form-success" role="status">{state.notice}</p>}
+    </div>
+  );
+}
+
+function NoteImportSection({ token }) {
+  const [source, setSource] = React.useState("Misskey");
+  const [state, setState] = React.useState({ busy: false, error: "", notice: "" });
+  const inputRef = React.useRef(null);
+  const requestSessionRef = React.useRef(0);
+  const requestRef = React.useRef(0);
+  const busyRef = React.useRef(false);
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
+
+  React.useEffect(() => {
+    requestSessionRef.current += 1;
+    requestRef.current += 1;
+    busyRef.current = false;
+    setState({ busy: false, error: "", notice: "" });
+    return () => {
+      requestSessionRef.current += 1;
+      requestRef.current += 1;
+      busyRef.current = false;
+    };
+  }, [token]);
+
+  async function importNotes(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!token || !file || busyRef.current) return;
+    if (file.size > 50 * 1024 * 1024) {
+      setState({ busy: false, error: "导入文件不能超过 50 MiB", notice: "" });
+      return;
+    }
+    const requestToken = token;
+    const requestSource = source;
+    const requestSession = requestSessionRef.current;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    busyRef.current = true;
+    const isCurrentRequest = () => (
+      requestSessionRef.current === requestSession &&
+      requestRef.current === requestId &&
+      tokenRef.current === requestToken
+    );
+    setState({ busy: true, error: "", notice: "" });
+    try {
+      const uploaded = await bbsApi.uploadFile(file, requestToken, "imports");
+      if (!isCurrentRequest()) return;
+      const fileId = uploaded?.file?.id || uploaded?.id;
+      if (!fileId) throw new Error("导入文件上传失败");
+      const result = await bbsApi.importNotes(fileId, requestSource, requestToken);
+      if (!isCurrentRequest()) return;
+      const imported = Number(result?.imported || 0);
+      const drafts = Number(result?.drafts || 0);
+      busyRef.current = false;
+      setState({ busy: false, error: "", notice: drafts ? `已导入 ${imported} 条，其中 ${drafts} 条保留为草稿。` : `已导入 ${imported} 条内容。` });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      busyRef.current = false;
+      setState({ busy: false, error: error.message || "内容导入失败", notice: "" });
+    }
+  }
+
+  return (
+    <div className="account-security-section">
+      <div className="account-security-section-heading">
+        <Upload size={20} aria-hidden="true" />
+        <div>
+          <strong>导入内容</strong>
+          <p>从兼容的账户归档恢复文本和投票内容。</p>
+        </div>
+      </div>
+      <div className="account-security-actions account-security-import-actions">
+        <label>
+          来源
+          <select value={source} disabled={!token || state.busy} onChange={(event) => setSource(event.target.value)}>
+            <option value="Misskey">Misskey / BBS JSON</option>
+            <option value="Mastodon">Mastodon</option>
+            <option value="Pleroma">Pleroma</option>
+            <option value="Twitter">Twitter</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Facebook">Facebook</option>
+          </select>
+        </label>
+        <button type="button" disabled={!token || state.busy} onClick={() => inputRef.current?.click()}>
+          <Upload size={17} aria-hidden="true" />
+          {state.busy ? "导入中..." : "选择归档并导入"}
+        </button>
+      </div>
+      <input ref={inputRef} className="sr-only" type="file" accept=".json,.js,.zip,application/json,application/zip" disabled={!token || state.busy} onChange={importNotes} />
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
       {state.notice && <p className="form-success" role="status">{state.notice}</p>}
     </div>

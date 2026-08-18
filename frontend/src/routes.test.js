@@ -428,7 +428,7 @@ test("connects complete account data export to account security", () => {
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
   const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
   const sectionStart = userSource.indexOf("function AccountDataExportSection");
-  const section = userSource.slice(sectionStart, userSource.indexOf("function FollowingExportSection", sectionStart));
+  const section = userSource.slice(sectionStart, userSource.indexOf("function NoteImportSection", sectionStart));
 
   assert.ok(sectionStart >= 0, "AccountDataExportSection is present");
   assert.match(userSource, /<AccountDataExportSection token=\{token\} \/>/);
@@ -441,6 +441,26 @@ test("connects complete account data export to account security", () => {
   assert.match(section, /账户数据归档已生成，可在文件库下载。/);
   assert.match(section, /error\.message \|\| "账户数据导出失败"/);
   assert.match(section, /生成账户数据归档/);
+});
+
+test("connects note archive import to account security", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const sectionStart = userSource.indexOf("function NoteImportSection");
+  const section = userSource.slice(sectionStart, userSource.indexOf("function FollowingExportSection", sectionStart));
+
+  assert.ok(sectionStart >= 0, "NoteImportSection is present");
+  assert.match(userSource, /<NoteImportSection token=\{token\} \/>/);
+  assert.match(apiSource, /request\("\/i\/import-notes", \{[\s\S]*fileId: String\(fileId\), type: String\(source\)/);
+  assert.match(section, /file\.size > 50 \* 1024 \* 1024/);
+  assert.match(section, /bbsApi\.uploadFile\(file, requestToken, "imports"\)/);
+  assert.match(section, /bbsApi\.importNotes\(fileId, requestSource, requestToken\)/);
+  assert.match(section, /requestSessionRef\.current === requestSession/);
+  assert.match(section, /tokenRef\.current === requestToken/);
+  assert.match(section, /<option value="Misskey">Misskey \/ BBS JSON<\/option>/);
+  assert.match(section, /<option value="Facebook">Facebook<\/option>/);
+  assert.match(section, /其中 \$\{drafts\} 条保留为草稿/);
+  assert.match(section, /error\.message \|\| "内容导入失败"/);
 });
 
 test("connects account lifecycle and permanent deletion to account security", () => {

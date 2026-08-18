@@ -8168,6 +8168,10 @@ a {
   align-items: center;
 }
 
+.account-security-import-actions label {
+  min-width: 220px;
+}
+
 .account-security-export-options {
   display: grid;
   gap: 9px;
@@ -8554,6 +8558,10 @@ a {
   }
 
   .account-security .account-security-actions button {
+    width: 100%;
+  }
+
+  .account-security-import-actions label {
     width: 100%;
   }
 

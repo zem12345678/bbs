@@ -571,6 +571,13 @@ export const bbsApi = {
   exportNotes(token) {
     return request("/i/export-notes", { method: "POST", body: {}, token });
   },
+  importNotes(fileId, source, token) {
+    return request("/i/import-notes", {
+      method: "POST",
+      body: { fileId: String(fileId), type: String(source) },
+      token
+    });
+  },
   exportData(token) {
     return request("/i/export-data", { method: "POST", body: {}, token });
   },

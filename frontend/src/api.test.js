@@ -110,6 +110,21 @@ test("requests note export with the interactive bearer token", async () => {
   assert.deepEqual(JSON.parse(captured.options.body), {});
 });
 
+test("requests note import with the selected source and interactive bearer token", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, { imported: 2, drafts: 1, skipped: 0 });
+  };
+
+  await bbsApi.importNotes("9223372036854773000", "Mastodon", "access-token");
+
+  assert.equal(captured.url, "http://127.0.0.1:18080/api/v1/i/import-notes");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(captured.options.body), { fileId: "9223372036854773000", type: "Mastodon" });
+});
+
 test("requests account data export with the interactive bearer token", async () => {
   let captured;
   globalThis.fetch = async (url, options) => {

@@ -93,6 +93,7 @@ type Handler struct {
 	mutingImportLimit                  ratelimit.Limiter
 	followingImportLimit               ratelimit.Limiter
 	userListImportLimit                ratelimit.Limiter
+	noteImportLimit                    ratelimit.Limiter
 	accountDataExportGate              ExportGate
 	clipExportGate                     ExportGate
 	favoriteExportGate                 ExportGate
@@ -511,6 +512,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/import-muting", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importMuting)
 			r.POST(prefix+"/i/import-following", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importFollowing)
 			r.POST(prefix+"/i/import-user-lists", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importUserLists)
+			r.POST(prefix+"/i/import-notes", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importNotes)
 		}
 		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
@@ -558,6 +560,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/i/import-muting", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importMuting)
 	api.POST("/i/import-following", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importFollowing)
 	api.POST("/i/import-user-lists", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importUserLists)
+	api.POST("/i/import-notes", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importNotes)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
 		api.GET("/ping", h.instancePing)
