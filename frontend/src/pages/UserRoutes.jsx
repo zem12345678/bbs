@@ -3733,11 +3733,17 @@ function UserListsPanel({ auth, editable, ownerId }) {
   const [editor, setEditor] = React.useState(null);
   const [action, setAction] = React.useState({ busy: false, error: "", notice: "" });
   const [exportState, setExportState] = React.useState({ busy: false, error: "", notice: "" });
+  const [importState, setImportState] = React.useState({ busy: false, error: "", notice: "" });
   const requestRef = React.useRef(0);
   const exportSessionRef = React.useRef(0);
   const exportRequestRef = React.useRef(0);
   const exportScopeRef = React.useRef({ editable, mode, token });
+  const importInputRef = React.useRef(null);
+  const importSessionRef = React.useRef(0);
+  const importRequestRef = React.useRef(0);
+  const importScopeRef = React.useRef({ editable, mode, token });
   exportScopeRef.current = { editable, mode, token };
+  importScopeRef.current = { editable, mode, token };
 
   const loadLists = React.useCallback(async () => {
     const requestId = requestRef.current + 1;
@@ -3784,9 +3790,19 @@ function UserListsPanel({ auth, editable, ownerId }) {
     };
   }, [editable, mode, token]);
 
+  React.useEffect(() => {
+    importSessionRef.current += 1;
+    importRequestRef.current += 1;
+    setImportState({ busy: false, error: "", notice: "" });
+    return () => {
+      importSessionRef.current += 1;
+      importRequestRef.current += 1;
+    };
+  }, [editable, mode, token]);
+
   async function submitList(event) {
     event.preventDefault();
-    if (!editor || !token || action.busy) return;
+    if (!editor || !token || action.busy || exportState.busy || importState.busy) return;
     const { name, error } = validateUserListName(editor.name);
     if (error) {
       setAction({ busy: false, error, notice: "" });
@@ -3808,7 +3824,7 @@ function UserListsPanel({ auth, editable, ownerId }) {
   }
 
   async function exportUserLists() {
-    if (!token || !editable || mode !== "owned" || exportState.busy) return;
+    if (!token || !editable || mode !== "owned" || exportState.busy || importState.busy || action.busy) return;
     const requestToken = token;
     const requestMode = mode;
     const requestSession = exportSessionRef.current;
@@ -3832,6 +3848,42 @@ function UserListsPanel({ auth, editable, ownerId }) {
     }
   }
 
+  async function importUserLists(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!token || !editable || mode !== "owned" || !file || importState.busy || exportState.busy || action.busy) return;
+    if (file.size > 64 * 1024) {
+      setImportState({ busy: false, error: "导入文件不能超过 64 KiB", notice: "" });
+      return;
+    }
+    const requestToken = token;
+    const requestMode = mode;
+    const requestSession = importSessionRef.current;
+    const requestId = importRequestRef.current + 1;
+    importRequestRef.current = requestId;
+    const isCurrentRequest = () => (
+      importSessionRef.current === requestSession &&
+      importRequestRef.current === requestId &&
+      importScopeRef.current.token === requestToken &&
+      importScopeRef.current.mode === requestMode &&
+      importScopeRef.current.editable
+    );
+    setImportState({ busy: true, error: "", notice: "" });
+    try {
+      const uploaded = await bbsApi.uploadFile(file, requestToken, "imports");
+      if (!isCurrentRequest()) return;
+      const fileId = uploaded?.file?.id || uploaded?.id;
+      if (!fileId) throw new Error("导入文件上传失败");
+      await bbsApi.importUserLists(fileId, requestToken);
+      if (!isCurrentRequest()) return;
+      setImportState({ busy: false, error: "", notice: "用户列表已导入" });
+      loadLists();
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setImportState({ busy: false, error: error.message || "用户列表导入失败", notice: "" });
+    }
+  }
+
   if (editable && !auth) {
     return <EmptyState title="请先登录" description="登录后可以创建和管理用户列表。" />;
   }
@@ -3846,18 +3898,27 @@ function UserListsPanel({ auth, editable, ownerId }) {
         {editable && (
           <div className="user-list-manager__header-actions">
             {mode === "owned" && (
-              <button aria-label="导出我的用户列表" type="button" disabled={!token || exportState.busy || action.busy} onClick={exportUserLists}>
-                <Download size={17} aria-hidden="true" />
-                {exportState.busy ? "导出中" : "导出"}
-              </button>
+              <>
+                <button aria-label="导入用户列表" type="button" disabled={!token || importState.busy || exportState.busy || action.busy} onClick={() => importInputRef.current?.click()}>
+                  <Upload size={17} aria-hidden="true" />
+                  {importState.busy ? "导入中" : "导入"}
+                </button>
+                <button aria-label="导出我的用户列表" type="button" disabled={!token || exportState.busy || importState.busy || action.busy} onClick={exportUserLists}>
+                  <Download size={17} aria-hidden="true" />
+                  {exportState.busy ? "导出中" : "导出"}
+                </button>
+              </>
             )}
-            <button aria-label="新建用户列表" type="button" disabled={action.busy || exportState.busy} onClick={() => setEditor({ name: "", isPublic: false })}>
+            <button aria-label="新建用户列表" type="button" disabled={action.busy || exportState.busy || importState.busy} onClick={() => setEditor({ name: "", isPublic: false })}>
               <FolderPlus size={17} aria-hidden="true" />
               新建
             </button>
           </div>
         )}
       </header>
+      {editable && mode === "owned" && (
+        <input ref={importInputRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={!token || importState.busy || exportState.busy || action.busy} onChange={importUserLists} />
+      )}
       {editable && (
         <div className="user-list-manager__switch" role="tablist" aria-label="用户列表视图">
           <button className={mode === "owned" ? "is-active" : ""} type="button" onClick={() => setMode("owned")}>我创建的</button>
@@ -3901,6 +3962,8 @@ function UserListsPanel({ auth, editable, ownerId }) {
       )}
       {mode === "owned" && exportState.error && <p className="user-list-feedback is-error" role="alert">{exportState.error}</p>}
       {mode === "owned" && exportState.notice && <p className="user-list-feedback" role="status">{exportState.notice}</p>}
+      {mode === "owned" && importState.error && <p className="user-list-feedback is-error" role="alert">{importState.error}</p>}
+      {mode === "owned" && importState.notice && <p className="user-list-feedback" role="status">{importState.notice}</p>}
       {action.error && <p className="user-list-feedback is-error">{action.error}</p>}
       {action.notice && <p className="user-list-feedback">{action.notice}</p>}
     </section>

@@ -244,7 +244,7 @@ test("connects user-list export only to the editable owned-list view", () => {
 
   assert.ok(actionStart >= 0, "exportUserLists is present");
   assert.match(panel, /const \[exportState, setExportState\] = React\.useState\(\{ busy: false, error: "", notice: "" \}\)/);
-  assert.match(exportAction, /if \(!token \|\| !editable \|\| mode !== "owned" \|\| exportState\.busy\) return/);
+  assert.match(exportAction, /if \(!token \|\| !editable \|\| mode !== "owned" \|\| exportState\.busy \|\| importState\.busy \|\| action\.busy\) return/);
   assert.match(exportAction, /const requestToken = token/);
   assert.match(exportAction, /const requestSession = exportSessionRef\.current/);
   assert.match(exportAction, /const requestId = exportRequestRef\.current \+ 1/);
@@ -255,8 +255,22 @@ test("connects user-list export only to the editable owned-list view", () => {
   assert.match(exportAction, /exportScopeRef\.current\.mode === requestMode/);
   assert.match(exportAction, /notice: "用户列表导出已请求，完成后可在文件库查看。"/);
   assert.match(exportAction, /error: error\.message \|\| "用户列表导出失败"/);
+  const importStart = panel.indexOf("async function importUserLists");
+  const importAction = panel.slice(importStart, panel.indexOf("if (editable && !auth)", importStart));
+  assert.ok(importStart >= 0, "importUserLists is present");
+  assert.match(panel, /const \[importState, setImportState\] = React\.useState\(\{ busy: false, error: "", notice: "" \}\)/);
+  assert.match(importAction, /if \(!token \|\| !editable \|\| mode !== "owned" \|\| !file \|\| importState\.busy \|\| exportState\.busy \|\| action\.busy\) return/);
+  assert.match(importAction, /file\.size > 64 \* 1024/);
+  assert.match(importAction, /await bbsApi\.uploadFile\(file, requestToken, "imports"\)/);
+  assert.match(importAction, /await bbsApi\.importUserLists\(fileId, requestToken\)/);
+  assert.match(importAction, /importSessionRef\.current === requestSession/);
+  assert.match(importAction, /notice: "用户列表已导入"/);
+  assert.match(importAction, /error: error\.message \|\| "用户列表导入失败"/);
   assert.match(panel, /React\.useEffect\(\(\) => \{\s+exportSessionRef\.current \+= 1;\s+exportRequestRef\.current \+= 1;[\s\S]*?return \(\) => \{\s+exportSessionRef\.current \+= 1;\s+exportRequestRef\.current \+= 1;[\s\S]*?\}, \[editable, mode, token\]\)/);
-  assert.match(panel, /\{mode === "owned" && \(\s+<button aria-label="导出我的用户列表" type="button" disabled=\{!token \|\| exportState\.busy \|\| action\.busy\}/);
+  assert.match(panel, /React\.useEffect\(\(\) => \{\s+importSessionRef\.current \+= 1;\s+importRequestRef\.current \+= 1;[\s\S]*?return \(\) => \{\s+importSessionRef\.current \+= 1;\s+importRequestRef\.current \+= 1;[\s\S]*?\}, \[editable, mode, token\]\)/);
+  assert.match(panel, /<button aria-label="导出我的用户列表" type="button" disabled=\{!token \|\| exportState\.busy \|\| importState\.busy \|\| action\.busy\}/);
+  assert.match(panel, /<button aria-label="导入用户列表" type="button" disabled=\{!token \|\| importState\.busy \|\| exportState\.busy \|\| action\.busy\}/);
+  assert.match(panel, /<Upload size=\{17\} aria-hidden="true" \/>/);
   assert.match(panel, /<Download size=\{17\} aria-hidden="true" \/>/);
   assert.match(panel, /exportState\.busy \? "导出中" : "导出"/);
 });

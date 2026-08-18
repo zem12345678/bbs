@@ -499,6 +499,9 @@ export const bbsApi = {
   exportUserLists(token) {
     return request("/i/export-user-lists", { method: "POST", body: {}, token });
   },
+  importUserLists(fileId, token) {
+    return request("/i/import-user-lists", { method: "POST", body: { fileId: String(fileId) }, token });
+  },
   myUserLists(params = {}, token) {
     return request(`/users/me/lists${buildQuery({ page: 1, page_size: 20, ...params })}`, { token });
   },

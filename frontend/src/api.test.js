@@ -224,6 +224,7 @@ test("maps authenticated user-list management and timeline requests", async () =
   await bbsApi.addUserListMember("9223372036854775000", "9223372036854774000", "access-token");
   await bbsApi.userListFeed("9223372036854775000", { limit: 10, offset: 20 }, "access-token");
   await bbsApi.exportUserLists("access-token");
+  await bbsApi.importUserLists("9223372036854773000", "access-token");
 
   assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/lists");
   assert.equal(requests[0].options.method, "POST");
@@ -236,6 +237,10 @@ test("maps authenticated user-list management and timeline requests", async () =
   assert.equal(requests[3].options.method, "POST");
   assert.equal(requests[3].options.headers.Authorization, "Bearer access-token");
   assert.deepEqual(JSON.parse(requests[3].options.body), {});
+  assert.equal(requests[4].url, "http://127.0.0.1:18080/api/v1/i/import-user-lists");
+  assert.equal(requests[4].options.method, "POST");
+  assert.equal(requests[4].options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(requests[4].options.body), { fileId: "9223372036854773000" });
 });
 
 test("maps MFA login and account-security requests", async () => {
