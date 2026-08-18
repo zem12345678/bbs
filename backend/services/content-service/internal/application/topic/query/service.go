@@ -99,6 +99,21 @@ func (s *Service) List(ctx context.Context, status domain.Status, typ domain.Typ
 	return toViews(topics), total, nil
 }
 
+func (s *Service) ListAfterID(ctx context.Context, status domain.Status, authorID, afterID int64, limit int) ([]TopicView, int64, error) {
+	if authorID <= 0 || afterID < 0 || limit <= 0 || limit > 100 {
+		return nil, 0, domain.ErrInvalidCursor
+	}
+	repo, ok := s.repo.(domain.KeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrKeysetUnavailable
+	}
+	topics, total, err := repo.ListAfterID(ctx, status, authorID, afterID, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return toViews(topics), total, nil
+}
+
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
 	if s.publisher == nil || len(events) == 0 {
 		return

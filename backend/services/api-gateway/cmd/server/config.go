@@ -59,6 +59,7 @@ type runtimeConfig struct {
 			FavoriteInterval  time.Duration
 			FollowingInterval time.Duration
 			MuteInterval      time.Duration
+			NoteInterval      time.Duration
 			UserListInterval  time.Duration
 		}
 	}
@@ -125,6 +126,7 @@ const (
 	defaultFavoriteExportInterval    = 24 * time.Hour
 	defaultFollowingExportInterval   = time.Hour
 	defaultMuteExportInterval        = time.Hour
+	defaultNoteExportInterval        = 24 * time.Hour
 	defaultUserListExportInterval    = time.Minute
 )
 
@@ -184,6 +186,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Exports.RateLimit.FavoriteInterval = positiveDuration(v.GetDuration("exports.rateLimit.favoriteInterval"), defaultFavoriteExportInterval)
 	cfg.Exports.RateLimit.FollowingInterval = positiveDuration(v.GetDuration("exports.rateLimit.followingInterval"), defaultFollowingExportInterval)
 	cfg.Exports.RateLimit.MuteInterval = positiveDuration(v.GetDuration("exports.rateLimit.muteInterval"), defaultMuteExportInterval)
+	cfg.Exports.RateLimit.NoteInterval = positiveDuration(v.GetDuration("exports.rateLimit.noteInterval"), defaultNoteExportInterval)
 	cfg.Exports.RateLimit.UserListInterval = positiveDuration(v.GetDuration("exports.rateLimit.userListInterval"), defaultUserListExportInterval)
 	cfg.Chat.RateLimit.TicketInterval = positiveDuration(v.GetDuration("chat.rateLimit.ticketInterval"), defaultChatTicketInterval)
 	cfg.Chat.RateLimit.TicketRate = positiveInt(v.GetInt("chat.rateLimit.ticketRate"), defaultChatTicketRate)
@@ -242,6 +245,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("exports.rateLimit.favoriteInterval", cfg.Exports.RateLimit.FavoriteInterval)
 	v.Set("exports.rateLimit.followingInterval", cfg.Exports.RateLimit.FollowingInterval)
 	v.Set("exports.rateLimit.muteInterval", cfg.Exports.RateLimit.MuteInterval)
+	v.Set("exports.rateLimit.noteInterval", cfg.Exports.RateLimit.NoteInterval)
 	v.Set("exports.rateLimit.userListInterval", cfg.Exports.RateLimit.UserListInterval)
 	v.Set("chat.rateLimit.ticketInterval", cfg.Chat.RateLimit.TicketInterval)
 	v.Set("chat.rateLimit.ticketRate", cfg.Chat.RateLimit.TicketRate)
@@ -591,6 +595,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "exports.rateLimit.favoriteInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_FAVORITE_INTERVAL")
 	bindEnv(v, "exports.rateLimit.followingInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_FOLLOWING_INTERVAL")
 	bindEnv(v, "exports.rateLimit.muteInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_MUTE_INTERVAL")
+	bindEnv(v, "exports.rateLimit.noteInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_NOTE_INTERVAL")
 	bindEnv(v, "exports.rateLimit.userListInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_USER_LIST_INTERVAL")
 	bindEnv(v, "http.trustedProxies", "BBS_GATEWAY_HTTP_TRUSTED_PROXIES")
 	bindEnv(v, "http.host", "BBS_GATEWAY_HTTP_HOST")

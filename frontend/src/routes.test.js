@@ -762,7 +762,9 @@ test("dashboard content actions ignore stale auth sessions", () => {
   const loadItemsStart = contentPanel.indexOf("const loadItems");
   const loadItems = contentPanel.slice(loadItemsStart, contentPanel.indexOf("React.useLayoutEffect", loadItemsStart));
   const actionStart = contentPanel.indexOf("async function runContentAction");
-  const action = contentPanel.slice(actionStart, contentPanel.indexOf("\n\n  return", actionStart));
+  const exportStart = contentPanel.indexOf("async function exportNotes");
+  const action = contentPanel.slice(actionStart, exportStart);
+  const exportAction = contentPanel.slice(exportStart, contentPanel.indexOf("\n\n  return", exportStart));
 
   assert.match(contentPanel, /const contentSessionRef = React\.useRef\(0\)/);
   assert.match(contentPanel, /const contentTokenRef = React\.useRef\(auth\.accessToken\)/);
@@ -785,6 +787,18 @@ test("dashboard content actions ignore stale auth sessions", () => {
   assert.match(action, /await bbsApi[\s\S]*?;\s*}\s*if \(!isCurrentRequest\(\)\) return/);
   assert.match(action, /catch \(error\) \{\s*if \(!isCurrentRequest\(\)\) return/);
   assert.doesNotMatch(action, /auth\.accessToken\)/);
+
+  assert.match(contentPanel, /const noteExportRequestRef = React\.useRef\(0\)/);
+  assert.match(contentPanel, /const noteExportBusyRef = React\.useRef\(false\)/);
+  assert.match(exportAction, /noteExportBusyRef\.current/);
+  assert.match(exportAction, /await bbsApi\.exportNotes\(requestToken\)/);
+  assert.match(exportAction, /noteExportRequestRef\.current === requestId/);
+  assert.match(exportAction, /isCurrentContentSessionRequest\(requestToken, contentSession\)/);
+  assert.match(exportAction, /内容导出文件已生成，可在文件库下载/);
+  assert.match(contentPanel, /onClick=\{exportNotes\}/);
+  assert.match(contentPanel, /\{exportState\.busy \? "导出中\.\.\." : "导出内容"\}/);
+  assert.match(contentPanel, /exportState\.notice && <p className="form-success" role="status">/);
+  assert.match(contentPanel, /exportState\.error && <p className="form-error" role="alert">/);
 });
 
 test("connects the authenticated file library to the existing dashboard", () => {

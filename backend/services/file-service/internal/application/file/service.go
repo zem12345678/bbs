@@ -459,6 +459,16 @@ func (s *Service) ListTopicAttachments(ctx context.Context, topicID int64) ([]do
 	return s.repo.ListTopicAttachments(ctx, topicID)
 }
 
+func (s *Service) ListOwnedTopicAttachments(ctx context.Context, topicID, ownerID int64) ([]domain.Attachment, error) {
+	if topicID <= 0 || ownerID <= 0 {
+		return nil, domain.ErrInvalidAttachment
+	}
+	if _, err := s.ensureTopicOwned(ctx, topicID, ownerID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListTopicAttachments(ctx, topicID)
+}
+
 func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {
 	if userID <= 0 || topicID < 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
 		return domain.AttachmentDownloadList{}, domain.ErrInvalidDownload
@@ -535,6 +545,26 @@ func (s *Service) ensureTopicOwnedAndPublished(ctx context.Context, topicID, own
 		return domain.ErrAttachmentTopicOwnerMismatch
 	}
 	return nil
+}
+
+func (s *Service) ensureTopicOwned(ctx context.Context, topicID, ownerID int64) (Topic, error) {
+	if s.topics == nil {
+		return Topic{}, domain.ErrContentServiceUnavailable
+	}
+	topic, err := s.topics.GetTopic(ctx, topicID)
+	if err != nil {
+		if errors.Is(err, domain.ErrAttachmentTopicUnavailable) {
+			return Topic{}, err
+		}
+		return Topic{}, domain.ErrContentServiceUnavailable
+	}
+	if topic.ID != topicID {
+		return Topic{}, domain.ErrAttachmentTopicUnavailable
+	}
+	if topic.AuthorID != ownerID {
+		return Topic{}, domain.ErrAttachmentTopicOwnerMismatch
+	}
+	return topic, nil
 }
 
 func (s *Service) ensureTopicPublished(ctx context.Context, topicID int64) (Topic, error) {

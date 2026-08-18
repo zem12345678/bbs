@@ -23,6 +23,12 @@ type Repository interface {
 	IncrementViewCount(ctx context.Context, id int64) (int64, error)
 }
 
+// KeysetRepository is the stable, ID-ordered read path used by exports.
+// It remains optional so offset-based callers and their fakes are unchanged.
+type KeysetRepository interface {
+	ListAfterID(ctx context.Context, status Status, authorID, afterID int64, limit int) ([]*Article, int64, error)
+}
+
 type Cache interface {
 	Get(ctx context.Context, slug string) (*Article, bool)
 	Set(ctx context.Context, a *Article)

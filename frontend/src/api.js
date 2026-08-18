@@ -549,6 +549,9 @@ export const bbsApi = {
   exportFavorites(token) {
     return request("/i/export-favorites", { method: "POST", body: {}, token });
   },
+  exportNotes(token) {
+    return request("/i/export-notes", { method: "POST", body: {}, token });
+  },
   collections(params = {}, token) {
     return request(`/users/me/collections${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },

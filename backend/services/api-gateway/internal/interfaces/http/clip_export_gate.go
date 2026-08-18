@@ -27,6 +27,7 @@ const (
 	favoriteExportKeyPrefix  = "rate:exports:favorites:user:"
 	followingExportKeyPrefix = "rate:exports:following:user:"
 	muteExportKeyPrefix      = "rate:exports:muting:user:"
+	noteExportKeyPrefix      = "rate:exports:notes:user:"
 	userListExportKeyPrefix  = "rate:exports:user-lists:user:"
 )
 
@@ -71,6 +72,10 @@ func NewRedisFollowingExportGate(client redis.Cmdable, interval, lockTTL time.Du
 
 func NewRedisMuteExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
 	return newRedisExportGate(client, muteExportKeyPrefix, interval, lockTTL)
+}
+
+func NewRedisNoteExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {
+	return newRedisExportGate(client, noteExportKeyPrefix, interval, lockTTL)
 }
 
 func NewRedisUserListExportGate(client redis.Cmdable, interval, lockTTL time.Duration) ExportGate {

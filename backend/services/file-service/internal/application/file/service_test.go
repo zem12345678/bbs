@@ -522,6 +522,26 @@ func TestAttachmentTopicAccessEnforcement(t *testing.T) {
 			t.Fatalf("credit transfers = %d, want none", len(charger.transfers))
 		}
 	})
+
+	t.Run("owner export lists attachments for an unpublished topic", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(123, command.OwnerID, 0))
+		topics := newPublishedTopicReader(command.OwnerID)
+		topics.status = 4
+		items, err := NewService(repo, &captureCharger{}, &membershipEntitlementStub{}, topics).
+			ListOwnedTopicAttachments(context.Background(), command.TopicID, command.OwnerID)
+		if err != nil || len(items) != 1 || items[0].ID != 123 {
+			t.Fatalf("ListOwnedTopicAttachments() = %+v, %v", items, err)
+		}
+	})
+
+	t.Run("owner export rejects a different topic owner", func(t *testing.T) {
+		repo := newMemoryRepository(activeAttachment(123, command.OwnerID, 0))
+		_, err := NewService(repo, &captureCharger{}, &membershipEntitlementStub{}, newPublishedTopicReader(42)).
+			ListOwnedTopicAttachments(context.Background(), command.TopicID, command.OwnerID)
+		if err != domain.ErrAttachmentTopicOwnerMismatch {
+			t.Fatalf("ListOwnedTopicAttachments() error = %v, want owner mismatch", err)
+		}
+	})
 }
 
 func TestCreateAttachmentRejectsUnsafeOriginalName(t *testing.T) {

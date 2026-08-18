@@ -22,6 +22,7 @@ const (
 	ExportCompletedEntityFavorite                = "favorite"
 	ExportCompletedEntityFollowing               = "following"
 	ExportCompletedEntityMuting                  = "muting"
+	ExportCompletedEntityNote                    = "note"
 	ExportCompletedEntityUserList                = "userList"
 	ExportCompletedNotificationMaxIdempotencyKey = 95
 )

@@ -136,12 +136,32 @@ func TestListReturnsRepositoryTotal(t *testing.T) {
 	}
 }
 
+func TestListAfterIDUsesStableTopicKeyset(t *testing.T) {
+	repo := &fakeTopicRepo{topics: []*domain.Topic{{ID: 21}, {ID: 22}}, total: 2}
+	service := NewService(repo, nil, nil)
+
+	views, total, err := service.ListAfterID(context.Background(), 0, 42, 20, 100)
+
+	if err != nil || len(views) != 2 || total != 2 {
+		t.Fatalf("ListAfterID() = %d views, total %d, error %v", len(views), total, err)
+	}
+	if repo.keysetAuthorID != 42 || repo.keysetAfterID != 20 || repo.keysetLimit != 100 {
+		t.Fatalf("keyset args = author %d, after %d, limit %d", repo.keysetAuthorID, repo.keysetAfterID, repo.keysetLimit)
+	}
+	if _, _, err := service.ListAfterID(context.Background(), 0, 42, -1, 100); err != domain.ErrInvalidCursor {
+		t.Fatalf("negative cursor error = %v, want ErrInvalidCursor", err)
+	}
+}
+
 type fakeTopicRepo struct {
-	topic         *domain.Topic
-	topics        []*domain.Topic
-	total         int64
-	nextViewCount int64
-	incrementedID int64
+	topic          *domain.Topic
+	topics         []*domain.Topic
+	total          int64
+	nextViewCount  int64
+	incrementedID  int64
+	keysetAuthorID int64
+	keysetAfterID  int64
+	keysetLimit    int
 }
 
 func (f *fakeTopicRepo) CreateTopic(context.Context, *domain.Topic) error { return nil }
@@ -153,6 +173,10 @@ func (f *fakeTopicRepo) FindTopicByID(context.Context, int64) (*domain.Topic, er
 	return f.topic, nil
 }
 func (f *fakeTopicRepo) ListTopics(context.Context, domain.Status, domain.Type, string, int64, int64, int64, string, int, int) ([]*domain.Topic, int64, error) {
+	return f.topics, f.total, nil
+}
+func (f *fakeTopicRepo) ListAfterID(_ context.Context, _ domain.Status, authorID, afterID int64, limit int) ([]*domain.Topic, int64, error) {
+	f.keysetAuthorID, f.keysetAfterID, f.keysetLimit = authorID, afterID, limit
 	return f.topics, f.total, nil
 }
 func (f *fakeTopicRepo) UpdateTopicStatus(context.Context, int64, domain.Status, *time.Time) error {

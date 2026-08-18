@@ -279,6 +279,8 @@ message ListTopicsRequest {
   int64 category_id = 7;
   string sort = 8;
   int64 channel_id = 9;
+  int64 after_id = 10;
+  bool ascending_by_id = 11;
 }
 
 message CreateChannelRequest {
@@ -381,6 +383,8 @@ message ListArticlesRequest {
   int32 limit = 4;
   int32 offset = 5;
   string sort = 6;
+  int64 after_id = 7;
+  bool ascending_by_id = 8;
 }
 
 message FeedArticlesByTimeRequest {

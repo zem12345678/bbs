@@ -301,6 +301,32 @@ func TestDownloadTopicAttachmentRejectsArchivedTopicBeforeOpeningOrCharging(t *t
 	require.Nil(t, fileClient.authorizeReq)
 }
 
+func TestDownloadTopicAttachmentAllowsOwnerToReadArchivedTopicExportFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	attachment := &filepb.Attachment{
+		Id: 92, TopicId: 1001, OwnerId: 42, ObjectKey: "topics/1/exported.pdf",
+		OriginalName: "exported.pdf", ContentType: "application/pdf", SizeBytes: 4, Status: "ACTIVE",
+	}
+	contentClient := &fakeTopicContentClient{getTopicResp: &contentpb.TopicResponse{Topic: &contentpb.TopicInfo{
+		Id: 1001, AuthorId: 42, Status: 4,
+	}}}
+	fileClient := &fakeAttachmentFileClient{getResp: &filepb.AttachmentResponse{Attachment: attachment}}
+	store := &fakeAttachmentStore{openData: []byte("data"), openInfo: storage.ObjectInfo{Size: 4, ContentType: "application/pdf"}}
+	h := NewHandlerWithAttachmentStore(&clients.Clients{Content: contentClient, File: fileClient}, "Authorization", "Bearer", testJWTSecret, store)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	req := httptest.NewRequest(stdhttp.MethodGet, "/api/v1/attachments/92/download", nil)
+	req.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": "42", "username": "alice"}))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, "data", recorder.Body.String())
+	require.Equal(t, attachment.GetObjectKey(), store.openKey)
+	require.Nil(t, fileClient.authorizeReq)
+}
+
 func TestListUserAttachmentDownloadsBindsCurrentUserAndHidesObjectKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	attachment := &filepb.Attachment{

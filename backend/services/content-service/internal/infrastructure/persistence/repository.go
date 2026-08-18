@@ -441,6 +441,25 @@ func (r *Repo) List(ctx context.Context, status articleDomain.Status, tag string
 	return toEntities(rows), total, nil
 }
 
+func (r *Repo) ListAfterID(ctx context.Context, status articleDomain.Status, authorID, afterID int64, limit int) ([]*articleDomain.Article, int64, error) {
+	q := r.db.WithContext(ctx).Model(&articlePO{}).Where("id > ?", afterID)
+	if status > 0 {
+		q = q.Where("status = ?", int32(status))
+	}
+	if authorID > 0 {
+		q = q.Where("author_id = ?", authorID)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []articlePO
+	if err := q.Order("id ASC").Limit(normalizeLimit(limit)).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return toEntities(rows), total, nil
+}
+
 func (r *Repo) ListTags(ctx context.Context, status articleDomain.Status, keyword string, limit int) ([]articleDomain.TagStats, error) {
 	if status <= 0 {
 		status = articleDomain.StatusPublished
@@ -792,6 +811,25 @@ func (r *TopicRepo) ListTopics(ctx context.Context, status topicDomain.Status, t
 	}
 	var rows []topicPO
 	if err := q.Order(topicListOrder(sort)).Limit(normalizeLimit(limit)).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return topicToEntities(rows), total, nil
+}
+
+func (r *TopicRepo) ListAfterID(ctx context.Context, status topicDomain.Status, authorID, afterID int64, limit int) ([]*topicDomain.Topic, int64, error) {
+	q := r.db.WithContext(ctx).Model(&topicPO{}).Where("id > ?", afterID)
+	if status > 0 {
+		q = q.Where("status = ?", int32(status))
+	}
+	if authorID > 0 {
+		q = q.Where("author_id = ?", authorID)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []topicPO
+	if err := q.Order("id ASC").Limit(normalizeLimit(limit)).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	return topicToEntities(rows), total, nil

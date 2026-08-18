@@ -8,6 +8,7 @@ service FileService {
   rpc CreateAttachment(CreateAttachmentRequest) returns (AttachmentResponse);
   rpc GetAttachment(GetAttachmentRequest) returns (AttachmentResponse);
   rpc ListTopicAttachments(ListTopicAttachmentsRequest) returns (AttachmentListResponse);
+  rpc ListOwnedTopicAttachments(ListOwnedTopicAttachmentsRequest) returns (AttachmentListResponse);
   rpc ListUserAttachmentDownloads(ListUserAttachmentDownloadsRequest) returns (AttachmentDownloadListResponse);
   rpc ListUserAttachmentSales(ListUserAttachmentSalesRequest) returns (AttachmentSaleListResponse);
   rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
@@ -279,4 +280,9 @@ message DriveChartSeries {
 message DriveChartResponse {
   DriveChartSeries local = 1;
   DriveChartSeries remote = 2;
+}
+
+message ListOwnedTopicAttachmentsRequest {
+  int64 topic_id = 1;
+  int64 owner_id = 2;
 }

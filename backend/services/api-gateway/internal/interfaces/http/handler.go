@@ -94,6 +94,7 @@ type Handler struct {
 	blockingExportGate                 ExportGate
 	followingExportGate                ExportGate
 	muteExportGate                     ExportGate
+	noteExportGate                     ExportGate
 	userListExportGate                 ExportGate
 	tokenRevocations                   TokenRevocationStore
 	credentialVersions                 CredentialVersionStore
@@ -327,6 +328,10 @@ func (h *Handler) SetMuteExportGate(gate ExportGate) {
 	h.muteExportGate = gate
 }
 
+func (h *Handler) SetNoteExportGate(gate ExportGate) {
+	h.noteExportGate = gate
+}
+
 func (h *Handler) SetUserListExportGate(gate ExportGate) {
 	h.userListExportGate = gate
 }
@@ -488,6 +493,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-favorites", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFavorites)
 			r.POST(prefix+"/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
+			r.POST(prefix+"/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 			r.POST(prefix+"/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 		}
 		for _, prefix := range []string{"/api", ""} {
@@ -528,6 +534,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/i/export-favorites", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFavorites)
 	api.POST("/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 	api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
+	api.POST("/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 	api.POST("/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)

@@ -80,6 +80,21 @@ func (s *Service) List(ctx context.Context, status domain.Status, tag string, au
 	return toViews(articles), total, nil
 }
 
+func (s *Service) ListAfterID(ctx context.Context, status domain.Status, authorID, afterID int64, limit int) ([]ArticleView, int64, error) {
+	if authorID <= 0 || afterID < 0 || limit <= 0 || limit > 100 {
+		return nil, 0, domain.ErrInvalidCursor
+	}
+	repo, ok := s.repo.(domain.KeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrKeysetUnavailable
+	}
+	articles, total, err := repo.ListAfterID(ctx, status, authorID, afterID, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return toViews(articles), total, nil
+}
+
 func (s *Service) ListTags(ctx context.Context, status domain.Status, keyword string, limit int) ([]domain.TagStats, error) {
 	return s.repo.ListTags(ctx, status, strings.TrimSpace(keyword), limit)
 }

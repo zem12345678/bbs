@@ -551,6 +551,20 @@ func TestCreateExportCompletedNotificationUsesFavoriteExportCopy(t *testing.T) {
 	}
 }
 
+func TestCreateExportCompletedNotificationUsesNoteExportCopy(t *testing.T) {
+	repo := newMemoryRepo()
+	service := NewService(repo)
+	err := service.CreateExportCompletedNotification(t.Context(), domain.ExportCompletedNotificationCommand{
+		RecipientID: 42, FileID: 9006, ExportedEntity: domain.ExportCompletedEntityNote, IdempotencyKey: "note-42-9006",
+	})
+	if err != nil {
+		t.Fatalf("CreateExportCompletedNotification() error = %v", err)
+	}
+	if len(repo.created) != 1 || repo.created[0].Title != "内容导出完成" || !strings.Contains(repo.created[0].Content, "内容导出") || repo.created[0].EntityID != 9006 {
+		t.Fatalf("created notifications = %#v", repo.created)
+	}
+}
+
 func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
 	valid := domain.ExportCompletedNotificationCommand{
 		RecipientID:    42,
@@ -564,7 +578,7 @@ func TestCreateExportCompletedNotificationRejectsInvalidInput(t *testing.T) {
 	}{
 		{name: "invalid recipient", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.RecipientID = 0 }},
 		{name: "invalid file", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.FileID = 0 }},
-		{name: "unsupported entity", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.ExportedEntity = "note" }},
+		{name: "unsupported entity", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.ExportedEntity = "data" }},
 		{name: "empty idempotency key", mutate: func(command *domain.ExportCompletedNotificationCommand) { command.IdempotencyKey = " " }},
 		{name: "long idempotency key", mutate: func(command *domain.ExportCompletedNotificationCommand) {
 			command.IdempotencyKey = strings.Repeat("k", domain.ExportCompletedNotificationMaxIdempotencyKey+1)

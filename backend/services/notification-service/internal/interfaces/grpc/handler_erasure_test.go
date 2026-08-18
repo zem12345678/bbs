@@ -81,7 +81,7 @@ func TestCreateExportCompletedNotificationDelegates(t *testing.T) {
 func TestCreateExportCompletedNotificationRejectsInvalidRequest(t *testing.T) {
 	handler := NewHandler(app.NewService(&exportCompletedHandlerRepository{}))
 	_, err := handler.CreateExportCompletedNotification(t.Context(), &pb.CreateExportCompletedNotificationRequest{
-		RecipientId: 42, FileId: 9001, ExportedEntity: "note", IdempotencyKey: "export-42-9001",
+		RecipientId: 42, FileId: 9001, ExportedEntity: "data", IdempotencyKey: "export-42-9001",
 	})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("CreateExportCompletedNotification() code = %s, want %s; err=%v", status.Code(err), codes.InvalidArgument, err)

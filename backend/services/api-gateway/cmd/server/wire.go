@@ -153,6 +153,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	favoriteExportGate := httpiface.NewRedisFavoriteExportGate(redisClient, runtimeCfg.Exports.RateLimit.FavoriteInterval, 15*time.Minute)
 	followingExportGate := httpiface.NewRedisFollowingExportGate(redisClient, runtimeCfg.Exports.RateLimit.FollowingInterval, 15*time.Minute)
 	muteExportGate := httpiface.NewRedisMuteExportGate(redisClient, runtimeCfg.Exports.RateLimit.MuteInterval, 15*time.Minute)
+	noteExportGate := httpiface.NewRedisNoteExportGate(redisClient, runtimeCfg.Exports.RateLimit.NoteInterval, 15*time.Minute)
 	userListExportGate := httpiface.NewRedisUserListExportGate(redisClient, runtimeCfg.Exports.RateLimit.UserListInterval, 15*time.Minute)
 	popularityStore := popularity.NewStore(redisClient)
 	chatRealtime := realtimechat.NewService(redisClient, bbsClients.Chat, realtimechat.Options{
@@ -199,6 +200,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetFavoriteExportGate(favoriteExportGate)
 	handler.SetFollowingExportGate(followingExportGate)
 	handler.SetMuteExportGate(muteExportGate)
+	handler.SetNoteExportGate(noteExportGate)
 	handler.SetUserListExportGate(userListExportGate)
 	handler.SetUploadedObjectCleaner(objectCleanup)
 	handler.SetPopularityStore(popularityStore)

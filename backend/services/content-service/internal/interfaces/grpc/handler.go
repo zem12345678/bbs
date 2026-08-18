@@ -100,10 +100,14 @@ func toStatus(err error) error {
 		errors.Is(err, articleDomain.ErrNoteChartSpanInvalid),
 		errors.Is(err, articleDomain.ErrNoteChartLimitInvalid),
 		errors.Is(err, articleDomain.ErrNoteChartOffsetInvalid),
-		errors.Is(err, articleDomain.ErrNoteChartUserInvalid):
+		errors.Is(err, articleDomain.ErrNoteChartUserInvalid),
+		errors.Is(err, articleDomain.ErrInvalidCursor),
+		errors.Is(err, topicDomain.ErrInvalidCursor):
 		code = codes.InvalidArgument
 	case errors.Is(err, articleDomain.ErrNoteChartRepositoryUnavailable),
-		errors.Is(err, articleDomain.ErrActiveUsersChartRepositoryUnavailable):
+		errors.Is(err, articleDomain.ErrActiveUsersChartRepositoryUnavailable),
+		errors.Is(err, articleDomain.ErrKeysetUnavailable),
+		errors.Is(err, topicDomain.ErrKeysetUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, articleDomain.ErrAlreadyPublished),
 		errors.Is(err, articleDomain.ErrNotPublished),
@@ -416,7 +420,14 @@ func (h *Handler) ListTopics(ctx context.Context, req *pb.ListTopicsRequest) (*p
 	if req.GetType() != "" {
 		typ = topicDomain.NormalizeType(req.GetType())
 	}
-	rows, total, err := h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetChannelId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	var rows []topicquery.TopicView
+	var total int64
+	var err error
+	if req.GetAscendingById() {
+		rows, total, err = h.topicQry.ListAfterID(ctx, topicDomain.Status(req.GetStatus()), req.GetAuthorId(), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		rows, total, err = h.topicQry.List(ctx, topicDomain.Status(req.GetStatus()), typ, req.GetTag(), req.GetAuthorId(), req.GetCategoryId(), req.GetChannelId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -680,7 +691,14 @@ func (h *Handler) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*p
 }
 
 func (h *Handler) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ArticleListResponse, error) {
-	rows, total, err := h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	var rows []articlequery.ArticleView
+	var total int64
+	var err error
+	if req.GetAscendingById() {
+		rows, total, err = h.articleQry.ListAfterID(ctx, articleDomain.Status(req.GetStatus()), req.GetAuthorId(), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		rows, total, err = h.articleQry.List(ctx, articleDomain.Status(req.GetStatus()), req.GetTag(), req.GetAuthorId(), req.GetSort(), int(req.GetLimit()), int(req.GetOffset()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}

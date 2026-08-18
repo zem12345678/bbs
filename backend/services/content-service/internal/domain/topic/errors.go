@@ -39,4 +39,6 @@ var (
 	ErrPollExpired                            = errors.New("TOPIC_POLL_EXPIRED")
 	ErrPollAlreadyVoted                       = errors.New("TOPIC_POLL_ALREADY_VOTED")
 	ErrPollLocked                             = errors.New("TOPIC_POLL_LOCKED")
+	ErrInvalidCursor                          = errors.New("TOPIC_INVALID_CURSOR")
+	ErrKeysetUnavailable                      = errors.New("TOPIC_KEYSET_UNAVAILABLE")
 )

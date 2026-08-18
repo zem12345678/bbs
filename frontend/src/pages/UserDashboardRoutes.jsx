@@ -274,8 +274,11 @@ function ContentManagerPanel({ auth }) {
   const [kind, setKind] = React.useState("topic");
   const [status, setStatus] = React.useState(0);
   const [state, setState] = React.useState({ items: [], total: 0, offset: 0, loading: false, loadingMore: false, error: "", action: "" });
+  const [exportState, setExportState] = React.useState({ busy: false, error: "", notice: "" });
   const userId = toId(auth?.user?.id);
   const contentSessionRef = React.useRef(0);
+  const noteExportRequestRef = React.useRef(0);
+  const noteExportBusyRef = React.useRef(false);
   const contentTokenRef = React.useRef(auth.accessToken);
   contentTokenRef.current = auth.accessToken;
 
@@ -331,7 +334,10 @@ function ContentManagerPanel({ auth }) {
 
   React.useLayoutEffect(() => {
     contentSessionRef.current += 1;
+    noteExportRequestRef.current += 1;
+    noteExportBusyRef.current = false;
     setState((current) => ({ ...current, action: "", error: "" }));
+    setExportState({ busy: false, error: "", notice: "" });
   }, [auth.accessToken]);
 
   React.useEffect(loadItems, [loadItems]);
@@ -342,6 +348,7 @@ function ContentManagerPanel({ auth }) {
   }
 
   async function runContentAction(action, item) {
+    if (exportState.busy) return;
     const id = toId(item.id);
     if (!id) return;
     const topicType = String(item?.type || item?.topic_type || item?.topicType || "").toLowerCase();
@@ -375,6 +382,30 @@ function ContentManagerPanel({ auth }) {
     }
   }
 
+  async function exportNotes() {
+    const requestToken = auth.accessToken;
+    const contentSession = contentSessionRef.current;
+    if (!requestToken || !isCurrentContentSessionRequest(requestToken, contentSession) || noteExportBusyRef.current || Boolean(state.action) || state.loadingMore) return;
+    const requestId = noteExportRequestRef.current + 1;
+    noteExportRequestRef.current = requestId;
+    noteExportBusyRef.current = true;
+    const isCurrentRequest = () => (
+      isCurrentContentSessionRequest(requestToken, contentSession) &&
+      noteExportRequestRef.current === requestId
+    );
+    setExportState({ busy: true, error: "", notice: "" });
+    try {
+      await bbsApi.exportNotes(requestToken);
+      if (!isCurrentRequest()) return;
+      noteExportBusyRef.current = false;
+      setExportState({ busy: false, error: "", notice: "内容导出文件已生成，可在文件库下载。" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      noteExportBusyRef.current = false;
+      setExportState({ busy: false, error: error.message || "内容导出失败", notice: "" });
+    }
+  }
+
   return (
     <>
       <ModerationSection
@@ -385,16 +416,22 @@ function ContentManagerPanel({ auth }) {
         status={status}
         total={state.total}
         toolbar={
-          <div className="feed-switch" role="tablist" aria-label="内容类型">
-            <button className={kind === "topic" ? "is-active" : ""} type="button" onClick={() => setKind("topic")}>
-              <MessageCircle size={17} aria-hidden="true" />
-              话题
+          <>
+            <div className="feed-switch" role="tablist" aria-label="内容类型">
+              <button className={kind === "topic" ? "is-active" : ""} type="button" onClick={() => setKind("topic")}>
+                <MessageCircle size={17} aria-hidden="true" />
+                话题
+              </button>
+              <button className={kind === "article" ? "is-active" : ""} type="button" onClick={() => setKind("article")}>
+                <FileText size={17} aria-hidden="true" />
+                文章
+              </button>
+            </div>
+            <button className="route-link-button" disabled={exportState.busy || Boolean(state.action) || state.loadingMore} type="button" onClick={exportNotes}>
+              <Download size={16} aria-hidden="true" />
+              {exportState.busy ? "导出中..." : "导出内容"}
             </button>
-            <button className={kind === "article" ? "is-active" : ""} type="button" onClick={() => setKind("article")}>
-              <FileText size={17} aria-hidden="true" />
-              文章
-            </button>
-          </div>
+          </>
         }
         onStatusChange={setStatus}
       >
@@ -409,31 +446,31 @@ function ContentManagerPanel({ auth }) {
             tags={item.tags || []}
             actions={
               <>
-                <button type="button" onClick={() => runContentAction("view", item)}>
+                <button type="button" disabled={exportState.busy} onClick={() => runContentAction("view", item)}>
                   查看
                 </button>
                 {itemStatus !== 4 && (
-                  <button type="button" onClick={() => runContentAction("edit", item)}>
+                  <button type="button" disabled={exportState.busy} onClick={() => runContentAction("edit", item)}>
                     编辑
                   </button>
                 )}
                 {itemStatus === 1 && (
-                  <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
+                  <button type="button" disabled={exportState.busy || state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
                     {state.action === `publish-${item.id}` ? "发布中" : "发布"}
                   </button>
                 )}
                 {kind === "article" && itemStatus === 2 && (
-                  <button type="button" disabled={state.action === `hide-${item.id}`} onClick={() => runContentAction("hide", item)}>
+                  <button type="button" disabled={exportState.busy || state.action === `hide-${item.id}`} onClick={() => runContentAction("hide", item)}>
                     {state.action === `hide-${item.id}` ? "下架中" : "下架"}
                   </button>
                 )}
                 {kind === "article" && itemStatus === 3 && (
-                  <button type="button" disabled={state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
+                  <button type="button" disabled={exportState.busy || state.action === `publish-${item.id}`} onClick={() => runContentAction("publish", item)}>
                     {state.action === `publish-${item.id}` ? "恢复中" : "恢复发布"}
                   </button>
                 )}
                 {itemStatus !== 4 && (
-                  <button type="button" disabled={state.action === `archive-${item.id}`} onClick={() => runContentAction("archive", item)}>
+                  <button type="button" disabled={exportState.busy || state.action === `archive-${item.id}`} onClick={() => runContentAction("archive", item)}>
                     {state.action === `archive-${item.id}` ? "处理中" : "归档"}
                   </button>
                 )}
@@ -442,6 +479,8 @@ function ContentManagerPanel({ auth }) {
           />;
         })}
       </ModerationSection>
+      {exportState.notice && <p className="form-success" role="status">{exportState.notice}</p>}
+      {exportState.error && <p className="form-error" role="alert">{exportState.error}</p>}
       {!state.loading && state.offset < state.total && (
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? "正在加载更多内容..." : "继续查看更早的内容。"}</span>

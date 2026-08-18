@@ -71,6 +71,18 @@ func (h *Handler) ListTopicAttachments(ctx context.Context, req *pb.ListTopicAtt
 	return &pb.AttachmentListResponse{Items: items}, nil
 }
 
+func (h *Handler) ListOwnedTopicAttachments(ctx context.Context, req *pb.ListOwnedTopicAttachmentsRequest) (*pb.AttachmentListResponse, error) {
+	attachments, err := h.service.ListOwnedTopicAttachments(ctx, req.GetTopicId(), req.GetOwnerId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.Attachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		items = append(items, toPB(attachment))
+	}
+	return &pb.AttachmentListResponse{Items: items}, nil
+}
+
 func (h *Handler) ListUserAttachmentDownloads(ctx context.Context, req *pb.ListUserAttachmentDownloadsRequest) (*pb.AttachmentDownloadListResponse, error) {
 	downloads, err := h.service.ListUserAttachmentDownloads(ctx, req.GetUserId(), req.GetTopicId(), req.GetLimit(), req.GetOffset())
 	if err != nil {

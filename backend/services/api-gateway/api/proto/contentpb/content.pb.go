@@ -2158,6 +2158,8 @@ type ListTopicsRequest struct {
 	CategoryId    int64                  `protobuf:"varint,7,opt,name=category_id,json=categoryId,proto3" json:"category_id,omitempty"`
 	Sort          string                 `protobuf:"bytes,8,opt,name=sort,proto3" json:"sort,omitempty"`
 	ChannelId     int64                  `protobuf:"varint,9,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	AfterId       int64                  `protobuf:"varint,10,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	AscendingById bool                   `protobuf:"varint,11,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2253,6 +2255,20 @@ func (x *ListTopicsRequest) GetChannelId() int64 {
 		return x.ChannelId
 	}
 	return 0
+}
+
+func (x *ListTopicsRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListTopicsRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
 }
 
 type CreateChannelRequest struct {
@@ -3177,6 +3193,8 @@ type ListArticlesRequest struct {
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
 	Sort          string                 `protobuf:"bytes,6,opt,name=sort,proto3" json:"sort,omitempty"`
+	AfterId       int64                  `protobuf:"varint,7,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	AscendingById bool                   `protobuf:"varint,8,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3251,6 +3269,20 @@ func (x *ListArticlesRequest) GetSort() string {
 		return x.Sort
 	}
 	return ""
+}
+
+func (x *ListArticlesRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListArticlesRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
 }
 
 type FeedArticlesByTimeRequest struct {
@@ -4336,7 +4368,7 @@ const file_api_gateway_api_proto_content_proto_rawDesc = "" +
 	"\x11TopicPollResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x121\n" +
-	"\x04poll\x18\x03 \x01(\v2\x1d.bbs.content.v1.TopicPollInfoR\x04poll\"\xf0\x01\n" +
+	"\x04poll\x18\x03 \x01(\v2\x1d.bbs.content.v1.TopicPollInfoR\x04poll\"\xb3\x02\n" +
 	"\x11ListTopicsRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x10\n" +
@@ -4348,7 +4380,10 @@ const file_api_gateway_api_proto_content_proto_rawDesc = "" +
 	"categoryId\x12\x12\n" +
 	"\x04sort\x18\b \x01(\tR\x04sort\x12\x1d\n" +
 	"\n" +
-	"channel_id\x18\t \x01(\x03R\tchannelId\"\x9e\x01\n" +
+	"channel_id\x18\t \x01(\x03R\tchannelId\x12\x19\n" +
+	"\bafter_id\x18\n" +
+	" \x01(\x03R\aafterId\x12&\n" +
+	"\x0fascending_by_id\x18\v \x01(\bR\rascendingById\"\x9e\x01\n" +
 	"\x14CreateChannelRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x1f\n" +
 	"\vcategory_id\x18\x02 \x01(\x03R\n" +
@@ -4420,14 +4455,16 @@ const file_api_gateway_api_proto_content_proto_rawDesc = "" +
 	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x12\x1d\n" +
 	"\n" +
 	"track_view\x18\x03 \x01(\bR\ttrackViewB\x05\n" +
-	"\x03key\"\x9e\x01\n" +
+	"\x03key\"\xe1\x01\n" +
 	"\x13ListArticlesRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\x05R\x06status\x12\x10\n" +
 	"\x03tag\x18\x02 \x01(\tR\x03tag\x12\x1b\n" +
 	"\tauthor_id\x18\x03 \x01(\x03R\bauthorId\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x05 \x01(\x05R\x06offset\x12\x12\n" +
-	"\x04sort\x18\x06 \x01(\tR\x04sort\"I\n" +
+	"\x04sort\x18\x06 \x01(\tR\x04sort\x12\x19\n" +
+	"\bafter_id\x18\a \x01(\x03R\aafterId\x12&\n" +
+	"\x0fascending_by_id\x18\b \x01(\bR\rascendingById\"I\n" +
 	"\x19FeedArticlesByTimeRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"]\n" +

@@ -216,7 +216,11 @@ func (h *Handler) downloadTopicAttachment(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	if topicResp.GetTopic() == nil || topicResp.GetTopic().GetStatus() != contentStatusPublished {
+	topic := topicResp.GetTopic()
+	userID := currentUserID(c)
+	ownerUnpublishedDownload := topic != nil && topic.GetStatus() != contentStatusPublished &&
+		topic.GetId() == attachment.GetTopicId() && topic.GetAuthorId() == userID && attachment.GetOwnerId() == userID
+	if topic == nil || (topic.GetStatus() != contentStatusPublished && !ownerUnpublishedDownload) {
 		writeError(c, stdhttp.StatusNotFound, "topic not found", "not_found")
 		return
 	}
@@ -233,19 +237,21 @@ func (h *Handler) downloadTopicAttachment(c *gin.Context) {
 		return
 	}
 
-	authorizationCtx, authorizationCancel := rpcContext(c)
-	defer authorizationCancel()
-	authorization, err := h.clients.File.AuthorizeAttachmentDownload(authorizationCtx, &filepb.AuthorizeAttachmentDownloadRequest{
-		AttachmentId: attachmentID,
-		UserId:       currentUserID(c),
-	})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	if authorization.GetAttachment() == nil {
-		writeError(c, stdhttp.StatusNotFound, "attachment not found", "not_found")
-		return
+	if !ownerUnpublishedDownload {
+		authorizationCtx, authorizationCancel := rpcContext(c)
+		defer authorizationCancel()
+		authorization, err := h.clients.File.AuthorizeAttachmentDownload(authorizationCtx, &filepb.AuthorizeAttachmentDownloadRequest{
+			AttachmentId: attachmentID,
+			UserId:       userID,
+		})
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
+		if authorization.GetAttachment() == nil {
+			writeError(c, stdhttp.StatusNotFound, "attachment not found", "not_found")
+			return
+		}
 	}
 	contentType := attachment.GetContentType()
 	if contentType == "" {

@@ -80,6 +80,7 @@ exports:
     favoriteInterval: 24h
     followingInterval: 1h
     muteInterval: 1h
+    noteInterval: 24h
     userListInterval: 1m
 
 http:
