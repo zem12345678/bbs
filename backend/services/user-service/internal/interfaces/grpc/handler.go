@@ -343,11 +343,12 @@ func (h *Handler) GetCredentialVersion(ctx context.Context, req *pb.UserIDReques
 
 func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.UserListResponse, error) {
 	result, err := h.qry.ListUsers(ctx, domain.UserListQuery{
-		Query:    req.GetQuery(),
-		Status:   req.GetStatus(),
-		Page:     int(req.GetPage()),
-		PageSize: int(req.GetPageSize()),
-		IDs:      req.GetIds(),
+		Query:     req.GetQuery(),
+		Status:    req.GetStatus(),
+		Page:      int(req.GetPage()),
+		PageSize:  int(req.GetPageSize()),
+		IDs:       req.GetIds(),
+		Usernames: req.GetUsernames(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

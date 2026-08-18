@@ -458,6 +458,8 @@ function UserSafetyPanel({ auth }) {
   const [mode, setMode] = React.useState("blocked");
   const [reloadKey, setReloadKey] = React.useState(0);
   const requestSessionRef = React.useRef(0);
+  const blockingImportRef = React.useRef(null);
+  const mutingImportRef = React.useRef(null);
   const scopeRef = React.useRef({ mode, accessToken: auth?.accessToken || "" });
   const [state, setState] = React.useState({ items: [], total: 0, page: 0, loading: false, loadingMore: false, error: "", action: "" });
   const [exportState, setExportState] = React.useState({ busy: "", error: "", notice: "" });
@@ -466,7 +468,6 @@ function UserSafetyPanel({ auth }) {
   React.useEffect(() => {
     const session = requestSessionRef.current + 1;
     requestSessionRef.current = session;
-    setExportState({ busy: "", error: "", notice: "" });
     if (!auth?.accessToken) {
       setState({ items: [], total: 0, page: 0, loading: false, loadingMore: false, error: "", action: "" });
       return undefined;
@@ -497,6 +498,10 @@ function UserSafetyPanel({ auth }) {
       alive = false;
     };
   }, [auth?.accessToken, mode, reloadKey]);
+
+  React.useEffect(() => {
+    setExportState({ busy: "", error: "", notice: "" });
+  }, [auth?.accessToken, mode]);
 
   async function loadMoreRelations() {
     if (!auth?.accessToken || state.loading || state.loadingMore || state.action || exportState.busy || state.items.length >= state.total) return;
@@ -567,6 +572,38 @@ function UserSafetyPanel({ auth }) {
     }
   }
 
+  async function importSafetyRelations(kind, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !auth?.accessToken || exportState.busy || state.action || state.loadingMore) return;
+    if (file.size > 64 * 1024) {
+      setExportState({ busy: "", error: "导入文件不能超过 64 KiB", notice: "" });
+      return;
+    }
+    const requestMode = mode;
+    const requestAccessToken = auth.accessToken;
+    const requestSession = requestSessionRef.current;
+    const isBlocking = kind === "blocking";
+    const isCurrentRequest = () => requestSessionRef.current === requestSession && matchesSafetyScope(scopeRef.current, requestMode, requestAccessToken);
+    setExportState({ busy: `import-${kind}`, error: "", notice: "" });
+    try {
+      const uploaded = await bbsApi.uploadFile(file, requestAccessToken, "imports");
+      if (!isCurrentRequest()) return;
+      const fileId = uploaded?.file?.id || uploaded?.id;
+      if (!fileId) throw new Error("导入文件上传失败");
+      if (isBlocking) await bbsApi.importBlocking(fileId, requestAccessToken);
+      else await bbsApi.importMuting(fileId, requestAccessToken);
+      if (!isCurrentRequest()) return;
+      requestSessionRef.current += 1;
+      setExportState({ busy: "", error: "", notice: isBlocking ? "屏蔽列表已导入" : "静音列表已导入" });
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      if (isCurrentRequest()) {
+        setExportState({ busy: "", error: error.message || (isBlocking ? "屏蔽列表导入失败" : "静音列表导入失败"), notice: "" });
+      }
+    }
+  }
+
   if (!auth?.accessToken) return <EmptyState title="请先登录" description="登录后可以管理屏蔽和静音用户。" />;
   return (
     <section className="user-safety-panel">
@@ -579,14 +616,22 @@ function UserSafetyPanel({ auth }) {
         value={mode}
         onChange={setMode}
       />
-      <div className="workspace-toolbar-actions" aria-label="导出安全关系">
+      <div className="workspace-toolbar-actions" aria-label="导入和导出安全关系">
+        <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => blockingImportRef.current?.click()}>
+          <Upload size={16} aria-hidden="true" />{exportState.busy === "import-blocking" ? "导入中..." : "导入屏蔽列表"}
+        </button>
         <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => exportSafetyRelations("blocking")}>
           <Download size={16} aria-hidden="true" />{exportState.busy === "blocking" ? "导出中..." : "导出屏蔽列表"}
+        </button>
+        <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => mutingImportRef.current?.click()}>
+          <Upload size={16} aria-hidden="true" />{exportState.busy === "import-muting" ? "导入中..." : "导入静音列表"}
         </button>
         <button className="user-safety-export-button" type="button" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onClick={() => exportSafetyRelations("mute")}>
           <Download size={16} aria-hidden="true" />{exportState.busy === "mute" ? "导出中..." : "导出静音列表"}
         </button>
       </div>
+      <input ref={blockingImportRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onChange={(event) => importSafetyRelations("blocking", event)} />
+      <input ref={mutingImportRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={Boolean(exportState.busy) || Boolean(state.action) || state.loadingMore} onChange={(event) => importSafetyRelations("muting", event)} />
       {exportState.error && <p className="form-error" role="alert">{exportState.error}</p>}
       {exportState.notice && <p className="form-success" role="status">{exportState.notice}</p>}
       {state.loading && <EmptyState title={mode === "blocked" ? "正在加载屏蔽列表..." : "正在加载静音列表..."} />}

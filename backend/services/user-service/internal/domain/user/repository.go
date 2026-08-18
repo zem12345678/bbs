@@ -78,11 +78,12 @@ type AntennaRepository interface {
 }
 
 type UserListQuery struct {
-	Query    string
-	Status   int32
-	Page     int
-	PageSize int
-	IDs      []int64
+	Query     string
+	Status    int32
+	Page      int
+	PageSize  int
+	IDs       []int64
+	Usernames []string
 }
 
 const (

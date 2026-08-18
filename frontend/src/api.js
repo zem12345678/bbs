@@ -483,6 +483,12 @@ export const bbsApi = {
   exportMute(token) {
     return request("/i/export-mute", { method: "POST", body: {}, token });
   },
+  importBlocking(fileId, token) {
+    return request("/i/import-blocking", { method: "POST", body: { fileId: String(fileId) }, token });
+  },
+  importMuting(fileId, token) {
+    return request("/i/import-muting", { method: "POST", body: { fileId: String(fileId) }, token });
+  },
   exportUserLists(token) {
     return request("/i/export-user-lists", { method: "POST", body: {}, token });
   },

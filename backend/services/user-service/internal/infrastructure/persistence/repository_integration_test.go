@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,6 +63,16 @@ func TestRepoPostgresSmoke(t *testing.T) {
 	}
 	if err := repo.Create(ctx, bob); err != nil {
 		t.Fatalf("create bob: %v", err)
+	}
+	exactUsers, exactTotal, err := repo.ListUsers(ctx, domain.UserListQuery{
+		Usernames: []string{strings.ToUpper(bob.Username), "missing_user"},
+		Status:    int32(domain.StatusActive), Page: 1, PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("list users by exact usernames: %v", err)
+	}
+	if exactTotal != 1 || len(exactUsers) != 1 || exactUsers[0].ID != bob.ID {
+		t.Fatalf("exact username users=%v total=%d, want bob only", exactUsers, exactTotal)
 	}
 	if err := repo.Follow(ctx, alice.ID, bob.ID); err != nil {
 		t.Fatalf("follow: %v", err)

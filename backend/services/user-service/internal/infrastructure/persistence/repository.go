@@ -924,6 +924,25 @@ func (r *Repo) ListUsers(ctx context.Context, q domain.UserListQuery) ([]*domain
 	if len(q.IDs) > 0 {
 		db = db.Where("id IN ?", q.IDs)
 	}
+	if len(q.Usernames) > 0 {
+		usernames := make([]string, 0, len(q.Usernames))
+		seen := make(map[string]struct{}, len(q.Usernames))
+		for _, username := range q.Usernames {
+			username = strings.ToLower(strings.TrimSpace(username))
+			if username == "" {
+				continue
+			}
+			if _, duplicate := seen[username]; duplicate {
+				continue
+			}
+			seen[username] = struct{}{}
+			usernames = append(usernames, username)
+		}
+		if len(usernames) == 0 {
+			return []*domain.User{}, 0, nil
+		}
+		db = db.Where("username IN ?", usernames)
+	}
 	query := strings.ToLower(strings.TrimSpace(q.Query))
 	if query != "" {
 		var candidates []userPO

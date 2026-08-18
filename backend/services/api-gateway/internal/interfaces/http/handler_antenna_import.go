@@ -6,13 +6,10 @@ import (
 	"errors"
 	"io"
 	stdhttp "net/http"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"api-gateway/api/proto/filepb"
 	"api-gateway/api/proto/userpb"
-	"api-gateway/internal/storage"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,23 +19,14 @@ const (
 	antennaImportMaxItems = 20
 )
 
-type antennaImportRequest struct {
-	FileID string `json:"fileId"`
-}
-
 func (h *Handler) importAntennas(c *gin.Context) {
 	if h == nil || h.clients == nil || h.clients.File == nil || h.clients.UserAntennas == nil || h.attachments == nil {
 		writeError(c, stdhttp.StatusServiceUnavailable, "antenna import dependencies unavailable", "service_unavailable")
 		return
 	}
 
-	var request antennaImportRequest
-	if !bindJSON(c, &request) {
-		return
-	}
-	fileID, err := strconv.ParseInt(strings.TrimSpace(request.FileID), 10, 64)
-	if err != nil || fileID <= 0 {
-		writeError(c, stdhttp.StatusBadRequest, "fileId must be a positive integer", "bad_request")
+	fileID, ok := bindImportFileID(c)
+	if !ok {
 		return
 	}
 	ownerID := currentUserID(c)
@@ -48,46 +36,8 @@ func (h *Handler) importAntennas(c *gin.Context) {
 
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	fileResponse, err := h.clients.File.GetFile(ctx, &filepb.GetFileRequest{OwnerId: ownerID, FileId: fileID})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	file := fileResponse.GetFile()
-	if file == nil || file.GetOwnerId() != ownerID || file.GetObjectKey() == "" {
-		writeError(c, stdhttp.StatusNotFound, "import file not found", "not_found")
-		return
-	}
-	if file.GetSizeBytes() <= 0 {
-		writeError(c, stdhttp.StatusBadRequest, "import file is empty", "empty_file")
-		return
-	}
-	if file.GetSizeBytes() > antennaImportMaxBytes {
-		writeError(c, stdhttp.StatusRequestEntityTooLarge, "import file exceeds 2 MiB", "file_too_large")
-		return
-	}
-
-	object, _, err := h.attachments.Open(ctx, file.GetObjectKey())
-	if err != nil {
-		if errors.Is(err, storage.ErrObjectNotFound) {
-			writeError(c, stdhttp.StatusNotFound, "import file object not found", "not_found")
-		} else {
-			writeError(c, stdhttp.StatusBadGateway, "import file object unavailable", "storage_unavailable")
-		}
-		return
-	}
-	defer object.Close()
-	payload, err := io.ReadAll(io.LimitReader(object, antennaImportMaxBytes+1))
-	if err != nil {
-		writeError(c, stdhttp.StatusBadGateway, "read import file failed", "storage_unavailable")
-		return
-	}
-	if len(payload) == 0 {
-		writeError(c, stdhttp.StatusBadRequest, "import file is empty", "empty_file")
-		return
-	}
-	if int64(len(payload)) > antennaImportMaxBytes {
-		writeError(c, stdhttp.StatusRequestEntityTooLarge, "import file exceeds 2 MiB", "file_too_large")
+	payload, ok := h.readOwnedImportFile(c, ctx, ownerID, fileID, antennaImportMaxBytes)
+	if !ok {
 		return
 	}
 

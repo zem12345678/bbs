@@ -7,15 +7,16 @@ import (
 	domain "user-service/internal/domain/user"
 )
 
-func TestListUsersForwardsIDFilterToRepository(t *testing.T) {
+func TestListUsersForwardsExactFiltersToRepository(t *testing.T) {
 	repo := &userIDsQueryRepo{}
 	svc := NewService(repo, nil)
 
 	_, err := svc.ListUsers(context.Background(), domain.UserListQuery{
-		IDs:      []int64{42, 7},
-		Status:   int32(domain.StatusActive),
-		Page:     1,
-		PageSize: 2,
+		IDs:       []int64{42, 7},
+		Usernames: []string{"alice", "bob"},
+		Status:    int32(domain.StatusActive),
+		Page:      1,
+		PageSize:  2,
 	})
 	if err != nil {
 		t.Fatalf("ListUsers() error = %v", err)
@@ -25,6 +26,9 @@ func TestListUsersForwardsIDFilterToRepository(t *testing.T) {
 	}
 	if repo.query.Status != int32(domain.StatusActive) {
 		t.Fatalf("repository status = %d, want active", repo.query.Status)
+	}
+	if got := repo.query.Usernames; len(got) != 2 || got[0] != "alice" || got[1] != "bob" {
+		t.Fatalf("repository usernames = %v, want [alice bob]", got)
 	}
 }
 
