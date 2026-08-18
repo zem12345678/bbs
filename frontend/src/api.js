@@ -338,6 +338,9 @@ export const bbsApi = {
   exportAntennas(token) {
     return request("/i/export-antennas", { method: "POST", body: {}, token });
   },
+  importAntennas(fileId, token) {
+    return request("/i/import-antennas", { method: "POST", body: { fileId: String(fileId) }, token });
+  },
   createAntenna(payload, token) {
     return request("/users/me/antennas", { method: "POST", body: payload, token });
   },

@@ -268,6 +268,27 @@ test("connects antenna export to the existing antenna manager", () => {
   assert.match(panel, /action\.busy === "export" \? "导出中" : "导出"/);
 });
 
+test("connects antenna import to the existing antenna manager", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const panel = source.slice(source.indexOf("function UserAntennaPanel"), source.indexOf("function antennaToForm"));
+  const actionStart = panel.indexOf("async function importAntennas");
+  const importAction = panel.slice(actionStart, panel.indexOf("\n\n  if (!auth)", actionStart));
+
+  assert.ok(actionStart >= 0, "importAntennas is present");
+  assert.match(panel, /const importInputRef = React\.useRef\(null\)/);
+  assert.match(importAction, /file\.size > 2 \* 1024 \* 1024/);
+  assert.match(importAction, /await bbsApi\.uploadFile\(file, requestToken, "imports"\)/);
+  assert.match(importAction, /uploaded\?\.file\?\.id \|\| uploaded\?\.id/);
+  assert.match(importAction, /await bbsApi\.importAntennas\(fileId, requestToken\)/);
+  assert.match(importAction, /requestRef\.current === requestId && tokenRef\.current === requestToken/);
+  assert.match(importAction, /notice: "天线已导入"/);
+  assert.match(importAction, /error: error\.message \|\| "天线导入失败"/);
+  assert.match(panel, /<Upload size=\{17\} aria-hidden="true" \/>/);
+  assert.match(panel, /action\.busy === "import" \? "导入中" : "导入"/);
+  assert.match(panel, /accept="\.json,application\/json"/);
+  assert.match(panel, /onChange=\{importAntennas\}/);
+});
+
 test("connects two-factor login and account security management", () => {
   const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");

@@ -147,6 +147,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
 	)
+	antennaImportLimit := ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Minute, 1)
 	accountDataExportGate := httpiface.NewRedisAccountDataExportGate(redisClient, runtimeCfg.Exports.RateLimit.AccountDataInterval, 30*time.Minute)
 	antennaExportGate := httpiface.NewRedisAntennaExportGate(redisClient, runtimeCfg.Exports.RateLimit.AntennaInterval, 15*time.Minute)
 	blockingExportGate := httpiface.NewRedisBlockingExportGate(redisClient, runtimeCfg.Exports.RateLimit.BlockingInterval, 15*time.Minute)
@@ -196,6 +197,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
 	handler.SetFileUploadLimit(fileUploadLimit)
+	handler.SetAntennaImportLimit(antennaImportLimit)
 	handler.SetAntennaExportGate(antennaExportGate)
 	handler.SetBlockingExportGate(blockingExportGate)
 	handler.SetClipExportGate(clipExportGate)

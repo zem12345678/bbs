@@ -88,6 +88,7 @@ type Handler struct {
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
 	fileUploadLimit                    ratelimit.Limiter
+	antennaImportLimit                 ratelimit.Limiter
 	accountDataExportGate              ExportGate
 	clipExportGate                     ExportGate
 	favoriteExportGate                 ExportGate
@@ -501,6 +502,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 			r.POST(prefix+"/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 			r.POST(prefix+"/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
+			r.POST(prefix+"/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
 		}
 		for _, prefix := range []string{"/api", ""} {
 			r.GET(prefix+"/emoji", h.getEmojiCompat)
@@ -543,6 +545,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 	api.POST("/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 	api.POST("/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
+	api.POST("/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
 		api.GET("/auth/config", h.authConfig)
 		api.GET("/site-config", h.siteConfig)
 		api.GET("/ping", h.instancePing)

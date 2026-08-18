@@ -275,6 +275,7 @@ func (h *Handler) resolveAntennaAuthors(ctx context.Context, antenna *userpb.Ant
 
 func (h *Handler) resolveAntennaUserIDs(ctx context.Context, users []string) ([]int64, error) {
 	ids := make([]int64, 0, len(users))
+	localHost, _ := h.exportAccountHost()
 	for _, raw := range users {
 		value := strings.TrimSpace(raw)
 		if value == "" {
@@ -284,7 +285,14 @@ func (h *Handler) resolveAntennaUserIDs(ctx context.Context, users []string) ([]
 			ids = append(ids, id)
 			continue
 		}
-		result, err := h.clients.User.GetUserByUsername(ctx, &userpb.UsernameRequest{Username: strings.TrimPrefix(value, "@")})
+		username := strings.TrimPrefix(value, "@")
+		if separator := strings.LastIndex(username, "@"); separator > 0 {
+			if localHost == "" || !strings.EqualFold(username[separator+1:], localHost) {
+				continue
+			}
+			username = username[:separator]
+		}
+		result, err := h.clients.User.GetUserByUsername(ctx, &userpb.UsernameRequest{Username: username})
 		if status.Code(err) == codes.NotFound {
 			continue
 		}

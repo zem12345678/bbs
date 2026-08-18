@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, Radio, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, Radio, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, Upload, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -3813,6 +3813,7 @@ const EMPTY_ANTENNA_FORM = {
 
 function UserAntennaPanel({ auth }) {
   const token = auth?.accessToken || "";
+  const importInputRef = React.useRef(null);
   const [state, setState] = React.useState({ items: [], selected: "", posts: [], loading: false, notesLoading: false, error: "" });
   const [form, setForm] = React.useState(null);
   const [action, setAction] = React.useState({ busy: "", error: "", notice: "" });
@@ -3937,6 +3938,33 @@ function UserAntennaPanel({ auth }) {
     }
   }
 
+  async function importAntennas(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !token || action.busy) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setAction({ busy: "", error: "导入文件不能超过 2 MiB", notice: "" });
+      return;
+    }
+    const requestToken = token;
+    const requestId = requestRef.current;
+    const isCurrentRequest = () => requestRef.current === requestId && tokenRef.current === requestToken;
+    setAction({ busy: "import", error: "", notice: "" });
+    try {
+      const uploaded = await bbsApi.uploadFile(file, requestToken, "imports");
+      if (!isCurrentRequest()) return;
+      const fileId = uploaded?.file?.id || uploaded?.id;
+      if (!fileId) throw new Error("导入文件上传失败");
+      await bbsApi.importAntennas(fileId, requestToken);
+      if (!isCurrentRequest()) return;
+      setAction({ busy: "", error: "", notice: "天线已导入" });
+      await loadAntennas("");
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      setAction({ busy: "", error: error.message || "天线导入失败", notice: "" });
+    }
+  }
+
   if (!auth) return <EmptyState title="请先登录" description="登录后可以创建和管理天线订阅。" />;
   const selected = state.items.find((item) => String(item.id) === String(state.selected));
   return (
@@ -3945,10 +3973,12 @@ function UserAntennaPanel({ auth }) {
         <header className="user-list-manager__header">
           <div><strong>我的天线订阅</strong><span>{state.loading ? "正在加载..." : `${state.items.length} 个`}</span></div>
           <div className="user-list-manager__header-actions">
+            <button type="button" disabled={!token || Boolean(action.busy)} onClick={() => importInputRef.current?.click()}><Upload size={17} aria-hidden="true" />{action.busy === "import" ? "导入中" : "导入"}</button>
             <button type="button" disabled={!token || Boolean(action.busy)} onClick={exportAntennas}><Download size={17} aria-hidden="true" />{action.busy === "export" ? "导出中" : "导出"}</button>
             <button aria-label="新建天线" type="button" disabled={Boolean(action.busy)} onClick={startCreate}><Radio size={17} aria-hidden="true" />新建</button>
           </div>
         </header>
+        <input ref={importInputRef} className="sr-only" type="file" accept=".json,application/json" disabled={!token || Boolean(action.busy)} onChange={importAntennas} />
         {state.error && <p className="user-list-feedback is-error">{state.error}</p>}
         {!state.loading && state.items.length === 0 && !form && <p className="user-list-feedback">暂无天线订阅</p>}
         {state.items.length > 0 && <div className="user-antenna-list" role="listbox" aria-label="天线订阅列表">

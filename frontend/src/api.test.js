@@ -452,6 +452,7 @@ test("maps antenna management and filtered timeline requests", async () => {
   await bbsApi.antennaNotes("antenna/id", { limit: 30, offset: 10 }, "access-token");
   await bbsApi.deleteAntenna("antenna/id", "access-token");
   await bbsApi.exportAntennas("access-token");
+  await bbsApi.importAntennas("9001", "access-token");
 
   assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/antennas");
   assert.equal(requests[0].options.method, "GET");
@@ -466,6 +467,9 @@ test("maps antenna management and filtered timeline requests", async () => {
   assert.equal(new URL(requests[5].url).pathname, "/api/v1/i/export-antennas");
   assert.equal(requests[5].options.method, "POST");
   assert.deepEqual(JSON.parse(requests[5].options.body), {});
+  assert.equal(new URL(requests[6].url).pathname, "/api/v1/i/import-antennas");
+  assert.equal(requests[6].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[6].options.body), { fileId: "9001" });
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
