@@ -42,11 +42,15 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	objectPrefix := fmt.Sprintf("integration-files/%d", seed)
 	fileIDs := make([]int64, 0, 3)
+	attachmentIDs := make([]int64, 0, 3)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		if len(fileIDs) != 0 {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM files WHERE id = ANY($1::BIGINT[])`, fileIDs)
+		}
+		if len(attachmentIDs) != 0 {
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM attachments WHERE id = ANY($1::BIGINT[])`, attachmentIDs)
 		}
 	})
 
@@ -101,6 +105,14 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 	otherFiles, otherTotal, err := repo.ListUserFiles(ctx, otherUserID, 20, 0)
 	if err != nil || otherTotal != 0 || len(otherFiles) != 0 {
 		t.Fatalf("other user's list = %+v, total = %d, err = %v", otherFiles, otherTotal, err)
+	}
+	keysetFirst, total, err := repo.ListUserFilesAfterID(ctx, ownerID, 0, 2)
+	if err != nil || total != 3 || len(keysetFirst) != 2 || keysetFirst[0].ID != created[0].ID || keysetFirst[1].ID != created[1].ID {
+		t.Fatalf("file keyset first page = %+v, total = %d, err = %v", keysetFirst, total, err)
+	}
+	keysetSecond, total, err := repo.ListUserFilesAfterID(ctx, ownerID, keysetFirst[1].ID, 2)
+	if err != nil || total != 3 || len(keysetSecond) != 1 || keysetSecond[0].ID != created[2].ID {
+		t.Fatalf("file keyset second page = %+v, total = %d, err = %v", keysetSecond, total, err)
 	}
 
 	loaded, err := repo.GetFile(ctx, ownerID, created[1].ID)
@@ -208,6 +220,31 @@ func TestGenericFilePostgresIntegration(t *testing.T) {
 		UpdatedAt:    now.Add(2 * time.Minute),
 	}, 100); !errors.Is(err, domain.ErrFileCapacityExceeded) {
 		t.Fatalf("create over capacity error = %v, want ErrFileCapacityExceeded", err)
+	}
+
+	createdAttachments := make([]domain.Attachment, 0, 3)
+	for index := 1; index <= 3; index++ {
+		attachment, createErr := repo.CreateAttachment(ctx, domain.Attachment{
+			TopicID: int64(index), OwnerID: ownerID, ObjectKey: fmt.Sprintf("%s/attachment-%d.bin", objectPrefix, index),
+			OriginalName: fmt.Sprintf("attachment-%d.bin", index), ContentType: "application/octet-stream", SizeBytes: int64(index),
+			Status: domain.AttachmentStatusActive, CreatedAt: now.Add(time.Duration(index) * time.Second), UpdatedAt: now.Add(time.Duration(index) * time.Second),
+		}, 1<<30)
+		if createErr != nil {
+			t.Fatalf("create attachment %d: %v", index, createErr)
+		}
+		createdAttachments = append(createdAttachments, attachment)
+		attachmentIDs = append(attachmentIDs, attachment.ID)
+	}
+	if _, err := repo.ArchiveAttachment(ctx, createdAttachments[1].ID, ownerID, now.Add(time.Minute)); err != nil {
+		t.Fatalf("archive attachment: %v", err)
+	}
+	attachmentFirst, err := repo.ListOwnedAttachmentsAfterID(ctx, ownerID, 0, 2)
+	if err != nil || len(attachmentFirst) != 2 || attachmentFirst[0].ID != createdAttachments[0].ID || attachmentFirst[1].ID != createdAttachments[1].ID || attachmentFirst[1].Status != domain.AttachmentStatusArchived {
+		t.Fatalf("attachment keyset first page = %+v, err = %v", attachmentFirst, err)
+	}
+	attachmentSecond, err := repo.ListOwnedAttachmentsAfterID(ctx, ownerID, attachmentFirst[1].ID, 2)
+	if err != nil || len(attachmentSecond) != 1 || attachmentSecond[0].ID != createdAttachments[2].ID {
+		t.Fatalf("attachment keyset second page = %+v, err = %v", attachmentSecond, err)
 	}
 }
 

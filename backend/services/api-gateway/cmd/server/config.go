@@ -53,14 +53,15 @@ type runtimeConfig struct {
 	}
 	Exports struct {
 		RateLimit struct {
-			AntennaInterval   time.Duration
-			BlockingInterval  time.Duration
-			ClipInterval      time.Duration
-			FavoriteInterval  time.Duration
-			FollowingInterval time.Duration
-			MuteInterval      time.Duration
-			NoteInterval      time.Duration
-			UserListInterval  time.Duration
+			AccountDataInterval time.Duration
+			AntennaInterval     time.Duration
+			BlockingInterval    time.Duration
+			ClipInterval        time.Duration
+			FavoriteInterval    time.Duration
+			FollowingInterval   time.Duration
+			MuteInterval        time.Duration
+			NoteInterval        time.Duration
+			UserListInterval    time.Duration
 		}
 	}
 	Chat struct {
@@ -120,6 +121,7 @@ const (
 	defaultSearchUserRate            = 10
 	defaultFileUploadInterval        = time.Minute
 	defaultFileUploadRate            = 10
+	defaultAccountDataExportInterval = 72 * time.Hour
 	defaultAntennaExportInterval     = time.Hour
 	defaultBlockingExportInterval    = time.Hour
 	defaultClipExportInterval        = 24 * time.Hour
@@ -180,6 +182,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Search.RateLimit.UserRate = positiveInt(v.GetInt("search.rateLimit.userRate"), defaultSearchUserRate)
 	cfg.Files.RateLimit.UploadInterval = positiveDuration(v.GetDuration("files.rateLimit.uploadInterval"), defaultFileUploadInterval)
 	cfg.Files.RateLimit.UploadRate = positiveInt(v.GetInt("files.rateLimit.uploadRate"), defaultFileUploadRate)
+	cfg.Exports.RateLimit.AccountDataInterval = positiveDuration(v.GetDuration("exports.rateLimit.accountDataInterval"), defaultAccountDataExportInterval)
 	cfg.Exports.RateLimit.AntennaInterval = positiveDuration(v.GetDuration("exports.rateLimit.antennaInterval"), defaultAntennaExportInterval)
 	cfg.Exports.RateLimit.BlockingInterval = positiveDuration(v.GetDuration("exports.rateLimit.blockingInterval"), defaultBlockingExportInterval)
 	cfg.Exports.RateLimit.ClipInterval = positiveDuration(v.GetDuration("exports.rateLimit.clipInterval"), defaultClipExportInterval)
@@ -239,6 +242,7 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("search.rateLimit.userRate", cfg.Search.RateLimit.UserRate)
 	v.Set("files.rateLimit.uploadInterval", cfg.Files.RateLimit.UploadInterval)
 	v.Set("files.rateLimit.uploadRate", cfg.Files.RateLimit.UploadRate)
+	v.Set("exports.rateLimit.accountDataInterval", cfg.Exports.RateLimit.AccountDataInterval)
 	v.Set("exports.rateLimit.antennaInterval", cfg.Exports.RateLimit.AntennaInterval)
 	v.Set("exports.rateLimit.blockingInterval", cfg.Exports.RateLimit.BlockingInterval)
 	v.Set("exports.rateLimit.clipInterval", cfg.Exports.RateLimit.ClipInterval)
@@ -589,6 +593,7 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "search.rateLimit.userRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE")
 	bindEnv(v, "files.rateLimit.uploadInterval", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL")
 	bindEnv(v, "files.rateLimit.uploadRate", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE")
+	bindEnv(v, "exports.rateLimit.accountDataInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_ACCOUNT_DATA_INTERVAL")
 	bindEnv(v, "exports.rateLimit.antennaInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_ANTENNA_INTERVAL")
 	bindEnv(v, "exports.rateLimit.blockingInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_BLOCKING_INTERVAL")
 	bindEnv(v, "exports.rateLimit.clipInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_CLIP_INTERVAL")

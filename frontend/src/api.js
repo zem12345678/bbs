@@ -552,6 +552,9 @@ export const bbsApi = {
   exportNotes(token) {
     return request("/i/export-notes", { method: "POST", body: {}, token });
   },
+  exportData(token) {
+    return request("/i/export-data", { method: "POST", body: {}, token });
+  },
   collections(params = {}, token) {
     return request(`/users/me/collections${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },

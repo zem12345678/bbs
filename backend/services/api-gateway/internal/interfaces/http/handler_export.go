@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	stdhttp "net/http"
 	"strconv"
 	"time"
@@ -25,6 +26,14 @@ type userExportSpec struct {
 	contentType    string
 	gate           ExportGate
 	build          func(context.Context, int64) ([]byte, error)
+	buildArtifact  func(context.Context, int64) (userExportArtifact, error)
+	timeout        time.Duration
+}
+
+type userExportArtifact struct {
+	reader  io.Reader
+	size    int64
+	cleanup func()
 }
 
 func (h *Handler) deliverUserExport(c *gin.Context, spec userExportSpec) {
@@ -47,11 +56,32 @@ func (h *Handler) deliverUserExport(c *gin.Context, spec userExportSpec) {
 		}()
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), userExportTimeout)
+	timeout := spec.timeout
+	if timeout <= 0 {
+		timeout = userExportTimeout
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 	defer cancel()
-	payload, err := spec.build(ctx, userID)
+	var artifact userExportArtifact
+	var err error
+	if spec.buildArtifact != nil {
+		artifact, err = spec.buildArtifact(ctx, userID)
+	} else if spec.build != nil {
+		var payload []byte
+		payload, err = spec.build(ctx, userID)
+		artifact = userExportArtifact{reader: bytes.NewReader(payload), size: int64(len(payload))}
+	} else {
+		err = errors.New("export builder unavailable")
+	}
 	if err != nil {
 		writeRPCError(c, err)
+		return
+	}
+	if artifact.cleanup != nil {
+		defer artifact.cleanup()
+	}
+	if artifact.reader == nil || artifact.size < 0 {
+		writeError(c, stdhttp.StatusInternalServerError, "invalid export artifact", "internal_error")
 		return
 	}
 	objectName, err := uploadedAvatarName(spec.extension)
@@ -61,13 +91,13 @@ func (h *Handler) deliverUserExport(c *gin.Context, spec userExportSpec) {
 	}
 	filename := spec.filenamePrefix + "-" + time.Now().Format("2006-01-02-15-04-05") + spec.extension
 	objectKey := "files/" + strconv.FormatInt(userID, 10) + "/exports/" + objectName
-	if err := h.attachments.Upload(ctx, objectKey, bytes.NewReader(payload), int64(len(payload)), spec.contentType); err != nil {
+	if err := h.attachments.Upload(ctx, objectKey, artifact.reader, artifact.size, spec.contentType); err != nil {
 		writeError(c, stdhttp.StatusBadGateway, "store "+spec.label+" export failed", "storage_unavailable")
 		return
 	}
 	created, err := h.clients.File.CreateFile(ctx, &filepb.CreateFileRequest{
 		OwnerId: userID, BizType: "exports", ObjectKey: objectKey, OriginalName: filename,
-		ContentType: spec.contentType, SizeBytes: int64(len(payload)),
+		ContentType: spec.contentType, SizeBytes: artifact.size,
 	})
 	if err != nil {
 		if canDeleteUploadedAttachmentAfterCreateError(err) {

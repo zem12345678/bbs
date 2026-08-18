@@ -5919,6 +5919,8 @@ type ListLoginEventsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	AfterId       int64                  `protobuf:"varint,3,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	AscendingById bool                   `protobuf:"varint,4,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5965,6 +5967,20 @@ func (x *ListLoginEventsRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListLoginEventsRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListLoginEventsRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
 }
 
 type SessionListResponse struct {
@@ -7637,10 +7653,12 @@ const file_user_proto_rawDesc = "" +
 	"\x14RevokeSessionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\"G\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"\x8a\x01\n" +
 	"\x16ListLoginEventsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"[\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x19\n" +
+	"\bafter_id\x18\x03 \x01(\x03R\aafterId\x12&\n" +
+	"\x0fascending_by_id\x18\x04 \x01(\bR\rascendingById\"[\n" +
 	"\x13SessionListResponse\x12.\n" +
 	"\x05items\x18\x01 \x03(\v2\x18.bbs.user.v1.SessionInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"E\n" +

@@ -2104,6 +2104,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
 
       <SessionSecuritySection token={token} />
 
+      <AccountDataExportSection token={token} />
+
       <FollowingExportSection token={token} />
 
       <div className="account-security-section">
@@ -2157,6 +2159,72 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
         onAuthInvalidated={onAuthInvalidated}
       />
     </section>
+  );
+}
+
+function AccountDataExportSection({ token }) {
+  const [state, setState] = React.useState({ busy: false, error: "", notice: "" });
+  const requestSessionRef = React.useRef(0);
+  const requestRef = React.useRef(0);
+  const busyRef = React.useRef(false);
+  const tokenRef = React.useRef(token);
+  tokenRef.current = token;
+
+  React.useEffect(() => {
+    requestSessionRef.current += 1;
+    requestRef.current += 1;
+    busyRef.current = false;
+    setState({ busy: false, error: "", notice: "" });
+    return () => {
+      requestSessionRef.current += 1;
+      requestRef.current += 1;
+      busyRef.current = false;
+    };
+  }, [token]);
+
+  async function exportAccountData() {
+    if (!token || busyRef.current) return;
+    const requestToken = token;
+    const requestSession = requestSessionRef.current;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    busyRef.current = true;
+    const isCurrentRequest = () => (
+      requestSessionRef.current === requestSession &&
+      requestRef.current === requestId &&
+      tokenRef.current === requestToken
+    );
+    setState({ busy: true, error: "", notice: "" });
+    try {
+      await bbsApi.exportData(requestToken);
+      if (!isCurrentRequest()) return;
+      busyRef.current = false;
+      setState({ busy: false, error: "", notice: "账户数据归档已生成，可在文件库下载。" });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      busyRef.current = false;
+      setState({ busy: false, error: error.message || "账户数据导出失败", notice: "" });
+    }
+  }
+
+  return (
+    <div className="account-security-section">
+      <div className="account-security-section-heading">
+        <Download size={20} aria-hidden="true" />
+        <div>
+          <strong>导出账户数据</strong>
+          <p>生成包含个人资料、内容、关系和文件的完整 ZIP 归档。</p>
+        </div>
+      </div>
+      <div className="account-security-actions">
+        <button type="button" disabled={!token || state.busy} onClick={exportAccountData}>
+          <Download size={17} aria-hidden="true" />
+          {state.busy ? "归档中..." : "生成账户数据归档"}
+        </button>
+      </div>
+      {state.error && <p className="form-error" role="alert">{state.error}</p>}
+      {state.notice && <p className="form-success" role="status">{state.notice}</p>}
+    </div>
   );
 }
 

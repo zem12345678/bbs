@@ -619,6 +619,61 @@ func TestGenericFileLifecycleDeletesStoredObject(t *testing.T) {
 	}
 }
 
+func TestListFilesAfterIDIsExclusiveAscendingAndExportMayExceedUploadLimit(t *testing.T) {
+	repo := newMemoryRepository(domain.Attachment{})
+	for id := int64(1); id <= 105; id++ {
+		repo.files = append(repo.files, domain.File{ID: id, OwnerID: 9, Status: domain.FileStatusActive})
+	}
+	repo.files = append(repo.files, domain.File{ID: 106, OwnerID: 10, Status: domain.FileStatusActive})
+	service := NewService(repo, nil, nil, nil, WithFileCapacity(DefaultFileCapacityBytes))
+
+	first, total, err := service.ListFilesAfterID(context.Background(), 9, 0, 100)
+	if err != nil || total != 105 || len(first) != 100 || first[0].ID != 1 || first[99].ID != 100 {
+		t.Fatalf("first page = %+v, total = %d, error = %v", first, total, err)
+	}
+	second, total, err := service.ListFilesAfterID(context.Background(), 9, first[len(first)-1].ID, 100)
+	if err != nil || total != 105 || len(second) != 5 || second[0].ID != 101 || second[4].ID != 105 {
+		t.Fatalf("second page = %+v, total = %d, error = %v", second, total, err)
+	}
+	if _, _, err := service.ListFilesAfterID(context.Background(), 9, -1, 100); !errors.Is(err, domain.ErrInvalidFile) {
+		t.Fatalf("negative cursor error = %v, want ErrInvalidFile", err)
+	}
+
+	largeSize := int64(MaxFileSizeBytes + 1)
+	if _, err := service.CreateFile(context.Background(), CreateFileCommand{
+		OwnerID: 9, BizType: "drive", ObjectKey: "files/9/large.bin", OriginalName: "large.bin", SizeBytes: largeSize,
+	}); !errors.Is(err, domain.ErrInvalidFile) {
+		t.Fatalf("large drive file error = %v, want ErrInvalidFile", err)
+	}
+	if _, err := service.CreateFile(context.Background(), CreateFileCommand{
+		OwnerID: 9, BizType: "exports", ObjectKey: "files/9/account-data.zip", OriginalName: "account-data.zip", SizeBytes: largeSize,
+	}); err != nil {
+		t.Fatalf("large export file error = %v", err)
+	}
+	limited := NewService(newMemoryRepository(domain.Attachment{}), nil, nil, nil, WithFileCapacity(10))
+	if _, err := limited.CreateFile(context.Background(), CreateFileCommand{
+		OwnerID: 9, BizType: "exports", ObjectKey: "files/9/full-account-data.zip", OriginalName: "full-account-data.zip", SizeBytes: 20,
+	}); err != nil {
+		t.Fatalf("export over ordinary user capacity error = %v", err)
+	}
+}
+
+func TestListOwnedAttachmentsAfterIDIncludesArchivedMetadata(t *testing.T) {
+	attachment := activeAttachment(500, 9, 0)
+	attachment.Status = domain.AttachmentStatusArchived
+	repo := newMemoryRepository(attachment)
+	service := NewService(repo, nil, nil, nil)
+
+	items, err := service.ListOwnedAttachmentsAfterID(context.Background(), 9, 0, 100)
+	if err != nil || len(items) != 1 || items[0].ID != 500 || items[0].Status != domain.AttachmentStatusArchived {
+		t.Fatalf("owned attachments = %+v, error = %v", items, err)
+	}
+	items, err = service.ListOwnedAttachmentsAfterID(context.Background(), 9, 500, 100)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("exclusive cursor result = %+v, error = %v", items, err)
+	}
+}
+
 func TestFileUsageEnforcesConfiguredCapacity(t *testing.T) {
 	repo := newMemoryRepository(domain.Attachment{})
 	deleter := &recordingObjectDeleter{}
@@ -1099,6 +1154,26 @@ func (r *memoryRepository) ListUserFiles(_ context.Context, userID int64, limit,
 	return items[start:end], total, nil
 }
 
+func (r *memoryRepository) ListUserFilesAfterID(_ context.Context, userID, afterID int64, limit int32) ([]domain.File, int64, error) {
+	items := make([]domain.File, 0)
+	for _, file := range r.files {
+		if file.OwnerID == userID && file.ID > afterID && (file.Status == domain.FileStatusActive || file.Status == domain.FileStatusDeleting) {
+			items = append(items, file)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	total := int64(0)
+	for _, file := range r.files {
+		if file.OwnerID == userID && (file.Status == domain.FileStatusActive || file.Status == domain.FileStatusDeleting) {
+			total++
+		}
+	}
+	if len(items) > int(limit) {
+		items = items[:limit]
+	}
+	return items, total, nil
+}
+
 func (r *memoryRepository) GetFile(_ context.Context, userID, fileID int64) (domain.File, error) {
 	for _, file := range r.files {
 		if file.ID == fileID {
@@ -1166,6 +1241,14 @@ func (r *memoryRepository) CreateAttachment(_ context.Context, attachment domain
 
 func (r *memoryRepository) ListTopicAttachments(_ context.Context, topicID int64) ([]domain.Attachment, error) {
 	if r.attachment.TopicID != topicID || r.attachment.Status != domain.AttachmentStatusActive {
+		return nil, nil
+	}
+	return []domain.Attachment{r.attachment}, nil
+}
+
+func (r *memoryRepository) ListOwnedAttachmentsAfterID(_ context.Context, ownerID, afterID int64, limit int32) ([]domain.Attachment, error) {
+	if r.attachment.OwnerID != ownerID || r.attachment.ID <= afterID ||
+		(r.attachment.Status != domain.AttachmentStatusActive && r.attachment.Status != domain.AttachmentStatusArchived) || limit <= 0 {
 		return nil, nil
 	}
 	return []domain.Attachment{r.attachment}, nil

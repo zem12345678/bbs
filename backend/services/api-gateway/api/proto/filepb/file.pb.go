@@ -1314,6 +1314,8 @@ type ListFilesRequest struct {
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
 	FolderId      *int64                 `protobuf:"varint,4,opt,name=folder_id,json=folderId,proto3,oneof" json:"folder_id,omitempty"`
+	AfterId       int64                  `protobuf:"varint,5,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	AscendingById bool                   `protobuf:"varint,6,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1374,6 +1376,20 @@ func (x *ListFilesRequest) GetFolderId() int64 {
 		return *x.FolderId
 	}
 	return 0
+}
+
+func (x *ListFilesRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListFilesRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
 }
 
 type FileListResponse struct {
@@ -2528,6 +2544,74 @@ func (x *ListOwnedTopicAttachmentsRequest) GetOwnerId() int64 {
 	return 0
 }
 
+type ListOwnedAttachmentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OwnerId       int64                  `protobuf:"varint,1,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	AfterId       int64                  `protobuf:"varint,2,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	AscendingById bool                   `protobuf:"varint,4,opt,name=ascending_by_id,json=ascendingById,proto3" json:"ascending_by_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOwnedAttachmentsRequest) Reset() {
+	*x = ListOwnedAttachmentsRequest{}
+	mi := &file_file_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOwnedAttachmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOwnedAttachmentsRequest) ProtoMessage() {}
+
+func (x *ListOwnedAttachmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_file_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOwnedAttachmentsRequest.ProtoReflect.Descriptor instead.
+func (*ListOwnedAttachmentsRequest) Descriptor() ([]byte, []int) {
+	return file_file_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ListOwnedAttachmentsRequest) GetOwnerId() int64 {
+	if x != nil {
+		return x.OwnerId
+	}
+	return 0
+}
+
+func (x *ListOwnedAttachmentsRequest) GetAfterId() int64 {
+	if x != nil {
+		return x.AfterId
+	}
+	return 0
+}
+
+func (x *ListOwnedAttachmentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListOwnedAttachmentsRequest) GetAscendingById() bool {
+	if x != nil {
+		return x.AscendingById
+	}
+	return false
+}
+
 var File_file_proto protoreflect.FileDescriptor
 
 const file_file_proto_rawDesc = "" +
@@ -2653,12 +2737,14 @@ const file_file_proto_rawDesc = "" +
 	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12\x1b\n" +
 	"\tfolder_id\x18\a \x01(\x03R\bfolderId\"5\n" +
 	"\fFileResponse\x12%\n" +
-	"\x04file\x18\x01 \x01(\v2\x11.bbs.file.v1.FileR\x04file\"\x8b\x01\n" +
+	"\x04file\x18\x01 \x01(\v2\x11.bbs.file.v1.FileR\x04file\"\xce\x01\n" +
 	"\x10ListFilesRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12 \n" +
-	"\tfolder_id\x18\x04 \x01(\x03H\x00R\bfolderId\x88\x01\x01B\f\n" +
+	"\tfolder_id\x18\x04 \x01(\x03H\x00R\bfolderId\x88\x01\x01\x12\x19\n" +
+	"\bafter_id\x18\x05 \x01(\x03R\aafterId\x12&\n" +
+	"\x0fascending_by_id\x18\x06 \x01(\bR\rascendingByIdB\f\n" +
 	"\n" +
 	"_folder_id\"Q\n" +
 	"\x10FileListResponse\x12'\n" +
@@ -2758,12 +2844,18 @@ const file_file_proto_rawDesc = "" +
 	"\x06remote\x18\x02 \x01(\v2\x1d.bbs.file.v1.DriveChartSeriesR\x06remote\"X\n" +
 	" ListOwnedTopicAttachmentsRequest\x12\x19\n" +
 	"\btopic_id\x18\x01 \x01(\x03R\atopicId\x12\x19\n" +
-	"\bowner_id\x18\x02 \x01(\x03R\aownerId2\xe4\x0e\n" +
+	"\bowner_id\x18\x02 \x01(\x03R\aownerId\"\x91\x01\n" +
+	"\x1bListOwnedAttachmentsRequest\x12\x19\n" +
+	"\bowner_id\x18\x01 \x01(\x03R\aownerId\x12\x19\n" +
+	"\bafter_id\x18\x02 \x01(\x03R\aafterId\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12&\n" +
+	"\x0fascending_by_id\x18\x04 \x01(\bR\rascendingById2\xcb\x0f\n" +
 	"\vFileService\x12Y\n" +
 	"\x10CreateAttachment\x12$.bbs.file.v1.CreateAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12S\n" +
 	"\rGetAttachment\x12!.bbs.file.v1.GetAttachmentRequest\x1a\x1f.bbs.file.v1.AttachmentResponse\x12e\n" +
 	"\x14ListTopicAttachments\x12(.bbs.file.v1.ListTopicAttachmentsRequest\x1a#.bbs.file.v1.AttachmentListResponse\x12o\n" +
-	"\x19ListOwnedTopicAttachments\x12-.bbs.file.v1.ListOwnedTopicAttachmentsRequest\x1a#.bbs.file.v1.AttachmentListResponse\x12{\n" +
+	"\x19ListOwnedTopicAttachments\x12-.bbs.file.v1.ListOwnedTopicAttachmentsRequest\x1a#.bbs.file.v1.AttachmentListResponse\x12e\n" +
+	"\x14ListOwnedAttachments\x12(.bbs.file.v1.ListOwnedAttachmentsRequest\x1a#.bbs.file.v1.AttachmentListResponse\x12{\n" +
 	"\x1bListUserAttachmentDownloads\x12/.bbs.file.v1.ListUserAttachmentDownloadsRequest\x1a+.bbs.file.v1.AttachmentDownloadListResponse\x12o\n" +
 	"\x17ListUserAttachmentSales\x12+.bbs.file.v1.ListUserAttachmentSalesRequest\x1a'.bbs.file.v1.AttachmentSaleListResponse\x12z\n" +
 	"\x1bAuthorizeAttachmentDownload\x12/.bbs.file.v1.AuthorizeAttachmentDownloadRequest\x1a*.bbs.file.v1.DownloadAuthorizationResponse\x12[\n" +
@@ -2797,7 +2889,7 @@ func file_file_proto_rawDescGZIP() []byte {
 	return file_file_proto_rawDescData
 }
 
-var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_file_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_file_proto_goTypes = []any{
 	(*Attachment)(nil),                         // 0: bbs.file.v1.Attachment
 	(*CreateAttachmentRequest)(nil),            // 1: bbs.file.v1.CreateAttachmentRequest
@@ -2837,6 +2929,7 @@ var file_file_proto_goTypes = []any{
 	(*DriveChartSeries)(nil),                   // 35: bbs.file.v1.DriveChartSeries
 	(*DriveChartResponse)(nil),                 // 36: bbs.file.v1.DriveChartResponse
 	(*ListOwnedTopicAttachmentsRequest)(nil),   // 37: bbs.file.v1.ListOwnedTopicAttachmentsRequest
+	(*ListOwnedAttachmentsRequest)(nil),        // 38: bbs.file.v1.ListOwnedAttachmentsRequest
 }
 var file_file_proto_depIdxs = []int32{
 	0,  // 0: bbs.file.v1.AttachmentResponse.attachment:type_name -> bbs.file.v1.Attachment
@@ -2856,46 +2949,48 @@ var file_file_proto_depIdxs = []int32{
 	3,  // 14: bbs.file.v1.FileService.GetAttachment:input_type -> bbs.file.v1.GetAttachmentRequest
 	4,  // 15: bbs.file.v1.FileService.ListTopicAttachments:input_type -> bbs.file.v1.ListTopicAttachmentsRequest
 	37, // 16: bbs.file.v1.FileService.ListOwnedTopicAttachments:input_type -> bbs.file.v1.ListOwnedTopicAttachmentsRequest
-	6,  // 17: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
-	9,  // 18: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
-	12, // 19: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
-	14, // 20: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
-	15, // 21: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
-	17, // 22: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
-	19, // 23: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
-	21, // 24: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
-	23, // 25: bbs.file.v1.FileService.SetFileCapacity:input_type -> bbs.file.v1.SetFileCapacityRequest
-	24, // 26: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
-	25, // 27: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
-	27, // 28: bbs.file.v1.FileService.ListFolders:input_type -> bbs.file.v1.ListFoldersRequest
-	29, // 29: bbs.file.v1.FileService.CreateFolder:input_type -> bbs.file.v1.CreateFolderRequest
-	30, // 30: bbs.file.v1.FileService.UpdateFolder:input_type -> bbs.file.v1.UpdateFolderRequest
-	31, // 31: bbs.file.v1.FileService.DeleteFolder:input_type -> bbs.file.v1.DeleteFolderRequest
-	33, // 32: bbs.file.v1.FileService.UpdateFile:input_type -> bbs.file.v1.UpdateFileRequest
-	34, // 33: bbs.file.v1.FileService.GetDriveChart:input_type -> bbs.file.v1.DriveChartRequest
-	2,  // 34: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 35: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	5,  // 36: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	5,  // 37: bbs.file.v1.FileService.ListOwnedTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
-	8,  // 38: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
-	11, // 39: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
-	13, // 40: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
-	2,  // 41: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
-	2,  // 42: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
-	18, // 43: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
-	20, // 44: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
-	22, // 45: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
-	22, // 46: bbs.file.v1.FileService.SetFileCapacity:output_type -> bbs.file.v1.FileUsageResponse
-	18, // 47: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
-	18, // 48: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
-	28, // 49: bbs.file.v1.FileService.ListFolders:output_type -> bbs.file.v1.FolderListResponse
-	32, // 50: bbs.file.v1.FileService.CreateFolder:output_type -> bbs.file.v1.FolderResponse
-	32, // 51: bbs.file.v1.FileService.UpdateFolder:output_type -> bbs.file.v1.FolderResponse
-	32, // 52: bbs.file.v1.FileService.DeleteFolder:output_type -> bbs.file.v1.FolderResponse
-	18, // 53: bbs.file.v1.FileService.UpdateFile:output_type -> bbs.file.v1.FileResponse
-	36, // 54: bbs.file.v1.FileService.GetDriveChart:output_type -> bbs.file.v1.DriveChartResponse
-	34, // [34:55] is the sub-list for method output_type
-	13, // [13:34] is the sub-list for method input_type
+	38, // 17: bbs.file.v1.FileService.ListOwnedAttachments:input_type -> bbs.file.v1.ListOwnedAttachmentsRequest
+	6,  // 18: bbs.file.v1.FileService.ListUserAttachmentDownloads:input_type -> bbs.file.v1.ListUserAttachmentDownloadsRequest
+	9,  // 19: bbs.file.v1.FileService.ListUserAttachmentSales:input_type -> bbs.file.v1.ListUserAttachmentSalesRequest
+	12, // 20: bbs.file.v1.FileService.AuthorizeAttachmentDownload:input_type -> bbs.file.v1.AuthorizeAttachmentDownloadRequest
+	14, // 21: bbs.file.v1.FileService.ArchiveAttachment:input_type -> bbs.file.v1.ArchiveAttachmentRequest
+	15, // 22: bbs.file.v1.FileService.UpdateAttachmentPrice:input_type -> bbs.file.v1.UpdateAttachmentPriceRequest
+	17, // 23: bbs.file.v1.FileService.CreateFile:input_type -> bbs.file.v1.CreateFileRequest
+	19, // 24: bbs.file.v1.FileService.ListFiles:input_type -> bbs.file.v1.ListFilesRequest
+	21, // 25: bbs.file.v1.FileService.GetFileUsage:input_type -> bbs.file.v1.GetFileUsageRequest
+	23, // 26: bbs.file.v1.FileService.SetFileCapacity:input_type -> bbs.file.v1.SetFileCapacityRequest
+	24, // 27: bbs.file.v1.FileService.GetFile:input_type -> bbs.file.v1.GetFileRequest
+	25, // 28: bbs.file.v1.FileService.DeleteFile:input_type -> bbs.file.v1.DeleteFileRequest
+	27, // 29: bbs.file.v1.FileService.ListFolders:input_type -> bbs.file.v1.ListFoldersRequest
+	29, // 30: bbs.file.v1.FileService.CreateFolder:input_type -> bbs.file.v1.CreateFolderRequest
+	30, // 31: bbs.file.v1.FileService.UpdateFolder:input_type -> bbs.file.v1.UpdateFolderRequest
+	31, // 32: bbs.file.v1.FileService.DeleteFolder:input_type -> bbs.file.v1.DeleteFolderRequest
+	33, // 33: bbs.file.v1.FileService.UpdateFile:input_type -> bbs.file.v1.UpdateFileRequest
+	34, // 34: bbs.file.v1.FileService.GetDriveChart:input_type -> bbs.file.v1.DriveChartRequest
+	2,  // 35: bbs.file.v1.FileService.CreateAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 36: bbs.file.v1.FileService.GetAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	5,  // 37: bbs.file.v1.FileService.ListTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	5,  // 38: bbs.file.v1.FileService.ListOwnedTopicAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	5,  // 39: bbs.file.v1.FileService.ListOwnedAttachments:output_type -> bbs.file.v1.AttachmentListResponse
+	8,  // 40: bbs.file.v1.FileService.ListUserAttachmentDownloads:output_type -> bbs.file.v1.AttachmentDownloadListResponse
+	11, // 41: bbs.file.v1.FileService.ListUserAttachmentSales:output_type -> bbs.file.v1.AttachmentSaleListResponse
+	13, // 42: bbs.file.v1.FileService.AuthorizeAttachmentDownload:output_type -> bbs.file.v1.DownloadAuthorizationResponse
+	2,  // 43: bbs.file.v1.FileService.ArchiveAttachment:output_type -> bbs.file.v1.AttachmentResponse
+	2,  // 44: bbs.file.v1.FileService.UpdateAttachmentPrice:output_type -> bbs.file.v1.AttachmentResponse
+	18, // 45: bbs.file.v1.FileService.CreateFile:output_type -> bbs.file.v1.FileResponse
+	20, // 46: bbs.file.v1.FileService.ListFiles:output_type -> bbs.file.v1.FileListResponse
+	22, // 47: bbs.file.v1.FileService.GetFileUsage:output_type -> bbs.file.v1.FileUsageResponse
+	22, // 48: bbs.file.v1.FileService.SetFileCapacity:output_type -> bbs.file.v1.FileUsageResponse
+	18, // 49: bbs.file.v1.FileService.GetFile:output_type -> bbs.file.v1.FileResponse
+	18, // 50: bbs.file.v1.FileService.DeleteFile:output_type -> bbs.file.v1.FileResponse
+	28, // 51: bbs.file.v1.FileService.ListFolders:output_type -> bbs.file.v1.FolderListResponse
+	32, // 52: bbs.file.v1.FileService.CreateFolder:output_type -> bbs.file.v1.FolderResponse
+	32, // 53: bbs.file.v1.FileService.UpdateFolder:output_type -> bbs.file.v1.FolderResponse
+	32, // 54: bbs.file.v1.FileService.DeleteFolder:output_type -> bbs.file.v1.FolderResponse
+	18, // 55: bbs.file.v1.FileService.UpdateFile:output_type -> bbs.file.v1.FileResponse
+	36, // 56: bbs.file.v1.FileService.GetDriveChart:output_type -> bbs.file.v1.DriveChartResponse
+	35, // [35:57] is the sub-list for method output_type
+	13, // [13:35] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
 	13, // [13:13] is the sub-list for extension extendee
 	0,  // [0:13] is the sub-list for field type_name
@@ -2916,7 +3011,7 @@ func file_file_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_file_proto_rawDesc), len(file_file_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

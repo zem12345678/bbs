@@ -60,6 +60,10 @@ type SessionRepository interface {
 	ListLoginEvents(context.Context, int64, int) ([]LoginEvent, error)
 }
 
+type LoginEventKeysetRepository interface {
+	ListLoginEventsAfterID(context.Context, int64, int64, int) ([]LoginEvent, error)
+}
+
 func NormalizeSessionClientInfo(info SessionClientInfo) SessionClientInfo {
 	return SessionClientInfo{
 		IPAddress: truncateRunes(strings.TrimSpace(info.IPAddress), maxClientIPRunes),

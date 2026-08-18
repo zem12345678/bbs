@@ -88,6 +88,7 @@ type Handler struct {
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
 	fileUploadLimit                    ratelimit.Limiter
+	accountDataExportGate              ExportGate
 	clipExportGate                     ExportGate
 	favoriteExportGate                 ExportGate
 	antennaExportGate                  ExportGate
@@ -316,6 +317,10 @@ func (h *Handler) SetAntennaExportGate(gate ExportGate) {
 	h.antennaExportGate = gate
 }
 
+func (h *Handler) SetAccountDataExportGate(gate ExportGate) {
+	h.accountDataExportGate = gate
+}
+
 func (h *Handler) SetBlockingExportGate(gate ExportGate) {
 	h.blockingExportGate = gate
 }
@@ -490,6 +495,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 			r.POST(prefix+"/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 			r.POST(prefix+"/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+			r.POST(prefix+"/i/export-data", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAccountData)
 			r.POST(prefix+"/i/export-favorites", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFavorites)
 			r.POST(prefix+"/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
@@ -531,6 +537,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 	api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 	api.POST("/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 	api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
+	api.POST("/i/export-data", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAccountData)
 	api.POST("/i/export-favorites", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFavorites)
 	api.POST("/i/export-following", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportFollowing)
 	api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)

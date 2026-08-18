@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v5.29.1
-// source: api/proto/file.proto
+// source: file.proto
 
 package filepb
 
@@ -23,6 +23,7 @@ const (
 	FileService_GetAttachment_FullMethodName               = "/bbs.file.v1.FileService/GetAttachment"
 	FileService_ListTopicAttachments_FullMethodName        = "/bbs.file.v1.FileService/ListTopicAttachments"
 	FileService_ListOwnedTopicAttachments_FullMethodName   = "/bbs.file.v1.FileService/ListOwnedTopicAttachments"
+	FileService_ListOwnedAttachments_FullMethodName        = "/bbs.file.v1.FileService/ListOwnedAttachments"
 	FileService_ListUserAttachmentDownloads_FullMethodName = "/bbs.file.v1.FileService/ListUserAttachmentDownloads"
 	FileService_ListUserAttachmentSales_FullMethodName     = "/bbs.file.v1.FileService/ListUserAttachmentSales"
 	FileService_AuthorizeAttachmentDownload_FullMethodName = "/bbs.file.v1.FileService/AuthorizeAttachmentDownload"
@@ -51,6 +52,7 @@ type FileServiceClient interface {
 	GetAttachment(ctx context.Context, in *GetAttachmentRequest, opts ...grpc.CallOption) (*AttachmentResponse, error)
 	ListTopicAttachments(ctx context.Context, in *ListTopicAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error)
 	ListOwnedTopicAttachments(ctx context.Context, in *ListOwnedTopicAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error)
+	ListOwnedAttachments(ctx context.Context, in *ListOwnedAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error)
 	ListUserAttachmentDownloads(ctx context.Context, in *ListUserAttachmentDownloadsRequest, opts ...grpc.CallOption) (*AttachmentDownloadListResponse, error)
 	ListUserAttachmentSales(ctx context.Context, in *ListUserAttachmentSalesRequest, opts ...grpc.CallOption) (*AttachmentSaleListResponse, error)
 	AuthorizeAttachmentDownload(ctx context.Context, in *AuthorizeAttachmentDownloadRequest, opts ...grpc.CallOption) (*DownloadAuthorizationResponse, error)
@@ -113,6 +115,16 @@ func (c *fileServiceClient) ListOwnedTopicAttachments(ctx context.Context, in *L
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AttachmentListResponse)
 	err := c.cc.Invoke(ctx, FileService_ListOwnedTopicAttachments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fileServiceClient) ListOwnedAttachments(ctx context.Context, in *ListOwnedAttachmentsRequest, opts ...grpc.CallOption) (*AttachmentListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachmentListResponse)
+	err := c.cc.Invoke(ctx, FileService_ListOwnedAttachments_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +319,7 @@ type FileServiceServer interface {
 	GetAttachment(context.Context, *GetAttachmentRequest) (*AttachmentResponse, error)
 	ListTopicAttachments(context.Context, *ListTopicAttachmentsRequest) (*AttachmentListResponse, error)
 	ListOwnedTopicAttachments(context.Context, *ListOwnedTopicAttachmentsRequest) (*AttachmentListResponse, error)
+	ListOwnedAttachments(context.Context, *ListOwnedAttachmentsRequest) (*AttachmentListResponse, error)
 	ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error)
 	ListUserAttachmentSales(context.Context, *ListUserAttachmentSalesRequest) (*AttachmentSaleListResponse, error)
 	AuthorizeAttachmentDownload(context.Context, *AuthorizeAttachmentDownloadRequest) (*DownloadAuthorizationResponse, error)
@@ -346,6 +359,9 @@ func (UnimplementedFileServiceServer) ListTopicAttachments(context.Context, *Lis
 }
 func (UnimplementedFileServiceServer) ListOwnedTopicAttachments(context.Context, *ListOwnedTopicAttachmentsRequest) (*AttachmentListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListOwnedTopicAttachments not implemented")
+}
+func (UnimplementedFileServiceServer) ListOwnedAttachments(context.Context, *ListOwnedAttachmentsRequest) (*AttachmentListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOwnedAttachments not implemented")
 }
 func (UnimplementedFileServiceServer) ListUserAttachmentDownloads(context.Context, *ListUserAttachmentDownloadsRequest) (*AttachmentDownloadListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserAttachmentDownloads not implemented")
@@ -490,6 +506,24 @@ func _FileService_ListOwnedTopicAttachments_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(FileServiceServer).ListOwnedTopicAttachments(ctx, req.(*ListOwnedTopicAttachmentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FileService_ListOwnedAttachments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOwnedAttachmentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FileServiceServer).ListOwnedAttachments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FileService_ListOwnedAttachments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FileServiceServer).ListOwnedAttachments(ctx, req.(*ListOwnedAttachmentsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -842,6 +876,10 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FileService_ListOwnedTopicAttachments_Handler,
 		},
 		{
+			MethodName: "ListOwnedAttachments",
+			Handler:    _FileService_ListOwnedAttachments_Handler,
+		},
+		{
 			MethodName: "ListUserAttachmentDownloads",
 			Handler:    _FileService_ListUserAttachmentDownloads_Handler,
 		},
@@ -915,5 +953,5 @@ var FileService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/file.proto",
+	Metadata: "file.proto",
 }

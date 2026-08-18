@@ -42,6 +42,7 @@ type userLoginEventPO struct {
 func (userLoginEventPO) TableName() string { return "user_login_events" }
 
 var _ domain.SessionRepository = (*Repo)(nil)
+var _ domain.LoginEventKeysetRepository = (*Repo)(nil)
 
 func (r *Repo) RecordSession(ctx context.Context, session domain.UserSession, event domain.LoginEvent) error {
 	if err := session.Validate(); err != nil {
@@ -245,6 +246,25 @@ func (r *Repo) ListLoginEvents(ctx context.Context, userID int64, limit int) ([]
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at DESC, id DESC").
+		Limit(domain.SessionListLimit(limit)).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	events := make([]domain.LoginEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, toLoginEvent(row))
+	}
+	return events, nil
+}
+
+func (r *Repo) ListLoginEventsAfterID(ctx context.Context, userID, afterID int64, limit int) ([]domain.LoginEvent, error) {
+	if userID <= 0 || afterID < 0 {
+		return nil, domain.ErrInvalidID
+	}
+	var rows []userLoginEventPO
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ? AND id > ?", userID, afterID).
+		Order("id ASC").
 		Limit(domain.SessionListLimit(limit)).
 		Find(&rows).Error; err != nil {
 		return nil, err

@@ -148,6 +148,41 @@ func (r *sessionMemoryRepo) ListLoginEvents(_ context.Context, userID int64, lim
 	return out, nil
 }
 
+func (r *sessionMemoryRepo) ListLoginEventsAfterID(_ context.Context, userID, afterID int64, limit int) ([]domain.LoginEvent, error) {
+	out := make([]domain.LoginEvent, 0, len(r.events))
+	for _, event := range r.events {
+		if event.UserID == userID && event.ID > afterID {
+			out = append(out, event)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func TestListLoginEventsAfterIDIsExclusiveAscendingAndBounded(t *testing.T) {
+	repo := newSessionMemoryRepo()
+	for id := int64(1); id <= 105; id++ {
+		repo.events = append(repo.events, domain.LoginEvent{ID: id, UserID: 42})
+	}
+	repo.events = append(repo.events, domain.LoginEvent{ID: 106, UserID: 43})
+	service := newSessionService(repo)
+
+	first, err := service.ListLoginEventsAfterID(context.Background(), 42, 0, 100)
+	if err != nil || len(first) != 100 || first[0].ID != 1 || first[99].ID != 100 {
+		t.Fatalf("first page = %+v, error = %v", first, err)
+	}
+	second, err := service.ListLoginEventsAfterID(context.Background(), 42, first[len(first)-1].ID, 100)
+	if err != nil || len(second) != 5 || second[0].ID != 101 || second[4].ID != 105 {
+		t.Fatalf("second page = %+v, error = %v", second, err)
+	}
+	if _, err := service.ListLoginEventsAfterID(context.Background(), 42, -1, 100); !errors.Is(err, domain.ErrInvalidID) {
+		t.Fatalf("negative cursor error = %v, want ErrInvalidID", err)
+	}
+}
+
 func newSessionService(repo domain.Repository) *Service {
 	return NewService(repo, &fakeIDGen{next: 1000}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil)
 }

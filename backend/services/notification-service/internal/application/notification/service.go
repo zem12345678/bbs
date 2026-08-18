@@ -359,6 +359,9 @@ func (s *Service) CreateExportCompletedNotification(ctx context.Context, command
 	case domain.ExportCompletedEntityClip:
 		title = "Clip 导出完成"
 		content = "你的 Clip 导出已完成，可以在文件库中下载。"
+	case domain.ExportCompletedEntityData:
+		title = "账户数据导出完成"
+		content = "你的账户数据归档已生成，可以在文件库中下载。"
 	case domain.ExportCompletedEntityFavorite:
 		title = "收藏导出完成"
 		content = "你的收藏导出已完成，可以在文件库中下载。"

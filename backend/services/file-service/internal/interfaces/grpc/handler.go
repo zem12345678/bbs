@@ -83,6 +83,21 @@ func (h *Handler) ListOwnedTopicAttachments(ctx context.Context, req *pb.ListOwn
 	return &pb.AttachmentListResponse{Items: items}, nil
 }
 
+func (h *Handler) ListOwnedAttachments(ctx context.Context, req *pb.ListOwnedAttachmentsRequest) (*pb.AttachmentListResponse, error) {
+	if !req.GetAscendingById() {
+		return nil, toStatus(domain.ErrInvalidAttachment)
+	}
+	attachments, err := h.service.ListOwnedAttachmentsAfterID(ctx, req.GetOwnerId(), req.GetAfterId(), req.GetLimit())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.Attachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		items = append(items, toPB(attachment))
+	}
+	return &pb.AttachmentListResponse{Items: items}, nil
+}
+
 func (h *Handler) ListUserAttachmentDownloads(ctx context.Context, req *pb.ListUserAttachmentDownloadsRequest) (*pb.AttachmentDownloadListResponse, error) {
 	downloads, err := h.service.ListUserAttachmentDownloads(ctx, req.GetUserId(), req.GetTopicId(), req.GetLimit(), req.GetOffset())
 	if err != nil {
@@ -156,6 +171,17 @@ func (h *Handler) CreateFile(ctx context.Context, req *pb.CreateFileRequest) (*p
 }
 
 func (h *Handler) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.FileListResponse, error) {
+	if req.GetAscendingById() {
+		items, total, err := h.service.ListFilesAfterID(ctx, req.GetOwnerId(), req.GetAfterId(), req.GetLimit())
+		if err != nil {
+			return nil, toStatus(err)
+		}
+		files := make([]*pb.File, 0, len(items))
+		for _, item := range items {
+			files = append(files, fileToPB(item))
+		}
+		return &pb.FileListResponse{Items: files, Total: total}, nil
+	}
 	var folderID *int64
 	if req != nil {
 		folderID = req.FolderId
@@ -441,6 +467,7 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrContentServiceUnavailable),
 		errors.Is(err, domain.ErrAccountErasureUnavailable),
 		errors.Is(err, domain.ErrFileStorageUnavailable),
+		errors.Is(err, domain.ErrFileRepositoryUnavailable),
 		errors.Is(err, domain.ErrFileOrganizationUnavailable),
 		errors.Is(err, domain.ErrDriveChartRepositoryUnavailable):
 		return status.Error(codes.Unavailable, err.Error())

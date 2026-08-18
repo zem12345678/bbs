@@ -18,6 +18,9 @@ type PostgresRepository struct {
 	pool *pgxpool.Pool
 }
 
+var _ domain.FileKeysetRepository = (*PostgresRepository)(nil)
+var _ domain.AttachmentKeysetRepository = (*PostgresRepository)(nil)
+
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
@@ -145,6 +148,37 @@ WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
 ORDER BY created_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]domain.File, 0)
+	for rows.Next() {
+		var item domain.File
+		if err := scanFile(rows, &item); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *PostgresRepository) ListUserFilesAfterID(ctx context.Context, userID, afterID int64, limit int32) ([]domain.File, int64, error) {
+	var total int64
+	if err := r.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM files
+WHERE owner_user_id = $1 AND status IN ('ACTIVE', 'DELETING')
+`, userID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.pool.Query(ctx, `
+SELECT id, owner_user_id, biz_type, object_key, original_name, content_type, size_bytes, status, created_at, updated_at, deleted_at,
+       COALESCE(folder_id, 0), is_sensitive, comment
+FROM files
+WHERE owner_user_id = $1 AND id > $2 AND status IN ('ACTIVE', 'DELETING')
+ORDER BY id ASC
+LIMIT $3
+`, userID, afterID, limit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -322,6 +356,29 @@ ORDER BY created_at ASC, id ASC
 	}
 	defer rows.Close()
 
+	attachments := make([]domain.Attachment, 0)
+	for rows.Next() {
+		var attachment domain.Attachment
+		if err := scanAttachment(rows, &attachment); err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, attachment)
+	}
+	return attachments, rows.Err()
+}
+
+func (r *PostgresRepository) ListOwnedAttachmentsAfterID(ctx context.Context, ownerID, afterID int64, limit int32) ([]domain.Attachment, error) {
+	rows, err := r.pool.Query(ctx, `
+SELECT id, topic_id, owner_id, object_key, original_name, content_type, size_bytes, price_credits, status, created_at, updated_at, archived_at
+FROM attachments
+WHERE owner_id = $1 AND id > $2 AND status IN ($3, $4)
+ORDER BY id ASC
+LIMIT $5
+`, ownerID, afterID, domain.AttachmentStatusActive, domain.AttachmentStatusArchived, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	attachments := make([]domain.Attachment, 0)
 	for rows.Next() {
 		var attachment domain.Attachment

@@ -297,3 +297,20 @@ func (s *Service) ListLoginEvents(ctx context.Context, userID int64, limit int) 
 	}
 	return repo.ListLoginEvents(ctx, userID, domain.SessionListLimit(limit))
 }
+
+// ListLoginEventsAfterID returns every matching login event in stable ID order
+// for account-data export without changing the existing newest-first endpoint.
+func (s *Service) ListLoginEventsAfterID(ctx context.Context, userID, afterID int64, limit int) ([]domain.LoginEvent, error) {
+	if userID <= 0 || afterID < 0 {
+		return nil, domain.ErrInvalidID
+	}
+	repo, err := s.sessionRepository()
+	if err != nil {
+		return nil, err
+	}
+	keyset, ok := repo.(domain.LoginEventKeysetRepository)
+	if !ok {
+		return nil, domain.ErrSessionRepositoryUnavailable
+	}
+	return keyset.ListLoginEventsAfterID(ctx, userID, afterID, domain.SessionListLimit(limit))
+}

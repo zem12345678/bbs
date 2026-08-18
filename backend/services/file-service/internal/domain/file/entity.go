@@ -43,6 +43,7 @@ var (
 	ErrFileCapacityExceeded                  = errors.New("file capacity exceeded")
 	ErrInvalidFileCapacity                   = errors.New("invalid file capacity")
 	ErrFileStorageUnavailable                = errors.New("file storage unavailable")
+	ErrFileRepositoryUnavailable             = errors.New("file repository unavailable")
 	ErrFileObjectKeyTaken                    = errors.New("file object key already exists")
 	ErrFolderNotFound                        = errors.New("folder not found")
 	ErrFolderNotEmpty                        = errors.New("folder is not empty")
@@ -255,4 +256,12 @@ type Repository interface {
 	UpdateAttachmentPrice(ctx context.Context, attachmentID, ownerID, priceCredits int64, updatedAt time.Time) (Attachment, error)
 	EnsureDownload(ctx context.Context, attachmentID, userID int64, sourceEventID string, chargedCredits int64, createdAt time.Time) (Download, error)
 	CompleteDownloadAuthorization(ctx context.Context, attachmentID, userID int64, authorizedAt time.Time, settle func(context.Context) error) (download Download, alreadyAuthorized bool, err error)
+}
+
+type FileKeysetRepository interface {
+	ListUserFilesAfterID(ctx context.Context, userID, afterID int64, limit int32) ([]File, int64, error)
+}
+
+type AttachmentKeysetRepository interface {
+	ListOwnedAttachmentsAfterID(ctx context.Context, ownerID, afterID int64, limit int32) ([]Attachment, error)
 }

@@ -9,6 +9,7 @@ service FileService {
   rpc GetAttachment(GetAttachmentRequest) returns (AttachmentResponse);
   rpc ListTopicAttachments(ListTopicAttachmentsRequest) returns (AttachmentListResponse);
   rpc ListOwnedTopicAttachments(ListOwnedTopicAttachmentsRequest) returns (AttachmentListResponse);
+  rpc ListOwnedAttachments(ListOwnedAttachmentsRequest) returns (AttachmentListResponse);
   rpc ListUserAttachmentDownloads(ListUserAttachmentDownloadsRequest) returns (AttachmentDownloadListResponse);
   rpc ListUserAttachmentSales(ListUserAttachmentSalesRequest) returns (AttachmentSaleListResponse);
   rpc AuthorizeAttachmentDownload(AuthorizeAttachmentDownloadRequest) returns (DownloadAuthorizationResponse);
@@ -168,6 +169,8 @@ message ListFilesRequest {
   int32 limit = 2;
   int32 offset = 3;
   optional int64 folder_id = 4;
+  int64 after_id = 5;
+  bool ascending_by_id = 6;
 }
 
 message FileListResponse {
@@ -285,4 +288,11 @@ message DriveChartResponse {
 message ListOwnedTopicAttachmentsRequest {
   int64 topic_id = 1;
   int64 owner_id = 2;
+}
+
+message ListOwnedAttachmentsRequest {
+  int64 owner_id = 1;
+  int64 after_id = 2;
+  int32 limit = 3;
+  bool ascending_by_id = 4;
 }

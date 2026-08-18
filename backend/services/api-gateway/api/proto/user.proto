@@ -703,6 +703,8 @@ message RevokeSessionRequest {
 message ListLoginEventsRequest {
   int64 user_id = 1;
   int32 limit = 2;
+  int64 after_id = 3;
+  bool ascending_by_id = 4;
 }
 
 message SessionListResponse {

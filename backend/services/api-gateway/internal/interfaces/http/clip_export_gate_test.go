@@ -47,6 +47,7 @@ func TestRedisExportGatesUseIndependentEntityKeys(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 	gates := []ExportGate{
+		NewRedisAccountDataExportGate(client, 72*time.Hour, 15*time.Minute),
 		NewRedisAntennaExportGate(client, time.Hour, 15*time.Minute),
 		NewRedisBlockingExportGate(client, time.Hour, 15*time.Minute),
 		NewRedisClipExportGate(client, 24*time.Hour, 15*time.Minute),
@@ -68,15 +69,17 @@ func TestRedisExportGatesUseIndependentEntityKeys(t *testing.T) {
 	}
 
 	server.FastForward(time.Hour + time.Millisecond)
-	for _, gate := range []ExportGate{gates[0], gates[1], gates[4], gates[5], gates[7]} {
+	for _, gate := range []ExportGate{gates[1], gates[2], gates[5], gates[6], gates[8]} {
 		permit, err := gate.Begin(context.Background(), 42)
 		require.NoError(t, err)
 		require.NoError(t, permit.Release(context.Background()))
 	}
-	_, err := gates[2].Begin(context.Background(), 42)
+	_, err := gates[0].Begin(context.Background(), 42)
 	require.ErrorIs(t, err, errExportRateLimited)
 	_, err = gates[3].Begin(context.Background(), 42)
 	require.ErrorIs(t, err, errExportRateLimited)
-	_, err = gates[6].Begin(context.Background(), 42)
+	_, err = gates[4].Begin(context.Background(), 42)
+	require.ErrorIs(t, err, errExportRateLimited)
+	_, err = gates[7].Begin(context.Background(), 42)
 	require.ErrorIs(t, err, errExportRateLimited)
 }

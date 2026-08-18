@@ -19,6 +19,7 @@ const (
 	maxFileCommentLength     = 512
 	MaxFileSizeBytes         = 50 << 20
 	MaxFileCapacityBytes     = 10 << 40
+	MaxExportFileSizeBytes   = MaxFileCapacityBytes
 	DefaultFileCapacityBytes = 100 << 20
 	maxDownloadHistoryLimit  = 100
 	topicStatusPublished     = int32(2)
@@ -179,7 +180,11 @@ func (s *Service) CreateFile(ctx context.Context, command CreateFileCommand) (do
 	if err != nil {
 		return domain.File{}, err
 	}
-	return s.repo.CreateFile(ctx, file, s.fileCapacityBytes)
+	capacityBytes := s.fileCapacityBytes
+	if file.BizType == "exports" {
+		capacityBytes = MaxFileCapacityBytes
+	}
+	return s.repo.CreateFile(ctx, file, capacityBytes)
 }
 
 func (s *Service) ListFolders(ctx context.Context, query domain.FolderListQuery) ([]domain.Folder, int64, error) {
@@ -352,6 +357,17 @@ func (s *Service) ListFiles(ctx context.Context, userID int64, limit, offset int
 	return s.ListFilesInFolder(ctx, userID, limit, offset, nil)
 }
 
+func (s *Service) ListFilesAfterID(ctx context.Context, userID, afterID int64, limit int32) ([]domain.File, int64, error) {
+	if userID <= 0 || afterID < 0 || limit <= 0 || limit > maxDownloadHistoryLimit {
+		return nil, 0, domain.ErrInvalidFile
+	}
+	repository, ok := s.repo.(domain.FileKeysetRepository)
+	if !ok {
+		return nil, 0, domain.ErrFileRepositoryUnavailable
+	}
+	return repository.ListUserFilesAfterID(ctx, userID, afterID, limit)
+}
+
 func (s *Service) ListFilesInFolder(ctx context.Context, userID int64, limit, offset int32, folderID *int64) ([]domain.File, int64, error) {
 	if userID <= 0 || limit <= 0 || limit > maxDownloadHistoryLimit || offset < 0 {
 		return nil, 0, domain.ErrInvalidFile
@@ -416,10 +432,14 @@ func normalizeFile(command CreateFileCommand, now time.Time) (domain.File, error
 	if file.ContentType == "" {
 		file.ContentType = "application/octet-stream"
 	}
+	maxSize := int64(MaxFileSizeBytes)
+	if file.BizType == "exports" {
+		maxSize = MaxExportFileSizeBytes
+	}
 	if file.BizType == "" || len(file.BizType) > maxBizTypeLength || strings.ContainsAny(file.BizType, "/\\") || strings.ContainsRune(file.BizType, '\x00') ||
 		file.OwnerID <= 0 || file.ObjectKey == "" || len(file.ObjectKey) > maxObjectKeyLength || strings.ContainsRune(file.ObjectKey, '\x00') ||
 		file.OriginalName == "" || len(file.OriginalName) > maxOriginalNameLength || strings.ContainsAny(file.OriginalName, "\\/") || strings.ContainsRune(file.OriginalName, '\x00') ||
-		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes < 0 || (file.SizeBytes == 0 && file.BizType != "exports") || file.SizeBytes > MaxFileSizeBytes || file.FolderID < 0 {
+		len(file.ContentType) > maxContentTypeLength || strings.ContainsRune(file.ContentType, '\x00') || file.SizeBytes < 0 || (file.SizeBytes == 0 && file.BizType != "exports") || file.SizeBytes > maxSize || file.FolderID < 0 {
 		return domain.File{}, domain.ErrInvalidFile
 	}
 	return file, nil
@@ -467,6 +487,17 @@ func (s *Service) ListOwnedTopicAttachments(ctx context.Context, topicID, ownerI
 		return nil, err
 	}
 	return s.repo.ListTopicAttachments(ctx, topicID)
+}
+
+func (s *Service) ListOwnedAttachmentsAfterID(ctx context.Context, ownerID, afterID int64, limit int32) ([]domain.Attachment, error) {
+	if ownerID <= 0 || afterID < 0 || limit <= 0 || limit > maxDownloadHistoryLimit {
+		return nil, domain.ErrInvalidAttachment
+	}
+	repository, ok := s.repo.(domain.AttachmentKeysetRepository)
+	if !ok {
+		return nil, domain.ErrFileRepositoryUnavailable
+	}
+	return repository.ListOwnedAttachmentsAfterID(ctx, ownerID, afterID, limit)
 }
 
 func (s *Service) ListUserAttachmentDownloads(ctx context.Context, userID, topicID int64, limit, offset int32) (domain.AttachmentDownloadList, error) {

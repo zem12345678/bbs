@@ -361,6 +361,25 @@ test("connects following export options to account security", () => {
   assert.match(section, /<Download size=\{17\} aria-hidden="true" \/>/);
 });
 
+test("connects complete account data export to account security", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const sectionStart = userSource.indexOf("function AccountDataExportSection");
+  const section = userSource.slice(sectionStart, userSource.indexOf("function FollowingExportSection", sectionStart));
+
+  assert.ok(sectionStart >= 0, "AccountDataExportSection is present");
+  assert.match(userSource, /<AccountDataExportSection token=\{token\} \/>/);
+  assert.match(apiSource, /request\("\/i\/export-data", \{ method: "POST", body: \{\}, token \}\)/);
+  assert.match(section, /bbsApi\.exportData\(requestToken\)/);
+  assert.match(section, /busyRef\.current/);
+  assert.match(section, /requestSessionRef\.current === requestSession/);
+  assert.match(section, /requestRef\.current === requestId/);
+  assert.match(section, /tokenRef\.current === requestToken/);
+  assert.match(section, /账户数据归档已生成，可在文件库下载。/);
+  assert.match(section, /error\.message \|\| "账户数据导出失败"/);
+  assert.match(section, /生成账户数据归档/);
+});
+
 test("connects account lifecycle and permanent deletion to account security", () => {
   const authSource = fs.readFileSync(new URL("./pages/AuthRoutes.jsx", import.meta.url), "utf8");
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");

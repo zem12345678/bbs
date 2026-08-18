@@ -147,6 +147,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
 	)
+	accountDataExportGate := httpiface.NewRedisAccountDataExportGate(redisClient, runtimeCfg.Exports.RateLimit.AccountDataInterval, 30*time.Minute)
 	antennaExportGate := httpiface.NewRedisAntennaExportGate(redisClient, runtimeCfg.Exports.RateLimit.AntennaInterval, 15*time.Minute)
 	blockingExportGate := httpiface.NewRedisBlockingExportGate(redisClient, runtimeCfg.Exports.RateLimit.BlockingInterval, 15*time.Minute)
 	clipExportGate := httpiface.NewRedisClipExportGate(redisClient, runtimeCfg.Exports.RateLimit.ClipInterval, 15*time.Minute)
@@ -187,6 +188,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		runtimeCfg.Auth.JWTSecret, attachmentStore, chatRealtime, chatJoinLimit, chatSendLimit, tokenRevocations, credentialVersions,
 	)
 	handler.SetPublicBaseURL(runtimeCfg.PublicBaseURL)
+	handler.SetAccountDataExportGate(accountDataExportGate)
 	handler.SetChatTicketLimit(chatTicketLimit)
 	handler.SetChatTicketRetryAfter(runtimeCfg.Chat.RateLimit.TicketInterval)
 	handler.SetChatCreateRoomLimit(chatCreateRoomLimit)

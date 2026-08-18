@@ -50,7 +50,15 @@ func (h *Handler) RevokeSession(ctx context.Context, req *pb.RevokeSessionReques
 }
 
 func (h *Handler) ListLoginEvents(ctx context.Context, req *pb.ListLoginEventsRequest) (*pb.LoginEventListResponse, error) {
-	events, err := h.cmd.ListLoginEvents(ctx, req.GetUserId(), int(req.GetLimit()))
+	var (
+		events []domain.LoginEvent
+		err    error
+	)
+	if req.GetAscendingById() {
+		events, err = h.cmd.ListLoginEventsAfterID(ctx, req.GetUserId(), req.GetAfterId(), int(req.GetLimit()))
+	} else {
+		events, err = h.cmd.ListLoginEvents(ctx, req.GetUserId(), int(req.GetLimit()))
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}
