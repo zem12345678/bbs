@@ -887,6 +887,9 @@ export const bbsApi = {
   searchHashtags(keyword, params = {}) {
     return request(`/hashtags/search${buildQuery({ q: keyword, limit: 20, offset: 0, ...params })}`);
   },
+  searchNotesByTag(payload) {
+    return request("/notes/search-by-tag", { method: "POST", body: payload, rawResponse: true });
+  },
   hashtags(params = {}) {
     return request(`/hashtags/list${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

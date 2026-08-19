@@ -181,6 +181,9 @@ test("keeps public announcements and hashtag search connected to the app shell",
   assert.match(announcementSource, /announcementDismissalKey\(announcement\)/);
   assert.match(contentSource, /bbsApi\.searchHashtags\(query, \{ limit: SEARCH_PAGE_SIZE/);
   assert.match(contentSource, /className="search-hashtag-results panel"/);
+  assert.match(contentSource, /bbsApi\.searchNotesByTag\(\{/);
+  assert.match(contentSource, /untilId: cursor/);
+  assert.match(contentSource, /filter !== "tag" && state\.posts\.length > 0/);
 });
 
 test("keeps user safety controls connected to authenticated routes", () => {
@@ -587,7 +590,7 @@ test("content list pages support keyword search through backend search APIs", ()
   assert.match(listPage, /const mapper = isArticle \? searchHitToPost : topicSearchHitToPost/);
   assert.match(listPage, /<form className="search-page-form panel" role="search" onSubmit=\{submitListSearch\}>/);
   assert.match(listPage, /setSearchParams\(next/);
-  assert.match(listPage, /\{!activeKeyword && <PillTabs items=\{sortTabs\}/);
+  assert.match(listPage, /\{!activeKeyword && filter !== "tag" && <PillTabs items=\{sortTabs\}/);
 });
 
 test("paginates auxiliary links and tasks through their real APIs", () => {

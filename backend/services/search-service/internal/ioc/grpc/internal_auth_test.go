@@ -22,8 +22,8 @@ const testInternalAuthToken = "search-internal-token"
 
 func TestInternalAuthInterceptorProtectsEverySearchMethod(t *testing.T) {
 	interceptor := newInternalAuthUnaryServerInterceptor(testInternalAuthToken)
-	if got := len(pb.SearchService_ServiceDesc.Methods); got != 16 {
-		t.Fatalf("search unary method count = %d, want 16", got)
+	if got := len(pb.SearchService_ServiceDesc.Methods); got != 17 {
+		t.Fatalf("search unary method count = %d, want 17", got)
 	}
 
 	for _, method := range pb.SearchService_ServiceDesc.Methods {

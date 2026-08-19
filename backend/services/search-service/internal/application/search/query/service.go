@@ -3,8 +3,16 @@ package query
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
 	domain "search-service/internal/domain/search"
+)
+
+const (
+	defaultTagSearchLimit = 10
+	maxTagSearchLimit     = 100
+	maxTagQueryItems      = 8
+	maxTagRunes           = 128
 )
 
 type ArticleSearchResult struct {
@@ -61,4 +69,53 @@ func (s *Service) SearchUsers(ctx context.Context, keyword string, page, pageSiz
 		return UserSearchResult{}, err
 	}
 	return UserSearchResult{Items: items, Total: total}, nil
+}
+
+func (s *Service) SearchByTag(ctx context.Context, criteria domain.SearchByTagCriteria) ([]domain.NoteLikeHit, error) {
+	criteria.Tag = normalizeTag(criteria.Tag)
+	criteria.Scope = strings.ToLower(strings.TrimSpace(criteria.Scope))
+	if criteria.Limit == 0 {
+		criteria.Limit = defaultTagSearchLimit
+	}
+	if criteria.Limit < 1 || criteria.Limit > maxTagSearchLimit || criteria.SinceID < 0 || criteria.UntilID < 0 {
+		return nil, domain.ErrTagQueryInvalid
+	}
+	if criteria.Scope != "" || criteria.Reply != nil || criteria.Renote != nil || criteria.Poll != nil || criteria.WithFiles {
+		return nil, domain.ErrTagFilterUnsupported
+	}
+
+	if criteria.Tag != "" {
+		if !validTag(criteria.Tag) {
+			return nil, domain.ErrTagQueryInvalid
+		}
+		criteria.Query = nil
+	} else {
+		if len(criteria.Query) == 0 {
+			return nil, domain.ErrTagQueryRequired
+		}
+		if len(criteria.Query) > maxTagQueryItems {
+			return nil, domain.ErrTagQueryInvalid
+		}
+		for i := range criteria.Query {
+			if len(criteria.Query[i].Tags) == 0 || len(criteria.Query[i].Tags) > maxTagQueryItems {
+				return nil, domain.ErrTagQueryInvalid
+			}
+			for j := range criteria.Query[i].Tags {
+				criteria.Query[i].Tags[j] = normalizeTag(criteria.Query[i].Tags[j])
+				if !validTag(criteria.Query[i].Tags[j]) {
+					return nil, domain.ErrTagQueryInvalid
+				}
+			}
+		}
+	}
+
+	return s.repo.SearchByTag(ctx, criteria)
+}
+
+func normalizeTag(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func validTag(value string) bool {
+	return value != "" && utf8.ValidString(value) && utf8.RuneCountInString(value) <= maxTagRunes
 }

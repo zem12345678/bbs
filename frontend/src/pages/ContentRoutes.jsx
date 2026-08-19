@@ -16,7 +16,7 @@ import { digitalEntitlementLookupLimit, isActiveMembershipEntitlement } from "..
 import { loadListForFocus } from "../lib/focusedLists";
 import { compactNumber, sameId, timeAgoMillis, toId, toNumber } from "../lib/formatters";
 import { bountyRequiresMembershipForSubmit, membershipBountyGateState } from "../lib/membershipBountyGate";
-import { articleToPost, hydratePostsMeta, searchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
+import { articleToPost, hydratePostsMeta, searchHitToPost, tagSearchHitToPost, topicSearchHitToPost, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { hasSearchResults } from "../lib/searchResults";
 import { makeSlug } from "../lib/slugs";
 import { MAX_POLL_CHOICES, emptyPollDraft, pollDraftFromApi, pollPayloadFromDraft } from "../lib/topicPoll";
@@ -80,17 +80,35 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
     loadingMore: false,
     hasMore: false,
     offset: CONTENT_PAGE_SIZE,
+    cursor: "",
     message: "",
     footerMessage: "",
     error: false
   });
   const isArticle = kind === "article";
-  const routeTitle = isArticle ? "文章" : "话题";
+  const routeTitle = filter === "tag" ? "内容" : isArticle ? "文章" : "话题";
   const listSearchEnabled = filter === "all";
   const activeKeyword = listSearchEnabled ? keyword : "";
 
   const loadPage = React.useCallback(
-    async (offset) => {
+    async (offset, cursor = "") => {
+      if (filter === "tag") {
+        const tag = decodeURIComponent(params.id || "").trim();
+        const rawItems = await bbsApi.searchNotesByTag({
+          tag,
+          limit: CONTENT_PAGE_SIZE,
+          ...(cursor ? { untilId: cursor } : {})
+        });
+        const items = await hydratePostsMeta(rawItems.map((item) => tagSearchHitToPost(item, auth)), auth, {
+          skipCounts: true
+        });
+        const last = rawItems.at(-1);
+        return {
+          cursor: toId(last?.id ?? last?.article?.id ?? last?.topic?.id),
+          hasMore: rawItems.length >= CONTENT_PAGE_SIZE,
+          items
+        };
+      }
       if (activeKeyword) {
         const page = Math.floor(offset / CONTENT_PAGE_SIZE) + 1;
         const data = isArticle
@@ -108,9 +126,6 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       };
       if (filter === "category") {
         query.category_id = toId(params.id);
-      }
-      if (filter === "tag") {
-        query.tag = decodeURIComponent(params.id || "");
       }
       if (!isArticle) {
         query.type = kind === "question" ? "qa" : "topic";
@@ -139,12 +154,13 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
       loadingMore: false,
       hasMore: false,
       offset: CONTENT_PAGE_SIZE,
+      cursor: "",
       message: "",
       footerMessage: "",
       error: false
     }));
     loadPage(0)
-      .then(({ hasMore, items }) => {
+      .then(({ cursor = "", hasMore, items }) => {
         if (!alive) return;
         setState({
           posts: items,
@@ -152,6 +168,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           loadingMore: false,
           hasMore,
           offset: CONTENT_PAGE_SIZE,
+          cursor,
           message: items.length > 0 ? "" : activeKeyword ? `没有找到匹配的${routeTitle}。` : `暂无${routeTitle}内容。`,
           footerMessage: "",
           error: false
@@ -165,6 +182,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           loadingMore: false,
           hasMore: false,
           offset: CONTENT_PAGE_SIZE,
+          cursor: "",
           message: `${routeTitle}${activeKeyword ? "搜索" : "加载"}失败，请稍后重试。${error.message ? `(${error.message})` : ""}`,
           footerMessage: "",
           error: true
@@ -181,7 +199,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
     }
     setState((current) => ({ ...current, loadingMore: true, footerMessage: "" }));
     try {
-      const { hasMore, items } = await loadPage(state.offset);
+      const { cursor = "", hasMore, items } = await loadPage(state.offset, state.cursor);
       setState((current) => {
         const posts = uniquePosts([...current.posts, ...items]);
         const appendedCount = Math.max(0, posts.length - current.posts.length);
@@ -191,6 +209,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           loadingMore: false,
           hasMore: appendedCount > 0 ? hasMore : false,
           offset: current.offset + CONTENT_PAGE_SIZE,
+          cursor,
           footerMessage: appendedCount > 0 ? "" : "没有更多内容了。"
         };
       });
@@ -251,7 +270,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
         actions={
           <button type="button" onClick={() => navigate(isArticle ? "/article/create" : "/topic/create")}>
             <Plus size={18} aria-hidden="true" />
-            发布{routeTitle}
+            发布{isArticle ? "文章" : "话题"}
           </button>
         }
       />
@@ -268,7 +287,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           {activeKeyword && <button type="button" onClick={clearListSearch}>清除</button>}
         </form>
       )}
-      {!activeKeyword && <PillTabs items={sortTabs} label={`${routeTitle}排序`} value={sort} onChange={setSort} />}
+      {!activeKeyword && filter !== "tag" && <PillTabs items={sortTabs} label={`${routeTitle}排序`} value={sort} onChange={setSort} />}
       {!isArticle && categories.length > 0 && (
         <div className="category-strip panel" aria-label="分类快捷入口">
           <button className={filter === "all" ? "is-active" : ""} type="button" onClick={() => navigate(isArticle ? "/articles" : "/topics")}>
@@ -301,7 +320,7 @@ export function ContentListPage({ auth, categories = [], filter = "all", kind = 
           }
         />
       )}
-      {!isArticle && state.posts.length > 0 ? (
+      {!isArticle && filter !== "tag" && state.posts.length > 0 ? (
         <TopicDirectory categories={categories} posts={state.posts} />
       ) : (
         state.posts.map((post, index) => (

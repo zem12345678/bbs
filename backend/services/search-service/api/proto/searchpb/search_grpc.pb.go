@@ -35,6 +35,7 @@ const (
 	SearchService_SearchArticles_FullMethodName     = "/bbs.search.v1.SearchService/SearchArticles"
 	SearchService_SearchTopics_FullMethodName       = "/bbs.search.v1.SearchService/SearchTopics"
 	SearchService_SearchUsers_FullMethodName        = "/bbs.search.v1.SearchService/SearchUsers"
+	SearchService_SearchNotesByTag_FullMethodName   = "/bbs.search.v1.SearchService/SearchNotesByTag"
 )
 
 // SearchServiceClient is the client API for SearchService service.
@@ -57,6 +58,7 @@ type SearchServiceClient interface {
 	SearchArticles(ctx context.Context, in *SearchArticlesRequest, opts ...grpc.CallOption) (*SearchArticlesResponse, error)
 	SearchTopics(ctx context.Context, in *SearchTopicsRequest, opts ...grpc.CallOption) (*SearchTopicsResponse, error)
 	SearchUsers(ctx context.Context, in *SearchUsersRequest, opts ...grpc.CallOption) (*SearchUsersResponse, error)
+	SearchNotesByTag(ctx context.Context, in *SearchNotesByTagRequest, opts ...grpc.CallOption) (*SearchNotesByTagResponse, error)
 }
 
 type searchServiceClient struct {
@@ -227,6 +229,16 @@ func (c *searchServiceClient) SearchUsers(ctx context.Context, in *SearchUsersRe
 	return out, nil
 }
 
+func (c *searchServiceClient) SearchNotesByTag(ctx context.Context, in *SearchNotesByTagRequest, opts ...grpc.CallOption) (*SearchNotesByTagResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchNotesByTagResponse)
+	err := c.cc.Invoke(ctx, SearchService_SearchNotesByTag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SearchServiceServer is the server API for SearchService service.
 // All implementations must embed UnimplementedSearchServiceServer
 // for forward compatibility.
@@ -247,6 +259,7 @@ type SearchServiceServer interface {
 	SearchArticles(context.Context, *SearchArticlesRequest) (*SearchArticlesResponse, error)
 	SearchTopics(context.Context, *SearchTopicsRequest) (*SearchTopicsResponse, error)
 	SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error)
+	SearchNotesByTag(context.Context, *SearchNotesByTagRequest) (*SearchNotesByTagResponse, error)
 	mustEmbedUnimplementedSearchServiceServer()
 }
 
@@ -304,6 +317,9 @@ func (UnimplementedSearchServiceServer) SearchTopics(context.Context, *SearchTop
 }
 func (UnimplementedSearchServiceServer) SearchUsers(context.Context, *SearchUsersRequest) (*SearchUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SearchUsers not implemented")
+}
+func (UnimplementedSearchServiceServer) SearchNotesByTag(context.Context, *SearchNotesByTagRequest) (*SearchNotesByTagResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchNotesByTag not implemented")
 }
 func (UnimplementedSearchServiceServer) mustEmbedUnimplementedSearchServiceServer() {}
 func (UnimplementedSearchServiceServer) testEmbeddedByValue()                       {}
@@ -614,6 +630,24 @@ func _SearchService_SearchUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SearchService_SearchNotesByTag_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchNotesByTagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearchServiceServer).SearchNotesByTag(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SearchService_SearchNotesByTag_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearchServiceServer).SearchNotesByTag(ctx, req.(*SearchNotesByTagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SearchService_ServiceDesc is the grpc.ServiceDesc for SearchService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -684,6 +718,10 @@ var SearchService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchUsers",
 			Handler:    _SearchService_SearchUsers_Handler,
+		},
+		{
+			MethodName: "SearchNotesByTag",
+			Handler:    _SearchService_SearchNotesByTag_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

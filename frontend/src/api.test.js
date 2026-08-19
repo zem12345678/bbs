@@ -756,6 +756,30 @@ test("searches public hashtags without authentication", async () => {
   assert.equal(url.searchParams.get("offset"), "12");
 });
 
+test("searches mixed public content by tag with a lossless cursor", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return textResponse(200, '[{"kind":"topic","topic":{"id":9223372036854775807}}]');
+  };
+
+  const items = await bbsApi.searchNotesByTag({
+    query: [["go", "backend"], ["community"]],
+    limit: 20,
+    untilId: "9223372036854775807"
+  });
+
+  assert.equal(new URL(captured.url).pathname, "/api/v1/notes/search-by-tag");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(captured.options.body), {
+    query: [["go", "backend"], ["community"]],
+    limit: 20,
+    untilId: "9223372036854775807"
+  });
+  assert.equal(items[0].topic.id, "9223372036854775807");
+});
+
 test("loads trending hashtags without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {

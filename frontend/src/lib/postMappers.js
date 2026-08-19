@@ -223,6 +223,13 @@ export function topicSearchHitToPost(hit, auth) {
   };
 }
 
+export function tagSearchHitToPost(hit, auth) {
+  if (String(hit?.kind || "").toLowerCase() === "article" || hit?.article) {
+    return searchHitToPost(hit?.article ? hit : { article: hit }, auth);
+  }
+  return topicSearchHitToPost(hit?.topic ? hit : { topic: hit }, auth);
+}
+
 export function feedItemToPost(item, auth) {
   const entityType = item?.entity_type || item?.entityType;
   return entityType === "topic" ? topicToPost(item, auth) : articleToPost(item, auth);

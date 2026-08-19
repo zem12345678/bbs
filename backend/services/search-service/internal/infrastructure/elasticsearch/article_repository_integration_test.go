@@ -84,6 +84,85 @@ func TestArticleRepositorySmoke(t *testing.T) {
 	}
 }
 
+func TestSearchByTagRepositorySmoke(t *testing.T) {
+	if os.Getenv("BBS_ES_SMOKE") != "1" {
+		t.Skip("set BBS_ES_SMOKE=1 to run against local Elasticsearch")
+	}
+	ctx := context.Background()
+	client, err := elastic.NewClient(elastic.Config{Addresses: []string{"http://127.0.0.1:9200"}})
+	if err != nil {
+		t.Fatalf("new elasticsearch client: %v", err)
+	}
+	suffix := time.Now().UnixNano()
+	repo := NewArticleRepository(client,
+		fmt.Sprintf("bbs_tag_articles_%d", suffix),
+		fmt.Sprintf("bbs_tag_topics_%d", suffix),
+	)
+	defer func() {
+		_ = repo.doJSON(context.Background(), http.MethodDelete, "/"+repo.articleIndex, nil, nil)
+		_ = repo.doJSON(context.Background(), http.MethodDelete, "/"+repo.topicIndex, nil, nil)
+	}()
+	if err := repo.EnsureArticleIndex(ctx); err != nil {
+		t.Fatalf("ensure article index: %v", err)
+	}
+	if err := repo.EnsureTopicIndex(ctx); err != nil {
+		t.Fatalf("ensure topic index: %v", err)
+	}
+
+	baseID := suffix / 10
+	articleID := baseID + 3
+	topicID := baseID + 2
+	draftID := baseID + 1
+	if err := repo.IndexArticle(ctx, domain.ArticleDocument{ID: articleID, Title: "Go cloud article", TagNames: []string{"Go", "Cloud"}, AuthorID: baseID + 10, Status: 2, CreatedAt: 300}); err != nil {
+		t.Fatalf("index article: %v", err)
+	}
+	if err := repo.IndexTopic(ctx, domain.TopicDocument{ID: topicID, Title: "BBS topic", TagNames: []string{"BBS"}, AuthorID: baseID + 11, Status: 2, CreatedAt: 200}); err != nil {
+		t.Fatalf("index topic: %v", err)
+	}
+	if err := repo.IndexArticle(ctx, domain.ArticleDocument{ID: draftID, Title: "Draft", TagNames: []string{"Go"}, AuthorID: baseID + 12, Status: 1, CreatedAt: 400}); err != nil {
+		t.Fatalf("index draft: %v", err)
+	}
+	if err := repo.doJSON(ctx, http.MethodPost, "/"+repo.articleIndex+","+repo.topicIndex+"/_refresh", nil, nil); err != nil {
+		t.Fatalf("refresh indices: %v", err)
+	}
+
+	hits, err := repo.SearchByTag(ctx, domain.SearchByTagCriteria{
+		Limit: 10,
+		Query: []domain.TagQueryGroup{{Tags: []string{"go", "cloud"}}, {Tags: []string{"bbs"}}},
+	})
+	if err != nil {
+		t.Fatalf("OR/AND tag search: %v", err)
+	}
+	if len(hits) != 2 || hits[0].Article == nil || hits[0].Article.ID != articleID || hits[1].Topic == nil || hits[1].Topic.ID != topicID {
+		t.Fatalf("ordered hits = %#v", hits)
+	}
+	firstPage, err := repo.SearchByTag(ctx, domain.SearchByTagCriteria{
+		Limit: 1,
+		Query: []domain.TagQueryGroup{{Tags: []string{"go", "cloud"}}, {Tags: []string{"bbs"}}},
+	})
+	if err != nil || len(firstPage) != 1 || firstPage[0].Article == nil {
+		t.Fatalf("first page = %#v, error=%v", firstPage, err)
+	}
+	secondPage, err := repo.SearchByTag(ctx, domain.SearchByTagCriteria{
+		Limit: 1, UntilID: firstPage[0].Article.ID,
+		Query: []domain.TagQueryGroup{{Tags: []string{"go", "cloud"}}, {Tags: []string{"bbs"}}},
+	})
+	if err != nil || len(secondPage) != 1 || secondPage[0].Topic == nil || secondPage[0].Topic.ID != topicID {
+		t.Fatalf("second page = %#v, error=%v", secondPage, err)
+	}
+	if firstPage[0].Article.ID == secondPage[0].Topic.ID {
+		t.Fatal("cursor pages repeated the same id")
+	}
+
+	cursorHits, err := repo.SearchByTag(ctx, domain.SearchByTagCriteria{Tag: "go", Limit: 10, UntilID: articleID + 1, SinceID: articleID - 1})
+	if err != nil {
+		t.Fatalf("cursor tag search: %v", err)
+	}
+	if len(cursorHits) != 1 || cursorHits[0].Article == nil || cursorHits[0].Article.ID != articleID {
+		t.Fatalf("cursor hits = %#v", cursorHits)
+	}
+}
+
 func TestAccountErasureRepositorySmoke(t *testing.T) {
 	if os.Getenv("BBS_ES_SMOKE") != "1" {
 		t.Skip("set BBS_ES_SMOKE=1 to run against local Elasticsearch")

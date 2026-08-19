@@ -498,6 +498,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		for _, prefix := range []string{"/api", ""} {
 			r.POST(prefix+"/following/invalidate", h.requireAuthScope("write"), h.invalidateFollowingCompat)
 		}
+		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
+		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		for _, prefix := range []string{"/api", ""} {
 			r.POST(prefix+"/notes/conversation", h.notesConversationCompat)
 			clips := r.Group(prefix + "/clips")
@@ -848,6 +850,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/hashtags/trend", h.trendingHashtags)
 		api.GET("/hashtags/users", h.listHashtagUsers)
 		api.POST("/hashtags/users", h.listHashtagUsers)
+		api.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 
 		api.POST("/articles/:id/comments", h.requireAuth(), h.createComment)
 		api.GET("/articles/:id/comments", h.listComments)
@@ -6410,12 +6413,16 @@ func (h *Handler) requireAuthScope(requiredScope string) gin.HandlerFunc {
 }
 
 func (h *Handler) optionalAuth() gin.HandlerFunc {
+	return h.optionalAuthScope("")
+}
+
+func (h *Handler) optionalAuthScope(requiredScope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.TrimSpace(c.GetHeader(h.tokenHeader)) == "" {
 			c.Next()
 			return
 		}
-		identity, err := h.authIdentityFromRequestWithScope(c, "")
+		identity, err := h.authIdentityFromRequestWithScope(c, requiredScope)
 		if err != nil {
 			writeAuthenticationError(c, err)
 			c.Abort()

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { bbsApi } from "../api.js";
 import { normalizeCategoriesResponse } from "./catalog.js";
-import { authProfileAppearanceNeedsVerification, authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, normalizeProfileTheme, profileThemeClass, topicToPost, userToPerson } from "./postMappers.js";
+import { authProfileAppearanceNeedsVerification, authProfileThemeNeedsVerification, authToPerson, hydratePostsMeta, normalizeProfileTheme, profileThemeClass, tagSearchHitToPost, topicToPost, userToPerson } from "./postMappers.js";
 
 test("topicToPost preserves QA metadata", () => {
   const post = topicToPost({
@@ -41,6 +41,24 @@ test("content mappers preserve Snowflake category ids as strings", () => {
   assert.equal(category.id, categoryId);
   assert.equal(post.categoryId, categoryId);
   assert.equal(post.acceptedCommentId, acceptedCommentId);
+});
+
+test("tag search maps mixed article and topic projections", () => {
+  const article = tagSearchHitToPost({
+    kind: "article",
+    article: { id: "9223372036854775807", title: "Long form", author_id: "7", tag_names: ["go"] }
+  });
+  const topic = tagSearchHitToPost({
+    kind: "topic",
+    topic: { id: "9223372036854775806", title: "Discussion", author_id: "8", tag_names: ["go"] }
+  });
+
+  assert.equal(article.id, "9223372036854775807");
+  assert.equal(article.kind, "article");
+  assert.deepEqual(article.tags, ["go"]);
+  assert.equal(topic.id, "9223372036854775806");
+  assert.equal(topic.kind, "topic");
+  assert.deepEqual(topic.tags, ["go"]);
 });
 
 test("userToPerson preserves supported profile themes", () => {

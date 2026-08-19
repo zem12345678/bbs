@@ -17,6 +17,7 @@ service SearchService {
   rpc SearchArticles(SearchArticlesRequest) returns (SearchArticlesResponse);
   rpc SearchTopics(SearchTopicsRequest) returns (SearchTopicsResponse);
   rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+  rpc SearchNotesByTag(SearchNotesByTagRequest) returns (SearchNotesByTagResponse);
 }
 
 message SimpleResponse {
@@ -153,4 +154,31 @@ message UserHit {
 message SearchUsersResponse {
   repeated UserHit items = 1;
   int64 total = 2;
+}
+
+message TagQueryGroup {
+  repeated string tags = 1;
+}
+
+message SearchNotesByTagRequest {
+  optional bool reply = 1;
+  optional bool renote = 2;
+  bool with_files = 3;
+  optional bool poll = 4;
+  int64 since_id = 5;
+  int64 until_id = 6;
+  int32 limit = 7;
+  string tag = 8;
+  string scope = 9;
+  repeated TagQueryGroup query = 10;
+}
+
+message SearchNoteHit {
+  string kind = 1;
+  ArticleDocument article = 2;
+  TopicDocument topic = 3;
+}
+
+message SearchNotesByTagResponse {
+  repeated SearchNoteHit items = 1;
 }

@@ -783,6 +783,89 @@ func (r *ArticleRepository) SearchUsers(ctx context.Context, keyword string, pag
 	return items, result.Hits.Total.Value, nil
 }
 
+func (r *ArticleRepository) SearchByTag(ctx context.Context, criteria domain.SearchByTagCriteria) ([]domain.NoteLikeHit, error) {
+	tagFilter := tagSearchFilter(criteria)
+	filters := []any{
+		map[string]any{"term": map[string]any{"status": 2}},
+		tagFilter,
+	}
+	if criteria.SinceID > 0 || criteria.UntilID > 0 {
+		bounds := map[string]any{}
+		if criteria.SinceID > 0 {
+			bounds["gt"] = criteria.SinceID
+		}
+		if criteria.UntilID > 0 {
+			bounds["lt"] = criteria.UntilID
+		}
+		filters = append(filters, map[string]any{"range": map[string]any{"id_numeric": bounds}})
+	}
+	body := map[string]any{
+		"size": criteria.Limit,
+		"runtime_mappings": map[string]any{
+			"id_numeric": map[string]any{
+				"type":   "long",
+				"script": map[string]any{"source": "if (doc['id'].size() != 0) emit(Long.parseLong(doc['id'].value));"},
+			},
+		},
+		"query": map[string]any{"bool": map[string]any{"filter": filters}},
+		"sort": []any{
+			map[string]any{"id_numeric": map[string]any{"order": "desc"}},
+			map[string]any{"created_at": map[string]any{"order": "desc"}},
+			map[string]any{"_index": map[string]any{"order": "asc"}},
+		},
+	}
+	var result tagSearchResponse
+	path := "/" + r.articleIndex + "," + r.topicIndex + "/_search"
+	if err := r.doJSON(ctx, http.MethodPost, path, body, &result); err != nil {
+		return nil, err
+	}
+	items := make([]domain.NoteLikeHit, 0, len(result.Hits.Hits))
+	for _, hit := range result.Hits.Hits {
+		switch hit.Index {
+		case r.articleIndex:
+			var source articleDocument
+			if err := json.Unmarshal(hit.Source, &source); err != nil {
+				return nil, fmt.Errorf("decode article tag-search hit: %w", err)
+			}
+			doc := source.toDomain()
+			items = append(items, domain.NoteLikeHit{Kind: domain.NoteLikeArticle, Article: &doc})
+		case r.topicIndex:
+			var source topicDocument
+			if err := json.Unmarshal(hit.Source, &source); err != nil {
+				return nil, fmt.Errorf("decode topic tag-search hit: %w", err)
+			}
+			doc := source.toDomain()
+			items = append(items, domain.NoteLikeHit{Kind: domain.NoteLikeTopic, Topic: &doc})
+		default:
+			return nil, fmt.Errorf("unexpected tag-search index %q", hit.Index)
+		}
+	}
+	return items, nil
+}
+
+func tagSearchFilter(criteria domain.SearchByTagCriteria) map[string]any {
+	if criteria.Tag != "" {
+		return exactTagClause(criteria.Tag)
+	}
+	groups := make([]any, 0, len(criteria.Query))
+	for _, group := range criteria.Query {
+		allTags := make([]any, 0, len(group.Tags))
+		for _, tag := range group.Tags {
+			allTags = append(allTags, exactTagClause(tag))
+		}
+		groups = append(groups, map[string]any{"bool": map[string]any{"filter": allTags}})
+	}
+	return map[string]any{"bool": map[string]any{"should": groups, "minimum_should_match": 1}}
+}
+
+func exactTagClause(tag string) map[string]any {
+	return map[string]any{
+		"term": map[string]any{
+			"tag_names.keyword": map[string]any{"value": tag, "case_insensitive": true},
+		},
+	}
+}
+
 func keywordSearchQuery(keyword string, fields []string) map[string]any {
 	return map[string]any{
 		"bool": map[string]any{
@@ -917,6 +1000,15 @@ type userSearchResponse struct {
 		Hits []struct {
 			Score  float64      `json:"_score"`
 			Source userDocument `json:"_source"`
+		} `json:"hits"`
+	} `json:"hits"`
+}
+
+type tagSearchResponse struct {
+	Hits struct {
+		Hits []struct {
+			Index  string          `json:"_index"`
+			Source json.RawMessage `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
 }

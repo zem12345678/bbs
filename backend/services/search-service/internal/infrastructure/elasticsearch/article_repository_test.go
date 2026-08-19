@@ -12,6 +12,85 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v9"
 )
 
+func TestSearchByTagBuildsCrossIndexOROfANDQueryAndNumericCursors(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/bbs_articles,bbs_topics/_search" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		_, _ = io.WriteString(w, `{"hits":{"hits":[{"_index":"bbs_articles","_source":{"id":"12","title":"Article","tag_names":["go","cloud"],"status":2,"created_at":200}},{"_index":"bbs_topics","_source":{"id":"11","title":"Topic","tag_names":["bbs"],"status":2,"created_at":100}}]}}`)
+	}))
+	defer server.Close()
+	client, err := elastic.NewClient(elastic.Config{Addresses: []string{server.URL}})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	repo := NewArticleRepository(client, "bbs_articles", "bbs_topics")
+	hits, err := repo.SearchByTag(t.Context(), domain.SearchByTagCriteria{
+		Limit: 20, SinceID: 10, UntilID: 20,
+		Query: []domain.TagQueryGroup{{Tags: []string{"go", "cloud"}}, {Tags: []string{"bbs"}}},
+	})
+	if err != nil {
+		t.Fatalf("SearchByTag() error = %v", err)
+	}
+	if len(hits) != 2 || hits[0].Kind != domain.NoteLikeArticle || hits[0].Article == nil || hits[0].Article.ID != 12 || hits[1].Kind != domain.NoteLikeTopic || hits[1].Topic == nil || hits[1].Topic.ID != 11 {
+		t.Fatalf("hits = %#v", hits)
+	}
+	if body["size"] != float64(20) {
+		t.Fatalf("size = %#v", body["size"])
+	}
+	runtimeMappings := body["runtime_mappings"].(map[string]any)
+	if _, ok := runtimeMappings["id_numeric"]; !ok {
+		t.Fatalf("runtime mappings = %#v", runtimeMappings)
+	}
+	filters := body["query"].(map[string]any)["bool"].(map[string]any)["filter"].([]any)
+	if len(filters) != 3 {
+		t.Fatalf("filters = %#v", filters)
+	}
+	status := filters[0].(map[string]any)["term"].(map[string]any)["status"]
+	if status != float64(2) {
+		t.Fatalf("status filter = %#v", filters[0])
+	}
+	outer := filters[1].(map[string]any)["bool"].(map[string]any)
+	if outer["minimum_should_match"] != float64(1) || len(outer["should"].([]any)) != 2 {
+		t.Fatalf("tag OR filter = %#v", outer)
+	}
+	firstGroup := outer["should"].([]any)[0].(map[string]any)["bool"].(map[string]any)["filter"].([]any)
+	if len(firstGroup) != 2 {
+		t.Fatalf("tag AND filter = %#v", firstGroup)
+	}
+	rangeBounds := filters[2].(map[string]any)["range"].(map[string]any)["id_numeric"].(map[string]any)
+	if rangeBounds["gt"] != float64(10) || rangeBounds["lt"] != float64(20) {
+		t.Fatalf("cursor range = %#v", rangeBounds)
+	}
+	sort := body["sort"].([]any)
+	if len(sort) != 3 {
+		t.Fatalf("sort = %#v", sort)
+	}
+	for i, field := range []string{"id_numeric", "created_at", "_index"} {
+		if _, ok := sort[i].(map[string]any)[field]; !ok {
+			t.Fatalf("sort[%d] = %#v, want %s", i, sort[i], field)
+		}
+	}
+}
+
+func TestSearchByTagBuildsExactCaseInsensitiveTagFilter(t *testing.T) {
+	body := captureSearchBody(t, "/bbs_articles,bbs_topics/_search", func(repo *ArticleRepository) error {
+		_, err := repo.SearchByTag(t.Context(), domain.SearchByTagCriteria{Tag: "golang", Limit: 10})
+		return err
+	})
+	filters := body["query"].(map[string]any)["bool"].(map[string]any)["filter"].([]any)
+	term := filters[1].(map[string]any)["term"].(map[string]any)["tag_names.keyword"].(map[string]any)
+	if term["value"] != "golang" || term["case_insensitive"] != true {
+		t.Fatalf("tag term = %#v", term)
+	}
+}
+
 func TestSearchArticlesBuildsKeywordAndFuzzyQuery(t *testing.T) {
 	body := captureSearchBody(t, "/bbs_articles/_search", func(repo *ArticleRepository) error {
 		_, _, err := repo.SearchArticles(t.Context(), "codx", 2, 15)

@@ -19,6 +19,7 @@ type Repository interface {
 	SearchArticles(ctx context.Context, keyword string, page, pageSize int32) ([]ArticleHit, int64, error)
 	SearchTopics(ctx context.Context, keyword string, page, pageSize int32) ([]TopicHit, int64, error)
 	SearchUsers(ctx context.Context, keyword string, page, pageSize int32) ([]UserHit, int64, error)
+	SearchByTag(ctx context.Context, criteria SearchByTagCriteria) ([]NoteLikeHit, error)
 	IncrementArticleCommentCount(ctx context.Context, id int64, delta int64) error
 	IncrementTopicCommentCount(ctx context.Context, id int64, delta int64) error
 	SetArticleLikeCount(ctx context.Context, id int64, count int64) error

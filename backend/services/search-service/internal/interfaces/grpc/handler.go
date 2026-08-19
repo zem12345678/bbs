@@ -29,7 +29,7 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrInvalidDeletionJobID), errors.Is(err, domain.ErrInvalidPolicyVersion), errors.Is(err, domain.ErrKeywordRequired):
+	case errors.Is(err, domain.ErrInvalidArticleID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrInvalidDeletionJobID), errors.Is(err, domain.ErrInvalidPolicyVersion), errors.Is(err, domain.ErrKeywordRequired), errors.Is(err, domain.ErrTagQueryRequired), errors.Is(err, domain.ErrTagQueryInvalid), errors.Is(err, domain.ErrTagFilterUnsupported):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -283,4 +283,35 @@ func (h *Handler) SearchUsers(ctx context.Context, req *pb.SearchUsersRequest) (
 		items = append(items, &pb.UserHit{User: toPbUser(item.Document), Score: item.Score})
 	}
 	return &pb.SearchUsersResponse{Items: items, Total: result.Total}, nil
+}
+
+func (h *Handler) SearchNotesByTag(ctx context.Context, req *pb.SearchNotesByTagRequest) (*pb.SearchNotesByTagResponse, error) {
+	if req == nil {
+		return nil, toStatus(domain.ErrTagQueryRequired)
+	}
+	criteria := domain.SearchByTagCriteria{
+		Reply: req.Reply, Renote: req.Renote, WithFiles: req.GetWithFiles(), Poll: req.Poll,
+		SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: req.GetLimit(),
+		Tag: req.GetTag(), Scope: req.GetScope(),
+	}
+	criteria.Query = make([]domain.TagQueryGroup, 0, len(req.GetQuery()))
+	for _, group := range req.GetQuery() {
+		criteria.Query = append(criteria.Query, domain.TagQueryGroup{Tags: group.GetTags()})
+	}
+	result, err := h.qry.SearchByTag(ctx, criteria)
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.SearchNoteHit, 0, len(result))
+	for _, item := range result {
+		hit := &pb.SearchNoteHit{Kind: item.Kind}
+		if item.Article != nil {
+			hit.Article = toPbArticle(*item.Article)
+		}
+		if item.Topic != nil {
+			hit.Topic = toPbTopic(*item.Topic)
+		}
+		items = append(items, hit)
+	}
+	return &pb.SearchNotesByTagResponse{Items: items}, nil
 }

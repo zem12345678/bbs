@@ -1418,6 +1418,270 @@ func (x *SearchUsersResponse) GetTotal() int64 {
 	return 0
 }
 
+type TagQueryGroup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          []string               `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TagQueryGroup) Reset() {
+	*x = TagQueryGroup{}
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TagQueryGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TagQueryGroup) ProtoMessage() {}
+
+func (x *TagQueryGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TagQueryGroup.ProtoReflect.Descriptor instead.
+func (*TagQueryGroup) Descriptor() ([]byte, []int) {
+	return file_api_gateway_api_proto_search_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *TagQueryGroup) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+type SearchNotesByTagRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reply         *bool                  `protobuf:"varint,1,opt,name=reply,proto3,oneof" json:"reply,omitempty"`
+	Renote        *bool                  `protobuf:"varint,2,opt,name=renote,proto3,oneof" json:"renote,omitempty"`
+	WithFiles     bool                   `protobuf:"varint,3,opt,name=with_files,json=withFiles,proto3" json:"with_files,omitempty"`
+	Poll          *bool                  `protobuf:"varint,4,opt,name=poll,proto3,oneof" json:"poll,omitempty"`
+	SinceId       int64                  `protobuf:"varint,5,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
+	UntilId       int64                  `protobuf:"varint,6,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`
+	Tag           string                 `protobuf:"bytes,8,opt,name=tag,proto3" json:"tag,omitempty"`
+	Scope         string                 `protobuf:"bytes,9,opt,name=scope,proto3" json:"scope,omitempty"`
+	Query         []*TagQueryGroup       `protobuf:"bytes,10,rep,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchNotesByTagRequest) Reset() {
+	*x = SearchNotesByTagRequest{}
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchNotesByTagRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchNotesByTagRequest) ProtoMessage() {}
+
+func (x *SearchNotesByTagRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchNotesByTagRequest.ProtoReflect.Descriptor instead.
+func (*SearchNotesByTagRequest) Descriptor() ([]byte, []int) {
+	return file_api_gateway_api_proto_search_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SearchNotesByTagRequest) GetReply() bool {
+	if x != nil && x.Reply != nil {
+		return *x.Reply
+	}
+	return false
+}
+
+func (x *SearchNotesByTagRequest) GetRenote() bool {
+	if x != nil && x.Renote != nil {
+		return *x.Renote
+	}
+	return false
+}
+
+func (x *SearchNotesByTagRequest) GetWithFiles() bool {
+	if x != nil {
+		return x.WithFiles
+	}
+	return false
+}
+
+func (x *SearchNotesByTagRequest) GetPoll() bool {
+	if x != nil && x.Poll != nil {
+		return *x.Poll
+	}
+	return false
+}
+
+func (x *SearchNotesByTagRequest) GetSinceId() int64 {
+	if x != nil {
+		return x.SinceId
+	}
+	return 0
+}
+
+func (x *SearchNotesByTagRequest) GetUntilId() int64 {
+	if x != nil {
+		return x.UntilId
+	}
+	return 0
+}
+
+func (x *SearchNotesByTagRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *SearchNotesByTagRequest) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *SearchNotesByTagRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *SearchNotesByTagRequest) GetQuery() []*TagQueryGroup {
+	if x != nil {
+		return x.Query
+	}
+	return nil
+}
+
+type SearchNoteHit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Article       *ArticleDocument       `protobuf:"bytes,2,opt,name=article,proto3" json:"article,omitempty"`
+	Topic         *TopicDocument         `protobuf:"bytes,3,opt,name=topic,proto3" json:"topic,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchNoteHit) Reset() {
+	*x = SearchNoteHit{}
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchNoteHit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchNoteHit) ProtoMessage() {}
+
+func (x *SearchNoteHit) ProtoReflect() protoreflect.Message {
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchNoteHit.ProtoReflect.Descriptor instead.
+func (*SearchNoteHit) Descriptor() ([]byte, []int) {
+	return file_api_gateway_api_proto_search_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *SearchNoteHit) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *SearchNoteHit) GetArticle() *ArticleDocument {
+	if x != nil {
+		return x.Article
+	}
+	return nil
+}
+
+func (x *SearchNoteHit) GetTopic() *TopicDocument {
+	if x != nil {
+		return x.Topic
+	}
+	return nil
+}
+
+type SearchNotesByTagResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*SearchNoteHit       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchNotesByTagResponse) Reset() {
+	*x = SearchNotesByTagResponse{}
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchNotesByTagResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchNotesByTagResponse) ProtoMessage() {}
+
+func (x *SearchNotesByTagResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_gateway_api_proto_search_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchNotesByTagResponse.ProtoReflect.Descriptor instead.
+func (*SearchNotesByTagResponse) Descriptor() ([]byte, []int) {
+	return file_api_gateway_api_proto_search_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *SearchNotesByTagResponse) GetItems() []*SearchNoteHit {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 var File_api_gateway_api_proto_search_proto protoreflect.FileDescriptor
 
 const file_api_gateway_api_proto_search_proto_rawDesc = "" +
@@ -1530,7 +1794,31 @@ const file_api_gateway_api_proto_search_proto_rawDesc = "" +
 	"\x05score\x18\x02 \x01(\x01R\x05score\"Y\n" +
 	"\x13SearchUsersResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.bbs.search.v1.UserHitR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total2\x94\b\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"#\n" +
+	"\rTagQueryGroup\x12\x12\n" +
+	"\x04tags\x18\x01 \x03(\tR\x04tags\"\xcf\x02\n" +
+	"\x17SearchNotesByTagRequest\x12\x19\n" +
+	"\x05reply\x18\x01 \x01(\bH\x00R\x05reply\x88\x01\x01\x12\x1b\n" +
+	"\x06renote\x18\x02 \x01(\bH\x01R\x06renote\x88\x01\x01\x12\x1d\n" +
+	"\n" +
+	"with_files\x18\x03 \x01(\bR\twithFiles\x12\x17\n" +
+	"\x04poll\x18\x04 \x01(\bH\x02R\x04poll\x88\x01\x01\x12\x19\n" +
+	"\bsince_id\x18\x05 \x01(\x03R\asinceId\x12\x19\n" +
+	"\buntil_id\x18\x06 \x01(\x03R\auntilId\x12\x14\n" +
+	"\x05limit\x18\a \x01(\x05R\x05limit\x12\x10\n" +
+	"\x03tag\x18\b \x01(\tR\x03tag\x12\x14\n" +
+	"\x05scope\x18\t \x01(\tR\x05scope\x122\n" +
+	"\x05query\x18\n" +
+	" \x03(\v2\x1c.bbs.search.v1.TagQueryGroupR\x05queryB\b\n" +
+	"\x06_replyB\t\n" +
+	"\a_renoteB\a\n" +
+	"\x05_poll\"\x91\x01\n" +
+	"\rSearchNoteHit\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x128\n" +
+	"\aarticle\x18\x02 \x01(\v2\x1e.bbs.search.v1.ArticleDocumentR\aarticle\x122\n" +
+	"\x05topic\x18\x03 \x01(\v2\x1c.bbs.search.v1.TopicDocumentR\x05topic\"N\n" +
+	"\x18SearchNotesByTagResponse\x122\n" +
+	"\x05items\x18\x01 \x03(\v2\x1c.bbs.search.v1.SearchNoteHitR\x05items2\xf9\b\n" +
 	"\rSearchService\x12]\n" +
 	"\x12EnsureArticleIndex\x12(.bbs.search.v1.EnsureArticleIndexRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12Y\n" +
 	"\x10EnsureTopicIndex\x12&.bbs.search.v1.EnsureTopicIndexRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12W\n" +
@@ -1545,7 +1833,8 @@ const file_api_gateway_api_proto_search_proto_rawDesc = "" +
 	"DeleteUser\x12 .bbs.search.v1.DeleteUserRequest\x1a\x1d.bbs.search.v1.SimpleResponse\x12]\n" +
 	"\x0eSearchArticles\x12$.bbs.search.v1.SearchArticlesRequest\x1a%.bbs.search.v1.SearchArticlesResponse\x12W\n" +
 	"\fSearchTopics\x12\".bbs.search.v1.SearchTopicsRequest\x1a#.bbs.search.v1.SearchTopicsResponse\x12T\n" +
-	"\vSearchUsers\x12!.bbs.search.v1.SearchUsersRequest\x1a\".bbs.search.v1.SearchUsersResponseB)Z'api-gateway/api/proto/searchpb;searchpbb\x06proto3"
+	"\vSearchUsers\x12!.bbs.search.v1.SearchUsersRequest\x1a\".bbs.search.v1.SearchUsersResponse\x12c\n" +
+	"\x10SearchNotesByTag\x12&.bbs.search.v1.SearchNotesByTagRequest\x1a'.bbs.search.v1.SearchNotesByTagResponseB)Z'api-gateway/api/proto/searchpb;searchpbb\x06proto3"
 
 var (
 	file_api_gateway_api_proto_search_proto_rawDescOnce sync.Once
@@ -1559,7 +1848,7 @@ func file_api_gateway_api_proto_search_proto_rawDescGZIP() []byte {
 	return file_api_gateway_api_proto_search_proto_rawDescData
 }
 
-var file_api_gateway_api_proto_search_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_api_gateway_api_proto_search_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_api_gateway_api_proto_search_proto_goTypes = []any{
 	(*SimpleResponse)(nil),            // 0: bbs.search.v1.SimpleResponse
 	(*EnsureArticleIndexRequest)(nil), // 1: bbs.search.v1.EnsureArticleIndexRequest
@@ -1584,6 +1873,10 @@ var file_api_gateway_api_proto_search_proto_goTypes = []any{
 	(*SearchTopicsResponse)(nil),      // 20: bbs.search.v1.SearchTopicsResponse
 	(*UserHit)(nil),                   // 21: bbs.search.v1.UserHit
 	(*SearchUsersResponse)(nil),       // 22: bbs.search.v1.SearchUsersResponse
+	(*TagQueryGroup)(nil),             // 23: bbs.search.v1.TagQueryGroup
+	(*SearchNotesByTagRequest)(nil),   // 24: bbs.search.v1.SearchNotesByTagRequest
+	(*SearchNoteHit)(nil),             // 25: bbs.search.v1.SearchNoteHit
+	(*SearchNotesByTagResponse)(nil),  // 26: bbs.search.v1.SearchNotesByTagResponse
 }
 var file_api_gateway_api_proto_search_proto_depIdxs = []int32{
 	4,  // 0: bbs.search.v1.IndexArticleRequest.article:type_name -> bbs.search.v1.ArticleDocument
@@ -1597,35 +1890,41 @@ var file_api_gateway_api_proto_search_proto_depIdxs = []int32{
 	19, // 8: bbs.search.v1.SearchTopicsResponse.items:type_name -> bbs.search.v1.TopicHit
 	8,  // 9: bbs.search.v1.UserHit.user:type_name -> bbs.search.v1.UserDocument
 	21, // 10: bbs.search.v1.SearchUsersResponse.items:type_name -> bbs.search.v1.UserHit
-	1,  // 11: bbs.search.v1.SearchService.EnsureArticleIndex:input_type -> bbs.search.v1.EnsureArticleIndexRequest
-	2,  // 12: bbs.search.v1.SearchService.EnsureTopicIndex:input_type -> bbs.search.v1.EnsureTopicIndexRequest
-	3,  // 13: bbs.search.v1.SearchService.EnsureUserIndex:input_type -> bbs.search.v1.EnsureUserIndexRequest
-	5,  // 14: bbs.search.v1.SearchService.IndexArticle:input_type -> bbs.search.v1.IndexArticleRequest
-	7,  // 15: bbs.search.v1.SearchService.IndexTopic:input_type -> bbs.search.v1.IndexTopicRequest
-	9,  // 16: bbs.search.v1.SearchService.IndexUser:input_type -> bbs.search.v1.IndexUserRequest
-	10, // 17: bbs.search.v1.SearchService.DeleteArticle:input_type -> bbs.search.v1.DeleteArticleRequest
-	11, // 18: bbs.search.v1.SearchService.DeleteTopic:input_type -> bbs.search.v1.DeleteTopicRequest
-	12, // 19: bbs.search.v1.SearchService.DeleteUser:input_type -> bbs.search.v1.DeleteUserRequest
-	13, // 20: bbs.search.v1.SearchService.SearchArticles:input_type -> bbs.search.v1.SearchArticlesRequest
-	14, // 21: bbs.search.v1.SearchService.SearchTopics:input_type -> bbs.search.v1.SearchTopicsRequest
-	15, // 22: bbs.search.v1.SearchService.SearchUsers:input_type -> bbs.search.v1.SearchUsersRequest
-	0,  // 23: bbs.search.v1.SearchService.EnsureArticleIndex:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 24: bbs.search.v1.SearchService.EnsureTopicIndex:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 25: bbs.search.v1.SearchService.EnsureUserIndex:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 26: bbs.search.v1.SearchService.IndexArticle:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 27: bbs.search.v1.SearchService.IndexTopic:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 28: bbs.search.v1.SearchService.IndexUser:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 29: bbs.search.v1.SearchService.DeleteArticle:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 30: bbs.search.v1.SearchService.DeleteTopic:output_type -> bbs.search.v1.SimpleResponse
-	0,  // 31: bbs.search.v1.SearchService.DeleteUser:output_type -> bbs.search.v1.SimpleResponse
-	18, // 32: bbs.search.v1.SearchService.SearchArticles:output_type -> bbs.search.v1.SearchArticlesResponse
-	20, // 33: bbs.search.v1.SearchService.SearchTopics:output_type -> bbs.search.v1.SearchTopicsResponse
-	22, // 34: bbs.search.v1.SearchService.SearchUsers:output_type -> bbs.search.v1.SearchUsersResponse
-	23, // [23:35] is the sub-list for method output_type
-	11, // [11:23] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	23, // 11: bbs.search.v1.SearchNotesByTagRequest.query:type_name -> bbs.search.v1.TagQueryGroup
+	4,  // 12: bbs.search.v1.SearchNoteHit.article:type_name -> bbs.search.v1.ArticleDocument
+	6,  // 13: bbs.search.v1.SearchNoteHit.topic:type_name -> bbs.search.v1.TopicDocument
+	25, // 14: bbs.search.v1.SearchNotesByTagResponse.items:type_name -> bbs.search.v1.SearchNoteHit
+	1,  // 15: bbs.search.v1.SearchService.EnsureArticleIndex:input_type -> bbs.search.v1.EnsureArticleIndexRequest
+	2,  // 16: bbs.search.v1.SearchService.EnsureTopicIndex:input_type -> bbs.search.v1.EnsureTopicIndexRequest
+	3,  // 17: bbs.search.v1.SearchService.EnsureUserIndex:input_type -> bbs.search.v1.EnsureUserIndexRequest
+	5,  // 18: bbs.search.v1.SearchService.IndexArticle:input_type -> bbs.search.v1.IndexArticleRequest
+	7,  // 19: bbs.search.v1.SearchService.IndexTopic:input_type -> bbs.search.v1.IndexTopicRequest
+	9,  // 20: bbs.search.v1.SearchService.IndexUser:input_type -> bbs.search.v1.IndexUserRequest
+	10, // 21: bbs.search.v1.SearchService.DeleteArticle:input_type -> bbs.search.v1.DeleteArticleRequest
+	11, // 22: bbs.search.v1.SearchService.DeleteTopic:input_type -> bbs.search.v1.DeleteTopicRequest
+	12, // 23: bbs.search.v1.SearchService.DeleteUser:input_type -> bbs.search.v1.DeleteUserRequest
+	13, // 24: bbs.search.v1.SearchService.SearchArticles:input_type -> bbs.search.v1.SearchArticlesRequest
+	14, // 25: bbs.search.v1.SearchService.SearchTopics:input_type -> bbs.search.v1.SearchTopicsRequest
+	15, // 26: bbs.search.v1.SearchService.SearchUsers:input_type -> bbs.search.v1.SearchUsersRequest
+	24, // 27: bbs.search.v1.SearchService.SearchNotesByTag:input_type -> bbs.search.v1.SearchNotesByTagRequest
+	0,  // 28: bbs.search.v1.SearchService.EnsureArticleIndex:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 29: bbs.search.v1.SearchService.EnsureTopicIndex:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 30: bbs.search.v1.SearchService.EnsureUserIndex:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 31: bbs.search.v1.SearchService.IndexArticle:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 32: bbs.search.v1.SearchService.IndexTopic:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 33: bbs.search.v1.SearchService.IndexUser:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 34: bbs.search.v1.SearchService.DeleteArticle:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 35: bbs.search.v1.SearchService.DeleteTopic:output_type -> bbs.search.v1.SimpleResponse
+	0,  // 36: bbs.search.v1.SearchService.DeleteUser:output_type -> bbs.search.v1.SimpleResponse
+	18, // 37: bbs.search.v1.SearchService.SearchArticles:output_type -> bbs.search.v1.SearchArticlesResponse
+	20, // 38: bbs.search.v1.SearchService.SearchTopics:output_type -> bbs.search.v1.SearchTopicsResponse
+	22, // 39: bbs.search.v1.SearchService.SearchUsers:output_type -> bbs.search.v1.SearchUsersResponse
+	26, // 40: bbs.search.v1.SearchService.SearchNotesByTag:output_type -> bbs.search.v1.SearchNotesByTagResponse
+	28, // [28:41] is the sub-list for method output_type
+	15, // [15:28] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_api_gateway_api_proto_search_proto_init() }
@@ -1633,13 +1932,14 @@ func file_api_gateway_api_proto_search_proto_init() {
 	if File_api_gateway_api_proto_search_proto != nil {
 		return
 	}
+	file_api_gateway_api_proto_search_proto_msgTypes[24].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_gateway_api_proto_search_proto_rawDesc), len(file_api_gateway_api_proto_search_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

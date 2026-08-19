@@ -89,3 +89,31 @@ type SearchHighlight struct {
 	ContentExcerpt []string
 	TagNames       []string
 }
+
+type TagQueryGroup struct {
+	Tags []string
+}
+
+type SearchByTagCriteria struct {
+	Reply     *bool
+	Renote    *bool
+	WithFiles bool
+	Poll      *bool
+	SinceID   int64
+	UntilID   int64
+	Limit     int32
+	Tag       string
+	Scope     string
+	Query     []TagQueryGroup
+}
+
+const (
+	NoteLikeArticle = "article"
+	NoteLikeTopic   = "topic"
+)
+
+type NoteLikeHit struct {
+	Kind    string
+	Article *ArticleDocument
+	Topic   *TopicDocument
+}
