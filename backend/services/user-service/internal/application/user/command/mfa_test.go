@@ -118,6 +118,50 @@ func TestMFAEnrollmentLoginRecoveryAndDisableFlow(t *testing.T) {
 	}
 }
 
+func TestChangePasswordRequiresValidMFAWhenEnabled(t *testing.T) {
+	ctx := context.Background()
+	repo := newMFAMemoryRepo()
+	manager, err := infraMFA.New("command-test-mfa-encryption-key-value", "Test Community")
+	if err != nil {
+		t.Fatalf("new MFA manager: %v", err)
+	}
+	svc := NewService(repo, &fakeIDGen{next: 20_051}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil, manager)
+	u, _, err := svc.Register(ctx, domain.RegisterCmd{
+		Username: "mfa_password_user",
+		Email:    "mfa-password-user@example.com",
+		Password: "password-123",
+		Nickname: "MFA Password User",
+	})
+	if err != nil {
+		t.Fatalf("register user: %v", err)
+	}
+	enrollment, err := svc.BeginTOTPEnrollment(ctx, u.ID, "password-123", "")
+	if err != nil {
+		t.Fatalf("begin enrollment: %v", err)
+	}
+	confirmationCode, err := totp.GenerateCode(enrollment.Secret, time.Now())
+	if err != nil {
+		t.Fatalf("generate confirmation code: %v", err)
+	}
+	recoveryCodes, err := svc.ConfirmTOTPEnrollment(ctx, u.ID, confirmationCode)
+	if err != nil {
+		t.Fatalf("confirm enrollment: %v", err)
+	}
+
+	if err := svc.ChangePassword(ctx, u.ID, "password-123", "changed-password-123", "invalid-code"); !errors.Is(err, domain.ErrMFACodeInvalid) {
+		t.Fatalf("change password with invalid MFA code error = %v", err)
+	}
+	if err := svc.ChangePassword(ctx, u.ID, "password-123", "changed-password-123", recoveryCodes[0]); err != nil {
+		t.Fatalf("change password with recovery code: %v", err)
+	}
+	if _, _, err := svc.Login(ctx, u.Username, "password-123"); !errors.Is(err, domain.ErrInvalidPassword) {
+		t.Fatalf("login with old password error = %v", err)
+	}
+	if _, challenge, err := svc.Login(ctx, u.Username, "changed-password-123"); err != nil || !challenge.MFARequired {
+		t.Fatalf("login with changed password challenge = %+v, error = %v", challenge, err)
+	}
+}
+
 func TestMFALoginChallengeAttemptLimit(t *testing.T) {
 	ctx := context.Background()
 	repo := newMFAMemoryRepo()

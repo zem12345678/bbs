@@ -102,6 +102,7 @@ type updateUserMemoRequest struct {
 type changePasswordRequest struct {
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
+	MFACode     string `json:"mfa_code"`
 }
 
 type adminAdjustCreditsRequest struct {

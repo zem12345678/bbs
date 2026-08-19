@@ -385,6 +385,7 @@ message ChangePasswordRequest {
   int64 id = 1;
   string old_password = 2;
   string new_password = 3;
+  string mfa_code = 4;
 }
 
 message PasswordResetRequest {

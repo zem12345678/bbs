@@ -1894,7 +1894,8 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
   const [form, setForm] = React.useState({
     old_password: "",
     new_password: "",
-    confirm_password: ""
+    confirm_password: "",
+    mfa_code: ""
   });
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -1965,13 +1966,18 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
       setError("两次输入的新密码不一致。");
       return;
     }
+    if (mfaState.status.enabled && !form.mfa_code.trim()) {
+      setError("请输入当前验证码或恢复码。");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       await bbsApi.changePassword(
         {
           old_password: form.old_password,
-          new_password: form.new_password
+          new_password: form.new_password,
+          mfa_code: form.mfa_code
         },
         auth.accessToken
       );
@@ -2334,6 +2340,16 @@ function AccountSecurityPanel({ auth, onAuthInvalidated }) {
               onChange={(event) => updateField("confirm_password", event.target.value)}
             />
           </label>
+          {mfaState.status.enabled && (
+            <label>
+              当前验证码或恢复码
+              <input
+                autoComplete="one-time-code"
+                value={form.mfa_code}
+                onChange={(event) => updateField("mfa_code", event.target.value)}
+              />
+            </label>
+          )}
           {error && <p className="form-error" role="alert">{error}</p>}
           <button type="submit" disabled={saving}>
             {saving ? "保存中..." : "更新密码"}

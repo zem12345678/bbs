@@ -449,7 +449,7 @@ func (h *Handler) GetUserMemo(ctx context.Context, req *pb.GetUserMemoRequest) (
 }
 
 func (h *Handler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.SimpleResponse, error) {
-	if err := h.cmd.ChangePassword(ctx, req.GetId(), req.GetOldPassword(), req.GetNewPassword()); err != nil {
+	if err := h.cmd.ChangePassword(ctx, req.GetId(), req.GetOldPassword(), req.GetNewPassword(), req.GetMfaCode()); err != nil {
 		return nil, toStatus(err)
 	}
 	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil

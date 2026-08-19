@@ -431,27 +431,26 @@ test("maps MFA login and account-security requests", async () => {
   assert.equal(requests.slice(1).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 
-test("maps account lifecycle and deletion requests", async () => {
+test("maps account lifecycle and sensitive account requests", async () => {
   const requests = [];
   globalThis.fetch = async (url, options = {}) => {
     requests.push({ url, options });
-    return jsonResponse(requests.length === 1 ? 200 : 202, {
-      service: "api-gateway",
-      http_code: requests.length === 1 ? 200 : 202,
-      code: 0,
-      message: "success",
-      data: { state: requests.length === 1 ? "active" : "deletion_pending" }
-    });
+    if (requests.length > 1) return textResponse(204, "");
+    return jsonResponse(200, { service: "api-gateway", http_code: 200, code: 0, message: "success", data: { state: "active" } });
   };
 
   await bbsApi.accountLifecycle("access-token");
+  await bbsApi.changePassword({ old_password: "old-secret", new_password: "new-secret", mfa_code: "  123456  " }, "access-token");
   await bbsApi.requestAccountDeletion({ password: "secret", code: "123456" }, "access-token");
 
   assert.equal(requests[0].url, "http://127.0.0.1:18080/api/v1/users/me/account-lifecycle");
   assert.equal(requests[0].options.method, "GET");
-  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/users/me/deletion-requests");
+  assert.equal(requests[1].url, "http://127.0.0.1:18080/api/v1/i/change-password");
   assert.equal(requests[1].options.method, "POST");
-  assert.deepEqual(JSON.parse(requests[1].options.body), { password: "secret", code: "123456" });
+  assert.deepEqual(JSON.parse(requests[1].options.body), { currentPassword: "old-secret", newPassword: "new-secret", token: "123456" });
+  assert.equal(requests[2].url, "http://127.0.0.1:18080/api/v1/i/delete-account");
+  assert.equal(requests[2].options.method, "POST");
+  assert.deepEqual(JSON.parse(requests[2].options.body), { password: "secret", token: "123456" });
   assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
 });
 

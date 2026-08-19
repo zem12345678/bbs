@@ -501,6 +501,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		for _, prefix := range []string{"/api", ""} {
+			r.POST(prefix+"/i/change-password", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.changePasswordCompat)
+			r.POST(prefix+"/i/delete-account", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.deleteAccountCompat)
 			r.POST(prefix+"/notes/conversation", h.notesConversationCompat)
 			clips := r.Group(prefix + "/clips")
 			clips.POST("/create", h.requireAuthScope("write"), h.createClip)
@@ -581,6 +583,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/users/clips", h.optionalAuth(), h.listPublicClips)
 		api.POST("/notes/clips", h.optionalAuth(), h.listNoteClips)
 		api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
+		api.POST("/i/change-password", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.changePasswordCompat)
+		api.POST("/i/delete-account", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.deleteAccountCompat)
 		api.POST("/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 		api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
 		api.POST("/i/export-data", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAccountData)
@@ -2037,7 +2041,7 @@ func (h *Handler) changePassword(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.User.ChangePassword(ctx, &userpb.ChangePasswordRequest{Id: currentUserID(c), OldPassword: req.OldPassword, NewPassword: req.NewPassword})
+	resp, err := h.clients.User.ChangePassword(ctx, &userpb.ChangePasswordRequest{Id: currentUserID(c), OldPassword: req.OldPassword, NewPassword: req.NewPassword, MfaCode: req.MFACode})
 	if err != nil {
 		writeRPCError(c, err)
 		return

@@ -472,7 +472,7 @@ func TestServiceRegisterLoginAndFollow(t *testing.T) {
 }
 
 func TestPasswordChangeRotatesCredentialVersionForFutureJWTs(t *testing.T) {
-	repo := newMemoryRepo()
+	repo := newMFAMemoryRepo()
 	cache := newCredentialVersionCacheStub()
 	svc := NewService(repo, &fakeIDGen{next: 125}, nil, nil, "test-secret", time.Hour, 8, nil, nil, cache)
 	ctx := context.Background()
@@ -487,7 +487,7 @@ func TestPasswordChangeRotatesCredentialVersionForFutureJWTs(t *testing.T) {
 		t.Fatalf("initial credential version = %q, want %q", got, credentialVersionInitial)
 	}
 
-	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); err != nil {
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123", ""); err != nil {
 		t.Fatalf("change password: %v", err)
 	}
 	stored, err := repo.FindByID(ctx, alice.ID)
@@ -511,7 +511,7 @@ func TestPasswordChangeRotatesCredentialVersionForFutureJWTs(t *testing.T) {
 }
 
 func TestPasswordChangeRejectsAConcurrentCredentialRotation(t *testing.T) {
-	repo := newMemoryRepo()
+	repo := newMFAMemoryRepo()
 	svc := NewService(repo, &fakeIDGen{next: 130}, nil, nil, "test-secret", time.Hour, 8, nil, nil, newCredentialVersionCacheStub())
 	ctx := context.Background()
 
@@ -531,7 +531,7 @@ func TestPasswordChangeRejectsAConcurrentCredentialRotation(t *testing.T) {
 		stored.CredentialVersion = "other-credential-version"
 		repo.users[alice.ID] = cloneUser(stored)
 	}
-	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); !errors.Is(err, domain.ErrInvalidPassword) {
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123", ""); !errors.Is(err, domain.ErrInvalidPassword) {
 		t.Fatalf("change password error = %v, want stale credential rejection", err)
 	}
 	stored, err := repo.FindByID(ctx, alice.ID)
@@ -544,7 +544,7 @@ func TestPasswordChangeRejectsAConcurrentCredentialRotation(t *testing.T) {
 }
 
 func TestPasswordChangeSucceedsAndDeletesStaleCacheWhenRefreshFails(t *testing.T) {
-	repo := newMemoryRepo()
+	repo := newMFAMemoryRepo()
 	cache := newCredentialVersionCacheStub()
 	cache.setErr = errors.New("redis set unavailable")
 	svc := NewService(repo, &fakeIDGen{next: 125}, nil, nil, "test-secret", time.Hour, 8, nil, nil, cache)
@@ -557,7 +557,7 @@ func TestPasswordChangeSucceedsAndDeletesStaleCacheWhenRefreshFails(t *testing.T
 		t.Fatalf("register: %v", err)
 	}
 	cache.versions[alice.ID] = "stale-version"
-	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123"); err != nil {
+	if err := svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123", ""); err != nil {
 		t.Fatalf("change password: %v", err)
 	}
 	stored, err := repo.FindByID(ctx, alice.ID)
@@ -613,7 +613,7 @@ func TestPasswordResetSucceedsAndDeletesStaleCacheWhenRefreshFails(t *testing.T)
 }
 
 func TestLoginUsesTheCredentialVersionReadWithThePassword(t *testing.T) {
-	repo := newMemoryRepo()
+	repo := newMFAMemoryRepo()
 	svc := NewService(repo, &fakeIDGen{next: 140}, nil, nil, "test-secret", time.Hour, 8, nil, nil, newCredentialVersionCacheStub())
 	ctx := context.Background()
 
@@ -626,7 +626,7 @@ func TestLoginUsesTheCredentialVersionReadWithThePassword(t *testing.T) {
 	oldVersion := credentialVersionFromToken(t, before.Value)
 	var rotationErr error
 	repo.beforeUpdateLastLogin = func() {
-		rotationErr = svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123")
+		rotationErr = svc.ChangePassword(ctx, alice.ID, "password123", "changedpass123", "")
 	}
 
 	_, token, err := svc.Login(ctx, alice.Username, "password123")

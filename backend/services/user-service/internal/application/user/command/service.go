@@ -474,7 +474,7 @@ func (s *Service) GetUserMemo(ctx context.Context, userID, targetUserID int64) (
 	return repo.GetUserMemo(ctx, userID, targetUserID)
 }
 
-func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword string, newPassword string) error {
+func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword string, newPassword string, mfaCode string) error {
 	if err := s.validatePassword(newPassword); err != nil {
 		return err
 	}
@@ -484,6 +484,9 @@ func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword stri
 	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(oldPassword)) != nil {
 		return domain.ErrInvalidPassword
+	}
+	if err := s.verifyMFAIfEnabled(ctx, id, mfaCode); err != nil {
+		return err
 	}
 	passwordHash, err := hashPassword(newPassword)
 	if err != nil {

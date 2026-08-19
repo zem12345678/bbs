@@ -502,6 +502,8 @@ test("connects account lifecycle and permanent deletion to account security", ()
   assert.match(userSource, /function AccountDeletionSection/);
   assert.match(userSource, /bbsApi\.accountLifecycle\(token\)/);
   assert.match(userSource, /bbsApi\.requestAccountDeletion\(\{ password: form\.password, code: form\.code\.trim\(\) \}, token\)/);
+  assert.match(userSource, /mfaState\.status\.enabled && !form\.mfa_code\.trim\(\)/);
+  assert.match(userSource, /mfa_code: form\.mfa_code/);
   assert.match(userSource, /form\.confirmation\.trim\(\) !== expectedUsername/);
   assert.match(userSource, /mfaEnabled && !form\.code\.trim\(\)/);
   assert.match(userSource, /onAuthInvalidated\?\.\(\)/);
@@ -509,7 +511,8 @@ test("connects account lifecycle and permanent deletion to account security", ()
   assert.match(authSource, /new URLSearchParams\(location\.search\)\.get\("account_deleted"\) === "pending"/);
   assert.match(authSource, /注销申请已受理/);
   assert.match(apiSource, /request\("\/users\/me\/account-lifecycle"/);
-  assert.match(apiSource, /request\("\/users\/me\/deletion-requests"/);
+  assert.match(apiSource, /request\("\/i\/change-password"/);
+  assert.match(apiSource, /request\("\/i\/delete-account"/);
 });
 
 test("shows every joined room's latest message and time in the chat sidebar", () => {

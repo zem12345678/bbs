@@ -305,13 +305,25 @@ export const bbsApi = {
     return request(`/users/${encodeURIComponent(userId)}/memo`, { token });
   },
   changePassword(payload, token) {
-    return request("/users/me/password", { method: "POST", body: payload, token });
+    return request("/i/change-password", {
+      method: "POST",
+      body: {
+        currentPassword: payload?.old_password || "",
+        newPassword: payload?.new_password || "",
+        token: payload?.mfa_code?.trim() || null
+      },
+      token
+    });
   },
   accountLifecycle(token) {
     return request("/users/me/account-lifecycle", { token });
   },
   requestAccountDeletion(payload, token) {
-    return request("/users/me/deletion-requests", { method: "POST", body: payload, token });
+    return request("/i/delete-account", {
+      method: "POST",
+      body: { password: payload?.password || "", token: payload?.code?.trim() || null },
+      token
+    });
   },
   mfaStatus(token) {
     return request("/users/me/mfa", { token });
