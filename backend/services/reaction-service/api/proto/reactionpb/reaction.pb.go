@@ -2525,6 +2525,186 @@ func (x *EraseAccountReactionsResponse) GetAnonymizedHandledReports() int64 {
 	return 0
 }
 
+type PinInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Entity        *EntityRef             `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PinInfo) Reset() {
+	*x = PinInfo{}
+	mi := &file_reaction_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PinInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PinInfo) ProtoMessage() {}
+
+func (x *PinInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PinInfo.ProtoReflect.Descriptor instead.
+func (*PinInfo) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *PinInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *PinInfo) GetEntity() *EntityRef {
+	if x != nil {
+		return x.Entity
+	}
+	return nil
+}
+
+func (x *PinInfo) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *PinInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+type ListPinsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPinsRequest) Reset() {
+	*x = ListPinsRequest{}
+	mi := &file_reaction_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPinsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPinsRequest) ProtoMessage() {}
+
+func (x *ListPinsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPinsRequest.ProtoReflect.Descriptor instead.
+func (*ListPinsRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *ListPinsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListPinsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListPinsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type PinListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*PinInfo             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PinListResponse) Reset() {
+	*x = PinListResponse{}
+	mi := &file_reaction_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PinListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PinListResponse) ProtoMessage() {}
+
+func (x *PinListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PinListResponse.ProtoReflect.Descriptor instead.
+func (*PinListResponse) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *PinListResponse) GetItems() []*PinInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *PinListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_reaction_proto protoreflect.FileDescriptor
 
 const file_reaction_proto_rawDesc = "" +
@@ -2737,7 +2917,20 @@ const file_reaction_proto_rawDesc = "" +
 	"\x11deleted_favorites\x18\x03 \x01(\x03R\x10deletedFavorites\x12/\n" +
 	"\x13deleted_collections\x18\x04 \x01(\x03R\x12deletedCollections\x12-\n" +
 	"\x12anonymized_reports\x18\x05 \x01(\x03R\x11anonymizedReports\x12<\n" +
-	"\x1aanonymized_handled_reports\x18\x06 \x01(\x03R\x18anonymizedHandledReports2\xf6\x11\n" +
+	"\x1aanonymized_handled_reports\x18\x06 \x01(\x03R\x18anonymizedHandledReports\"\x85\x01\n" +
+	"\aPinInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x122\n" +
+	"\x06entity\x18\x02 \x01(\v2\x1a.bbs.reaction.v1.EntityRefR\x06entity\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\x03R\tcreatedAt\"X\n" +
+	"\x0fListPinsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"W\n" +
+	"\x0fPinListResponse\x12.\n" +
+	"\x05items\x18\x01 \x03(\v2\x18.bbs.reaction.v1.PinInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total2\xd4\x13\n" +
 	"\x0fReactionService\x12E\n" +
 	"\x04Like\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12G\n" +
 	"\x06Unlike\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12Q\n" +
@@ -2763,7 +2956,10 @@ const file_reaction_proto_rawDesc = "" +
 	"\x19ListPublicCollectionItems\x121.bbs.reaction.v1.ListPublicCollectionItemsRequest\x1a(.bbs.reaction.v1.CollectionItemsResponse\x12p\n" +
 	"\x15ListPublicCollections\x12-.bbs.reaction.v1.ListPublicCollectionsRequest\x1a(.bbs.reaction.v1.ListCollectionsResponse\x12\x82\x01\n" +
 	"\x1eListPublicCollectionsForEntity\x126.bbs.reaction.v1.ListPublicCollectionsForEntityRequest\x1a(.bbs.reaction.v1.ListCollectionsResponse\x12v\n" +
-	"\x15EraseAccountReactions\x12-.bbs.reaction.v1.EraseAccountReactionsRequest\x1a..bbs.reaction.v1.EraseAccountReactionsResponseB2Z0reaction-service/api/proto/reactionpb;reactionpbb\x06proto3"
+	"\x15EraseAccountReactions\x12-.bbs.reaction.v1.EraseAccountReactionsRequest\x1a..bbs.reaction.v1.EraseAccountReactionsResponse\x12D\n" +
+	"\x03Pin\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12F\n" +
+	"\x05Unpin\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12N\n" +
+	"\bListPins\x12 .bbs.reaction.v1.ListPinsRequest\x1a .bbs.reaction.v1.PinListResponseB2Z0reaction-service/api/proto/reactionpb;reactionpbb\x06proto3"
 
 var (
 	file_reaction_proto_rawDescOnce sync.Once
@@ -2777,7 +2973,7 @@ func file_reaction_proto_rawDescGZIP() []byte {
 	return file_reaction_proto_rawDescData
 }
 
-var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_reaction_proto_goTypes = []any{
 	(*EntityRef)(nil),                             // 0: bbs.reaction.v1.EntityRef
 	(*ReactRequest)(nil),                          // 1: bbs.reaction.v1.ReactRequest
@@ -2817,6 +3013,9 @@ var file_reaction_proto_goTypes = []any{
 	(*CollectionItemsResponse)(nil),               // 35: bbs.reaction.v1.CollectionItemsResponse
 	(*EraseAccountReactionsRequest)(nil),          // 36: bbs.reaction.v1.EraseAccountReactionsRequest
 	(*EraseAccountReactionsResponse)(nil),         // 37: bbs.reaction.v1.EraseAccountReactionsResponse
+	(*PinInfo)(nil),                               // 38: bbs.reaction.v1.PinInfo
+	(*ListPinsRequest)(nil),                       // 39: bbs.reaction.v1.ListPinsRequest
+	(*PinListResponse)(nil),                       // 40: bbs.reaction.v1.PinListResponse
 }
 var file_reaction_proto_depIdxs = []int32{
 	0,  // 0: bbs.reaction.v1.ReactRequest.entity:type_name -> bbs.reaction.v1.EntityRef
@@ -2835,59 +3034,67 @@ var file_reaction_proto_depIdxs = []int32{
 	20, // 13: bbs.reaction.v1.CollectionResponse.collection:type_name -> bbs.reaction.v1.CollectionInfo
 	20, // 14: bbs.reaction.v1.ListCollectionsResponse.items:type_name -> bbs.reaction.v1.CollectionInfo
 	21, // 15: bbs.reaction.v1.CollectionItemsResponse.items:type_name -> bbs.reaction.v1.CollectionItemInfo
-	1,  // 16: bbs.reaction.v1.ReactionService.Like:input_type -> bbs.reaction.v1.ReactRequest
-	1,  // 17: bbs.reaction.v1.ReactionService.Unlike:input_type -> bbs.reaction.v1.ReactRequest
-	6,  // 18: bbs.reaction.v1.ReactionService.ListLikes:input_type -> bbs.reaction.v1.ListLikesRequest
-	1,  // 19: bbs.reaction.v1.ReactionService.Favorite:input_type -> bbs.reaction.v1.ReactRequest
-	1,  // 20: bbs.reaction.v1.ReactionService.Unfavorite:input_type -> bbs.reaction.v1.ReactRequest
-	9,  // 21: bbs.reaction.v1.ReactionService.ListFavorites:input_type -> bbs.reaction.v1.ListFavoritesRequest
-	3,  // 22: bbs.reaction.v1.ReactionService.GetCounts:input_type -> bbs.reaction.v1.EntityRequest
-	11, // 23: bbs.reaction.v1.ReactionService.HotIDs:input_type -> bbs.reaction.v1.HotIDsRequest
-	13, // 24: bbs.reaction.v1.ReactionService.SubmitReport:input_type -> bbs.reaction.v1.SubmitReportRequest
-	16, // 25: bbs.reaction.v1.ReactionService.ListReports:input_type -> bbs.reaction.v1.ListReportsRequest
-	18, // 26: bbs.reaction.v1.ReactionService.GetReport:input_type -> bbs.reaction.v1.GetReportRequest
-	19, // 27: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
-	22, // 28: bbs.reaction.v1.ReactionService.CreateCollection:input_type -> bbs.reaction.v1.CreateCollectionRequest
-	23, // 29: bbs.reaction.v1.ReactionService.UpdateCollection:input_type -> bbs.reaction.v1.UpdateCollectionRequest
-	24, // 30: bbs.reaction.v1.ReactionService.DeleteCollection:input_type -> bbs.reaction.v1.DeleteCollectionRequest
-	25, // 31: bbs.reaction.v1.ReactionService.ListCollections:input_type -> bbs.reaction.v1.ListCollectionsRequest
-	26, // 32: bbs.reaction.v1.ReactionService.AddCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
-	26, // 33: bbs.reaction.v1.ReactionService.RemoveCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
-	27, // 34: bbs.reaction.v1.ReactionService.ListCollectionItems:input_type -> bbs.reaction.v1.ListCollectionItemsRequest
-	28, // 35: bbs.reaction.v1.ReactionService.GetCollection:input_type -> bbs.reaction.v1.GetCollectionRequest
-	29, // 36: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:input_type -> bbs.reaction.v1.ListPublicCollectionItemsRequest
-	30, // 37: bbs.reaction.v1.ReactionService.ListPublicCollections:input_type -> bbs.reaction.v1.ListPublicCollectionsRequest
-	31, // 38: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:input_type -> bbs.reaction.v1.ListPublicCollectionsForEntityRequest
-	36, // 39: bbs.reaction.v1.ReactionService.EraseAccountReactions:input_type -> bbs.reaction.v1.EraseAccountReactionsRequest
-	2,  // 40: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 41: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
-	7,  // 42: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
-	2,  // 43: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 44: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
-	10, // 45: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
-	4,  // 46: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
-	12, // 47: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
-	15, // 48: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
-	17, // 49: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
-	15, // 50: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
-	15, // 51: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
-	32, // 52: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	32, // 53: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	33, // 54: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
-	34, // 55: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	33, // 56: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	33, // 57: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	35, // 58: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
-	32, // 59: bbs.reaction.v1.ReactionService.GetCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	35, // 60: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
-	34, // 61: bbs.reaction.v1.ReactionService.ListPublicCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	34, // 62: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	37, // 63: bbs.reaction.v1.ReactionService.EraseAccountReactions:output_type -> bbs.reaction.v1.EraseAccountReactionsResponse
-	40, // [40:64] is the sub-list for method output_type
-	16, // [16:40] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	0,  // 16: bbs.reaction.v1.PinInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	38, // 17: bbs.reaction.v1.PinListResponse.items:type_name -> bbs.reaction.v1.PinInfo
+	1,  // 18: bbs.reaction.v1.ReactionService.Like:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 19: bbs.reaction.v1.ReactionService.Unlike:input_type -> bbs.reaction.v1.ReactRequest
+	6,  // 20: bbs.reaction.v1.ReactionService.ListLikes:input_type -> bbs.reaction.v1.ListLikesRequest
+	1,  // 21: bbs.reaction.v1.ReactionService.Favorite:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 22: bbs.reaction.v1.ReactionService.Unfavorite:input_type -> bbs.reaction.v1.ReactRequest
+	9,  // 23: bbs.reaction.v1.ReactionService.ListFavorites:input_type -> bbs.reaction.v1.ListFavoritesRequest
+	3,  // 24: bbs.reaction.v1.ReactionService.GetCounts:input_type -> bbs.reaction.v1.EntityRequest
+	11, // 25: bbs.reaction.v1.ReactionService.HotIDs:input_type -> bbs.reaction.v1.HotIDsRequest
+	13, // 26: bbs.reaction.v1.ReactionService.SubmitReport:input_type -> bbs.reaction.v1.SubmitReportRequest
+	16, // 27: bbs.reaction.v1.ReactionService.ListReports:input_type -> bbs.reaction.v1.ListReportsRequest
+	18, // 28: bbs.reaction.v1.ReactionService.GetReport:input_type -> bbs.reaction.v1.GetReportRequest
+	19, // 29: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
+	22, // 30: bbs.reaction.v1.ReactionService.CreateCollection:input_type -> bbs.reaction.v1.CreateCollectionRequest
+	23, // 31: bbs.reaction.v1.ReactionService.UpdateCollection:input_type -> bbs.reaction.v1.UpdateCollectionRequest
+	24, // 32: bbs.reaction.v1.ReactionService.DeleteCollection:input_type -> bbs.reaction.v1.DeleteCollectionRequest
+	25, // 33: bbs.reaction.v1.ReactionService.ListCollections:input_type -> bbs.reaction.v1.ListCollectionsRequest
+	26, // 34: bbs.reaction.v1.ReactionService.AddCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
+	26, // 35: bbs.reaction.v1.ReactionService.RemoveCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
+	27, // 36: bbs.reaction.v1.ReactionService.ListCollectionItems:input_type -> bbs.reaction.v1.ListCollectionItemsRequest
+	28, // 37: bbs.reaction.v1.ReactionService.GetCollection:input_type -> bbs.reaction.v1.GetCollectionRequest
+	29, // 38: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:input_type -> bbs.reaction.v1.ListPublicCollectionItemsRequest
+	30, // 39: bbs.reaction.v1.ReactionService.ListPublicCollections:input_type -> bbs.reaction.v1.ListPublicCollectionsRequest
+	31, // 40: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:input_type -> bbs.reaction.v1.ListPublicCollectionsForEntityRequest
+	36, // 41: bbs.reaction.v1.ReactionService.EraseAccountReactions:input_type -> bbs.reaction.v1.EraseAccountReactionsRequest
+	1,  // 42: bbs.reaction.v1.ReactionService.Pin:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 43: bbs.reaction.v1.ReactionService.Unpin:input_type -> bbs.reaction.v1.ReactRequest
+	39, // 44: bbs.reaction.v1.ReactionService.ListPins:input_type -> bbs.reaction.v1.ListPinsRequest
+	2,  // 45: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 46: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
+	7,  // 47: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
+	2,  // 48: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 49: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
+	10, // 50: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
+	4,  // 51: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
+	12, // 52: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
+	15, // 53: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
+	17, // 54: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
+	15, // 55: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
+	15, // 56: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
+	32, // 57: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	32, // 58: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	33, // 59: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
+	34, // 60: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	33, // 61: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	33, // 62: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	35, // 63: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
+	32, // 64: bbs.reaction.v1.ReactionService.GetCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	35, // 65: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
+	34, // 66: bbs.reaction.v1.ReactionService.ListPublicCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	34, // 67: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	37, // 68: bbs.reaction.v1.ReactionService.EraseAccountReactions:output_type -> bbs.reaction.v1.EraseAccountReactionsResponse
+	2,  // 69: bbs.reaction.v1.ReactionService.Pin:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 70: bbs.reaction.v1.ReactionService.Unpin:output_type -> bbs.reaction.v1.ReactResponse
+	40, // 71: bbs.reaction.v1.ReactionService.ListPins:output_type -> bbs.reaction.v1.PinListResponse
+	45, // [45:72] is the sub-list for method output_type
+	18, // [18:45] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_reaction_proto_init() }
@@ -2901,7 +3108,7 @@ func file_reaction_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reaction_proto_rawDesc), len(file_reaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

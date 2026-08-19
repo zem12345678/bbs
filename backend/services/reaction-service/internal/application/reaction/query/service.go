@@ -16,11 +16,12 @@ type Service struct {
 	reports     domain.ReportRepository
 	likes       domain.LikeRepository
 	favorites   domain.FavoriteRepository
+	pins        domain.PinRepository
 	collections domain.CollectionRepository
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, collections domain.CollectionRepository) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, collections: collections}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository) *Service {
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, pins: pins, collections: collections}
 }
 
 func (s *Service) Count(ctx context.Context, ref domain.EntityRef) (CountView, error) {
@@ -118,6 +119,16 @@ func (s *Service) ListFavoritesAfterID(ctx context.Context, userID int64, entity
 		return nil, 0, domain.ErrInvalidFavoriteCursor
 	}
 	return favorites.ListFavoritesAfterID(ctx, userID, entityType, afterID, limit)
+}
+
+func (s *Service) ListPins(ctx context.Context, userID int64, limit, offset int) ([]*domain.Pin, int64, error) {
+	if s.pins == nil {
+		return nil, 0, domain.ErrPinRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	return s.pins.ListPins(ctx, userID, limit, offset)
 }
 
 func (s *Service) ListCollections(ctx context.Context, userID int64, limit, offset int) ([]*domain.Collection, int64, error) {

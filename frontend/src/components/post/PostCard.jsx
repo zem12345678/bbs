@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, ImagePlus, MessageSquare, Share2, ShieldCheck, Star, Zap } from "lucide-react";
+import { Activity, Archive, Clock3, Edit3, Eye, FileText, Flag, Hash, Heart, ImagePlus, MessageSquare, Pin, Share2, ShieldCheck, Star, Zap } from "lucide-react";
 import { bbsApi } from "../../api";
 import { listItems, listTotal } from "../../lib/apiShapes";
 import { collectMissingCommentAuthorIDs, loadCommentAuthors } from "../../lib/commentAuthors";
@@ -48,10 +48,12 @@ export default function PostCard({
   categories = [],
   focusCommentId,
   onPostArchived,
-  onPostStatsChange
+  onPostStatsChange,
+  onPinnedChange
 }) {
   const [liked, setLiked] = React.useState(Boolean(post.liked));
   const [favorited, setFavorited] = React.useState(Boolean(post.favorited));
+  const [pinned, setPinned] = React.useState(Boolean(post.pinned));
   const [likes, setLikes] = React.useState(toNumber(post.likes));
   const [favorites, setFavorites] = React.useState(toNumber(post.favorites));
   const [commentCount, setCommentCount] = React.useState(toNumber(post.comments));
@@ -79,6 +81,9 @@ export default function PostCard({
   const [reportOpen, setReportOpen] = React.useState(false);
   const [commentReportTarget, setCommentReportTarget] = React.useState(null);
   const [archiveBusy, setArchiveBusy] = React.useState(false);
+  const [pinBusy, setPinBusy] = React.useState(false);
+  const pinRequestRef = React.useRef(0);
+  const pinScopeRef = React.useRef({ postId: "", postKind: "", accessToken: "" });
   const [commentUpload, setCommentUpload] = React.useState({ loading: "", error: "", message: "" });
   const topicPost = post.kind === "topic";
   const questionPost = topicPost && String(post.topicType || "").toLowerCase() === "qa";
@@ -92,15 +97,17 @@ export default function PostCard({
   const categoryId = toId(post.categoryId);
   const category = categoryId ? categories.find((item) => sameId(item.id, categoryId)) : null;
   const categoryLabel = category?.name || (categoryId ? `分类 #${categoryId}` : "");
+  pinScopeRef.current = { postId: toId(post.id), postKind: post.kind || "", accessToken: auth?.accessToken || "" };
 
   React.useEffect(() => {
     setLiked(Boolean(post.liked));
     setFavorited(Boolean(post.favorited));
+    setPinned(Boolean(post.pinned));
     setLikes(toNumber(post.likes));
     setFavorites(toNumber(post.favorites));
     setCommentCount(toNumber(post.comments));
     setActivityAt(toNumber(post.activeAt || post.sortAt));
-  }, [post.activeAt, post.favorited, post.favorites, post.liked, post.likes, post.comments, post.sortAt]);
+  }, [post.activeAt, post.favorited, post.favorites, post.liked, post.likes, post.comments, post.pinned, post.sortAt]);
 
   React.useEffect(() => {
     setComments([]);
@@ -122,6 +129,11 @@ export default function PostCard({
     setCommentReportTarget(null);
     setArchiveBusy(false);
   }, [post.id, post.kind]);
+
+  React.useEffect(() => {
+    pinRequestRef.current += 1;
+    setPinBusy(false);
+  }, [auth?.accessToken, post.id, post.kind]);
 
   React.useEffect(() => {
     setCommentUpload({ loading: "", error: "", message: "" });
@@ -339,6 +351,36 @@ export default function PostCard({
       onPostStatsChange?.(post.id, { favorited: nextFavorited, favorites: nextFavorites });
     } catch (error) {
       setActionError(error.message || "收藏失败");
+    }
+  }
+
+  async function togglePin() {
+    if (pinBusy || !ensureActionable()) return;
+    const requestPostID = toId(post.id);
+    const requestPostKind = post.kind || "";
+    const requestAccessToken = auth.accessToken;
+    const request = pinRequestRef.current + 1;
+    pinRequestRef.current = request;
+    setPinBusy(true);
+    setActionError("");
+    try {
+      if (pinned) {
+        await bbsApi.unpinNote(post.id, requestAccessToken);
+      } else {
+        await bbsApi.pinNote(post.id, requestAccessToken);
+      }
+      if (pinRequestRef.current !== request || !matchesPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) return;
+      const nextPinned = !pinned;
+      setPinned(nextPinned);
+      onPinnedChange?.(post.id, post.kind, nextPinned);
+    } catch (error) {
+      if (pinRequestRef.current === request && matchesPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) {
+        setActionError(error.message || (pinned ? "取消置顶失败" : "置顶失败"));
+      }
+    } finally {
+      if (pinRequestRef.current === request && matchesPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) {
+        setPinBusy(false);
+      }
     }
   }
 
@@ -1044,6 +1086,10 @@ export default function PostCard({
               <ShieldCheck size={18} aria-hidden="true" />
               举报
             </button>
+            <button aria-pressed={pinned} type="button" disabled={!realPost || pinBusy} onClick={togglePin} title={pinned ? "取消个人主页置顶" : "置顶到个人主页"}>
+              <Pin size={18} aria-hidden="true" />
+              {pinBusy ? "处理中" : pinned ? "取消置顶" : "置顶"}
+            </button>
             {ownerPost && (
               <>
                 <Link to={editPath}>
@@ -1130,4 +1176,8 @@ export default function PostCard({
       )}
     </article>
   );
+}
+
+function matchesPinScope(scope, postId, postKind, accessToken) {
+  return sameId(scope.postId, postId) && scope.postKind === postKind && scope.accessToken === accessToken;
 }

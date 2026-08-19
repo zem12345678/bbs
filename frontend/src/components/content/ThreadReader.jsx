@@ -10,6 +10,7 @@ import {
   Heart,
   ImagePlus,
   MessageSquare,
+  Pin,
   Quote,
 	RotateCcw,
   Share2,
@@ -39,6 +40,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const topicPost = kind === "topic";
   const [liked, setLiked] = React.useState(Boolean(post?.liked));
   const [favorited, setFavorited] = React.useState(Boolean(post?.favorited));
+  const [pinned, setPinned] = React.useState(Boolean(post?.pinned));
+  const [pinBusy, setPinBusy] = React.useState(false);
   const [likes, setLikes] = React.useState(toNumber(post?.likes));
   const [favorites, setFavorites] = React.useState(toNumber(post?.favorites));
   const [qaStatus, setQaStatus] = React.useState(post?.qaStatus || item?.qa_status || item?.qaStatus || "");
@@ -68,6 +71,8 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const [lastReadId, setLastReadId] = React.useState(() => readLastRead(post?.kind, post?.id));
   const commentEditorRef = React.useRef(null);
   const postIdRef = React.useRef(toId(post?.id));
+  const pinRequestRef = React.useRef(0);
+  const pinScopeRef = React.useRef({ postId: "", postKind: "", accessToken: "" });
   postIdRef.current = toId(post?.id);
   const contentBody = item?.body || item?.content || post?.text || "";
   const ownerPost = sameId(auth?.user?.id, post?.authorId);
@@ -75,10 +80,12 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
   const questionResolved = questionPost && (qaStatus === "resolved" || Boolean(acceptedCommentId));
   const latestCommentId = latestVisibleCommentId(comments, replyState);
   const hasMoreComments = commentPage * COMMENT_PAGE_SIZE < commentTotal;
+  pinScopeRef.current = { postId: toId(post?.id), postKind: post?.kind || kind, accessToken: auth?.accessToken || "" };
 
   React.useEffect(() => {
     setLiked(Boolean(post?.liked));
     setFavorited(Boolean(post?.favorited));
+    setPinned(Boolean(post?.pinned));
     setLikes(toNumber(post?.likes));
     setFavorites(toNumber(post?.favorites));
     setCommentTotal(toNumber(post?.comments));
@@ -98,8 +105,14 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
     post?.kind,
     post?.liked,
     post?.likes,
+    post?.pinned,
     post?.qaStatus
   ]);
+
+  React.useEffect(() => {
+    pinRequestRef.current += 1;
+    setPinBusy(false);
+  }, [auth?.accessToken, kind, post?.id, post?.kind]);
 
   const loadComments = React.useCallback(async () => {
     if (!post?.id) return;
@@ -290,6 +303,34 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
       onPostStatsChange?.(post.id, { favorited: nextFavorited, favorites: nextFavorites });
     } catch (error) {
       setActionError(error.message || "收藏失败");
+    }
+  }
+
+  async function togglePin() {
+    if (pinBusy || !ensureActionable()) return;
+    const requestPostID = toId(post.id);
+    const requestPostKind = post.kind || kind;
+    const requestAccessToken = auth.accessToken;
+    const request = pinRequestRef.current + 1;
+    pinRequestRef.current = request;
+    setActionError("");
+    setPinBusy(true);
+    try {
+      if (pinned) {
+        await bbsApi.unpinNote(post.id, requestAccessToken);
+      } else {
+        await bbsApi.pinNote(post.id, requestAccessToken);
+      }
+      if (pinRequestRef.current !== request || !matchesThreadPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) return;
+      setPinned((current) => !current);
+    } catch (error) {
+      if (pinRequestRef.current === request && matchesThreadPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) {
+        setActionError(error.message || (pinned ? "取消置顶失败" : "置顶失败"));
+      }
+    } finally {
+      if (pinRequestRef.current === request && matchesThreadPinScope(pinScopeRef.current, requestPostID, requestPostKind, requestAccessToken)) {
+        setPinBusy(false);
+      }
     }
   }
 
@@ -957,6 +998,10 @@ export default function ThreadReader({ auth, focusedCommentId, item, kind = "top
             <Share2 size={18} aria-hidden="true" />
             分享
           </button>
+          <button aria-pressed={pinned} type="button" disabled={pinBusy} onClick={togglePin} title={pinned ? "取消个人主页置顶" : "置顶到个人主页"}>
+            <Pin size={18} aria-hidden="true" />
+            {pinBusy ? "处理中" : pinned ? "取消置顶" : "置顶"}
+          </button>
           <button type="button" onClick={openReport}>
             <ShieldCheck size={18} aria-hidden="true" />
             举报
@@ -1080,6 +1125,10 @@ function mergeComments(current = [], additions = []) {
     }
     return false;
   }));
+}
+
+function matchesThreadPinScope(scope, postId, postKind, accessToken) {
+  return sameId(scope.postId, postId) && scope.postKind === postKind && scope.accessToken === accessToken;
 }
 
 function latestVisibleCommentId(comments, replyState) {

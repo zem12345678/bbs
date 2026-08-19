@@ -16,7 +16,7 @@ func TestListFavoritesUsesExclusiveAscendingIDCursor(t *testing.T) {
 	repo := &favoriteKeysetRepositoryStub{rows: []*domain.Favorite{{
 		ID: 11, UserID: 42, Entity: domain.EntityRef{Type: domain.EntityArticle, ID: 99},
 	}}}
-	h := NewHandler(nil, query.NewService(nil, nil, nil, repo, nil), nil)
+	h := NewHandler(nil, query.NewService(nil, nil, nil, repo, nil, nil), nil)
 
 	response, err := h.ListFavorites(context.Background(), &pb.ListFavoritesRequest{
 		UserId: 42, EntityType: "article", Limit: 100, AfterId: 7, AscendingById: true,
@@ -34,7 +34,7 @@ func TestListFavoritesUsesExclusiveAscendingIDCursor(t *testing.T) {
 
 func TestListFavoritesRejectsNegativeCursor(t *testing.T) {
 	repo := &favoriteKeysetRepositoryStub{}
-	h := NewHandler(nil, query.NewService(nil, nil, nil, repo, nil), nil)
+	h := NewHandler(nil, query.NewService(nil, nil, nil, repo, nil, nil), nil)
 
 	_, err := h.ListFavorites(context.Background(), &pb.ListFavoritesRequest{UserId: 42, AfterId: -1, AscendingById: true})
 	if status.Code(err) != codes.InvalidArgument {

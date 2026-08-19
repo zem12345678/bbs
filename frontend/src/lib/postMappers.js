@@ -144,7 +144,8 @@ export function articleToPost(article, auth) {
     comments: optionalNumber(article?.comment_count, article?.commentCount),
     views: optionalNumber(article?.view_count, article?.viewCount),
     liked: false,
-    favorited: false
+    favorited: false,
+    pinned: Boolean(article?.is_pinned ?? article?.isPinned)
   };
 }
 
@@ -177,7 +178,8 @@ export function topicToPost(topic, auth) {
     comments: optionalNumber(topic?.comment_count, topic?.commentCount),
     views: optionalNumber(topic?.view_count, topic?.viewCount),
     liked: false,
-    favorited: false
+    favorited: false,
+    pinned: Boolean(topic?.is_pinned ?? topic?.isPinned)
   };
 }
 

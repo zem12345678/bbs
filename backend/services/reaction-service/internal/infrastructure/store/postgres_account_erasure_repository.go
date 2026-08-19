@@ -103,6 +103,10 @@ func (r *AccountErasureRepository) EraseAccountReactions(ctx context.Context, us
 		if deletedFavorites.Error != nil {
 			return deletedFavorites.Error
 		}
+		deletedPins := tx.Where("user_id = ?", userID).Delete(&pinPO{})
+		if deletedPins.Error != nil {
+			return deletedPins.Error
+		}
 		deletedCollections := tx.Where("user_id = ?", userID).Delete(&collectionPO{})
 		if deletedCollections.Error != nil {
 			return deletedCollections.Error

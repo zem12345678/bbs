@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Power, PowerOff, Radio, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, Upload, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
+import { BadgeCheck, Bell, Check, Copy, Download, FileText, Fingerprint, Folder, FolderPlus, Globe2, Heart, History, KeyRound, ListFilter, LockKeyhole, LogOut, MessageCircle, MonitorSmartphone, Pencil, Pin, Power, PowerOff, Radio, RefreshCw, Send, ShieldCheck, ShieldOff, Share2, Star, Trash2, Trophy, Upload, UserPlus, UserRound, Users, VolumeX, Webhook, X } from "lucide-react";
 import { bbsApi } from "../api";
 import Avatar from "../components/Avatar.jsx";
 import MessageFilterPanel from "../components/notifications/MessageFilterPanel.jsx";
@@ -24,7 +24,7 @@ import {
   notificationTargetLabel,
   summarizeNotifications
 } from "../lib/notificationTargets";
-import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, feedItemToPost, hydratePostsMeta, interactionToPost, profileThemeClass, uniquePosts, userToPerson } from "../lib/postMappers";
+import { articleToPost, authProfileAppearanceNeedsVerification, authToPerson, feedItemToPost, hydratePostsMeta, interactionToPost, profileThemeClass, topicToPost, uniquePosts, userToPerson } from "../lib/postMappers";
 import { shareLink } from "../lib/share";
 import { normalizeUserList, normalizeUserLists, userListOwnedBy, validateUserListName } from "../lib/userLists";
 import { DataRows, EmptyState, PillTabs, RouteHeader } from "./RouteBlocks.jsx";
@@ -185,13 +185,17 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
   const [followError, setFollowError] = React.useState("");
   const [shareNotice, setShareNotice] = React.useState("");
   const [followerCount, setFollowerCount] = React.useState(toNumber(person?.followerCount));
+  const [pinnedState, setPinnedState] = React.useState({ posts: [], loading: false, error: "" });
   const relationSessionRef = React.useRef(0);
   const relationActionRef = React.useRef(0);
   const nextRelationActionRef = React.useRef(0);
   const relationScopeRef = React.useRef({ targetUserId: "", accessToken: "" });
+  const pinnedSessionRef = React.useRef(0);
+  const pinnedScopeRef = React.useRef({ targetUserId: "", accessToken: "", self: false });
   const profileUserId = toId(person?.id);
   const self = sameId(auth?.user?.id, profileUserId);
   relationScopeRef.current = { targetUserId: profileUserId, accessToken: auth?.accessToken || "" };
+  pinnedScopeRef.current = { targetUserId: profileUserId, accessToken: auth?.accessToken || "", self };
 
   React.useEffect(() => {
     setFollowerCount(toNumber(person?.followerCount));
@@ -249,6 +253,38 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
       alive = false;
     };
   }, [auth?.accessToken, profileUserId, publicSpace, self]);
+
+  React.useEffect(() => {
+    const session = pinnedSessionRef.current + 1;
+    pinnedSessionRef.current = session;
+    const requestUserId = profileUserId;
+    const requestAccessToken = auth?.accessToken || "";
+    const requestSelf = self;
+    if (!requestUserId || (requestSelf && !requestAccessToken)) {
+      setPinnedState({ posts: [], loading: false, error: "" });
+      return undefined;
+    }
+    let alive = true;
+    setPinnedState({ posts: [], loading: true, error: "" });
+    const loadPins = requestSelf ? bbsApi.currentPinnedContent(requestAccessToken) : bbsApi.userPinnedContent(requestUserId, requestAccessToken);
+    loadPins
+      .then(async (data) => {
+        const rawPosts = listItems(data)
+          .map((item) => pinnedItemToPost(item, auth, requestSelf))
+          .filter(Boolean);
+        const posts = await hydratePostsMeta(rawPosts, auth);
+        if (!alive || pinnedSessionRef.current !== session || !matchesPinnedScope(pinnedScopeRef.current, requestUserId, requestAccessToken, requestSelf)) return;
+        setPinnedState({ posts, loading: false, error: "" });
+      })
+      .catch((error) => {
+        if (alive && pinnedSessionRef.current === session && matchesPinnedScope(pinnedScopeRef.current, requestUserId, requestAccessToken, requestSelf)) {
+          setPinnedState({ posts: [], loading: false, error: error.message || "置顶内容加载失败" });
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth, auth?.accessToken, profileUserId, self]);
 
   async function toggleFollow() {
     if (!profileUserId) {
@@ -383,8 +419,17 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
     return <EmptyState title={auth ? "暂无用户资料" : "请先登录"} description="登录后可以查看并维护个人资料。" />;
   }
 
+  function handlePinnedChange(postId, postKind, pinned) {
+    if (!self || pinned) return;
+    setPinnedState((current) => ({
+      ...current,
+      posts: current.posts.filter((post) => !sameId(post.id, postId) || post.kind !== postKind)
+    }));
+  }
+
   return (
-    <section className={`user-profile-card panel ${profileThemeClass(person.profileTheme)}`}>
+    <>
+      <section className={`user-profile-card panel ${profileThemeClass(person.profileTheme)}`}>
       <div className="user-profile-cover" style={person.background ? { backgroundImage: `url(${JSON.stringify(person.background)})` } : undefined} />
       <div className="user-profile-main">
         <Avatar person={person} />
@@ -446,12 +491,43 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
           空间
         </span>
       </div>
-    </section>
+      </section>
+      {pinnedState.loading && <p className="form-muted user-pinned-status">正在加载置顶内容...</p>}
+      {pinnedState.error && <p className="form-error user-pinned-status" role="alert">{pinnedState.error}</p>}
+      {!pinnedState.loading && pinnedState.posts.length > 0 && (
+        <section className="user-pinned-content" aria-label="置顶内容">
+          <header>
+            <span>
+              <Pin size={18} aria-hidden="true" />
+              置顶内容
+            </span>
+            <small>{pinnedState.posts.length} 条</small>
+          </header>
+          {pinnedState.posts.map((post) => (
+            <PostCard auth={auth} key={`${post.kind}-${post.id}`} onPinnedChange={handlePinnedChange} post={post} />
+          ))}
+        </section>
+      )}
+    </>
   );
 }
 
 function matchesRelationScope(scope, targetUserId, accessToken) {
   return sameId(scope.targetUserId, targetUserId) && scope.accessToken === accessToken;
+}
+
+function matchesPinnedScope(scope, targetUserId, accessToken, self) {
+  return matchesRelationScope(scope, targetUserId, accessToken) && Boolean(scope.self) === Boolean(self);
+}
+
+function pinnedItemToPost(item, auth, currentViewerIsOwner) {
+  if (item?.article) {
+    return { ...articleToPost(item.article, auth), pinned: Boolean(currentViewerIsOwner) };
+  }
+  if (item?.topic) {
+    return { ...topicToPost(item.topic, auth), pinned: Boolean(currentViewerIsOwner) };
+  }
+  return null;
 }
 
 function UserSafetyPanel({ auth }) {

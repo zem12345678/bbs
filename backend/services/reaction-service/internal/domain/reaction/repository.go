@@ -46,6 +46,12 @@ type FavoriteRepository interface {
 	ListFavorites(ctx context.Context, userID int64, entityType EntityType, limit, offset int) ([]*Favorite, int64, error)
 }
 
+type PinRepository interface {
+	Pin(ctx context.Context, ref EntityRef, userID int64) (count int64, changed bool, err error)
+	Unpin(ctx context.Context, ref EntityRef, userID int64) (count int64, changed bool, err error)
+	ListPins(ctx context.Context, userID int64, limit, offset int) ([]*Pin, int64, error)
+}
+
 // FavoriteKeysetRepository provides stable, exclusive relation-ID traversal
 // without changing the existing offset list behavior.
 type FavoriteKeysetRepository interface {

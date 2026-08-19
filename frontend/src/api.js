@@ -251,6 +251,12 @@ export const bbsApi = {
   me(token) {
     return request("/users/me", { token });
   },
+  currentPinnedContent(token) {
+    return request("/users/me/pinned", { token });
+  },
+  userPinnedContent(userId, token) {
+    return request(`/users/${encodeURIComponent(userId)}/pinned`, { token });
+  },
   updateMe(payload, token) {
     return request("/users/me", { method: "PUT", body: payload, token });
   },
@@ -968,6 +974,12 @@ export const bbsApi = {
   },
   unfavoriteArticle(articleId, token) {
     return request(`/articles/${articleId}/favorite`, { method: "DELETE", token });
+  },
+  pinNote(noteId, token) {
+    return request("/i/pin", { method: "POST", body: { noteId: String(noteId) }, token });
+  },
+  unpinNote(noteId, token) {
+    return request("/i/unpin", { method: "POST", body: { noteId: String(noteId) }, token });
   },
   reportTopic(topicId, payload, token) {
     return request(`/topics/${topicId}/report`, { method: "POST", body: payload, token });

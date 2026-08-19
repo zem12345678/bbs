@@ -7876,6 +7876,36 @@ a {
   overflow: hidden;
 }
 
+.user-pinned-content {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.user-pinned-content > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #263247;
+}
+
+.user-pinned-content > header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.user-pinned-content > header small,
+.user-pinned-status {
+  color: #737d8e;
+}
+
+.user-pinned-status {
+  margin: 16px 0 0;
+}
+
 .user-profile-cover {
   height: 132px;
   background:

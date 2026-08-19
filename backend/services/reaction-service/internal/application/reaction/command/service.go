@@ -15,13 +15,14 @@ type Service struct {
 	reports     domain.ReportRepository
 	likes       domain.LikeRepository
 	favorites   domain.FavoriteRepository
+	pins        domain.PinRepository
 	collections domain.CollectionRepository
 	publisher   messaging.EventPublisher
 	log         logger.Logger
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, collections domain.CollectionRepository, publisher messaging.EventPublisher, log logger.Logger) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, collections: collections, publisher: publisher, log: log}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository, publisher messaging.EventPublisher, log logger.Logger) *Service {
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, pins: pins, collections: collections, publisher: publisher, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -197,6 +198,34 @@ func (s *Service) Unfavorite(ctx context.Context, ref domain.EntityRef, userID i
 	return Result{Count: count, Changed: changed}, nil
 }
 
+func (s *Service) Pin(ctx context.Context, ref domain.EntityRef, userID int64) (Result, error) {
+	if s.pins == nil {
+		return Result{}, domain.ErrPinRepositoryUnavailable
+	}
+	if err := validatePin(ref, userID); err != nil {
+		return Result{}, err
+	}
+	count, changed, err := s.pins.Pin(ctx, ref, userID)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Count: count, Changed: changed}, nil
+}
+
+func (s *Service) Unpin(ctx context.Context, ref domain.EntityRef, userID int64) (Result, error) {
+	if s.pins == nil {
+		return Result{}, domain.ErrPinRepositoryUnavailable
+	}
+	if err := validatePin(ref, userID); err != nil {
+		return Result{}, err
+	}
+	count, changed, err := s.pins.Unpin(ctx, ref, userID)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Count: count, Changed: changed}, nil
+}
+
 func (s *Service) SubmitReport(ctx context.Context, cmd domain.SubmitReportCmd) (ReportResult, error) {
 	if s.reports == nil {
 		return ReportResult{}, domain.ErrReportNotFound
@@ -257,4 +286,11 @@ func validateCollectionItem(userID, collectionID int64, entity domain.EntityRef)
 		return domain.ErrInvalidCollectionID
 	}
 	return entity.ValidateForCollection()
+}
+
+func validatePin(entity domain.EntityRef, userID int64) error {
+	if userID <= 0 {
+		return domain.ErrInvalidUserID
+	}
+	return entity.ValidateForPin()
 }

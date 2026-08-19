@@ -43,6 +43,9 @@ const (
 	ReactionService_ListPublicCollections_FullMethodName          = "/bbs.reaction.v1.ReactionService/ListPublicCollections"
 	ReactionService_ListPublicCollectionsForEntity_FullMethodName = "/bbs.reaction.v1.ReactionService/ListPublicCollectionsForEntity"
 	ReactionService_EraseAccountReactions_FullMethodName          = "/bbs.reaction.v1.ReactionService/EraseAccountReactions"
+	ReactionService_Pin_FullMethodName                            = "/bbs.reaction.v1.ReactionService/Pin"
+	ReactionService_Unpin_FullMethodName                          = "/bbs.reaction.v1.ReactionService/Unpin"
+	ReactionService_ListPins_FullMethodName                       = "/bbs.reaction.v1.ReactionService/ListPins"
 )
 
 // ReactionServiceClient is the client API for ReactionService service.
@@ -73,6 +76,9 @@ type ReactionServiceClient interface {
 	ListPublicCollections(ctx context.Context, in *ListPublicCollectionsRequest, opts ...grpc.CallOption) (*ListCollectionsResponse, error)
 	ListPublicCollectionsForEntity(ctx context.Context, in *ListPublicCollectionsForEntityRequest, opts ...grpc.CallOption) (*ListCollectionsResponse, error)
 	EraseAccountReactions(ctx context.Context, in *EraseAccountReactionsRequest, opts ...grpc.CallOption) (*EraseAccountReactionsResponse, error)
+	Pin(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
+	Unpin(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
+	ListPins(ctx context.Context, in *ListPinsRequest, opts ...grpc.CallOption) (*PinListResponse, error)
 }
 
 type reactionServiceClient struct {
@@ -323,6 +329,36 @@ func (c *reactionServiceClient) EraseAccountReactions(ctx context.Context, in *E
 	return out, nil
 }
 
+func (c *reactionServiceClient) Pin(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactResponse)
+	err := c.cc.Invoke(ctx, ReactionService_Pin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) Unpin(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactResponse)
+	err := c.cc.Invoke(ctx, ReactionService_Unpin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) ListPins(ctx context.Context, in *ListPinsRequest, opts ...grpc.CallOption) (*PinListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PinListResponse)
+	err := c.cc.Invoke(ctx, ReactionService_ListPins_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReactionServiceServer is the server API for ReactionService service.
 // All implementations must embed UnimplementedReactionServiceServer
 // for forward compatibility.
@@ -351,6 +387,9 @@ type ReactionServiceServer interface {
 	ListPublicCollections(context.Context, *ListPublicCollectionsRequest) (*ListCollectionsResponse, error)
 	ListPublicCollectionsForEntity(context.Context, *ListPublicCollectionsForEntityRequest) (*ListCollectionsResponse, error)
 	EraseAccountReactions(context.Context, *EraseAccountReactionsRequest) (*EraseAccountReactionsResponse, error)
+	Pin(context.Context, *ReactRequest) (*ReactResponse, error)
+	Unpin(context.Context, *ReactRequest) (*ReactResponse, error)
+	ListPins(context.Context, *ListPinsRequest) (*PinListResponse, error)
 	mustEmbedUnimplementedReactionServiceServer()
 }
 
@@ -432,6 +471,15 @@ func (UnimplementedReactionServiceServer) ListPublicCollectionsForEntity(context
 }
 func (UnimplementedReactionServiceServer) EraseAccountReactions(context.Context, *EraseAccountReactionsRequest) (*EraseAccountReactionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EraseAccountReactions not implemented")
+}
+func (UnimplementedReactionServiceServer) Pin(context.Context, *ReactRequest) (*ReactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Pin not implemented")
+}
+func (UnimplementedReactionServiceServer) Unpin(context.Context, *ReactRequest) (*ReactResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Unpin not implemented")
+}
+func (UnimplementedReactionServiceServer) ListPins(context.Context, *ListPinsRequest) (*PinListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPins not implemented")
 }
 func (UnimplementedReactionServiceServer) mustEmbedUnimplementedReactionServiceServer() {}
 func (UnimplementedReactionServiceServer) testEmbeddedByValue()                         {}
@@ -886,6 +934,60 @@ func _ReactionService_EraseAccountReactions_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReactionService_Pin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).Pin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_Pin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).Pin(ctx, req.(*ReactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_Unpin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReactRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).Unpin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_Unpin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).Unpin(ctx, req.(*ReactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_ListPins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPinsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).ListPins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_ListPins_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).ListPins(ctx, req.(*ListPinsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReactionService_ServiceDesc is the grpc.ServiceDesc for ReactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -988,6 +1090,18 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EraseAccountReactions",
 			Handler:    _ReactionService_EraseAccountReactions_Handler,
+		},
+		{
+			MethodName: "Pin",
+			Handler:    _ReactionService_Pin_Handler,
+		},
+		{
+			MethodName: "Unpin",
+			Handler:    _ReactionService_Unpin_Handler,
+		},
+		{
+			MethodName: "ListPins",
+			Handler:    _ReactionService_ListPins_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

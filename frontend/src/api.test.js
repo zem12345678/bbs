@@ -110,6 +110,38 @@ test("requests note export with the interactive bearer token", async () => {
   assert.deepEqual(JSON.parse(captured.options.body), {});
 });
 
+test("maps personal content pin mutations and profile queries with string-safe ids", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.pinNote("9223372036854775807", "access-token");
+  await bbsApi.unpinNote("9223372036854775807", "access-token");
+  await bbsApi.currentPinnedContent("access-token");
+  await bbsApi.userPinnedContent("9223372036854775807", "access-token");
+
+  assert.deepEqual(
+    requests.map((request) => [new URL(request.url).pathname, request.options.method]),
+    [
+      ["/api/v1/i/pin", "POST"],
+      ["/api/v1/i/unpin", "POST"],
+      ["/api/v1/users/me/pinned", "GET"],
+      ["/api/v1/users/9223372036854775807/pinned", "GET"]
+    ]
+  );
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.deepEqual(JSON.parse(requests[0].options.body), { noteId: "9223372036854775807" });
+  assert.deepEqual(JSON.parse(requests[1].options.body), { noteId: "9223372036854775807" });
+});
+
 test("requests note import with the selected source and interactive bearer token", async () => {
   let captured;
   globalThis.fetch = async (url, options) => {

@@ -156,8 +156,8 @@ func TestListPublicCollectionsMapsItems(t *testing.T) {
 }
 
 func newCollectionHandler(repo domain.CollectionRepository) *Handler {
-	cmd := command.NewService(nil, nil, nil, nil, repo, nil, nil)
-	qry := query.NewService(nil, nil, nil, nil, repo)
+	cmd := command.NewService(nil, nil, nil, nil, nil, repo, nil, nil)
+	qry := query.NewService(nil, nil, nil, nil, nil, repo)
 	return NewHandler(cmd, qry, nil)
 }
 

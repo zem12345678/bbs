@@ -15,6 +15,30 @@ test("maps username profile routes to the member navigation section", () => {
   assert.equal(pathToPage("/u/alice/articles"), "会员");
 });
 
+test("connects personal content pins to post actions and profile presentation", () => {
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const profileSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const cardSource = fs.readFileSync(new URL("./components/post/PostCard.jsx", import.meta.url), "utf8");
+  const threadSource = fs.readFileSync(new URL("./components/content/ThreadReader.jsx", import.meta.url), "utf8");
+
+  assert.match(apiSource, /currentPinnedContent\(token\)/);
+  assert.match(apiSource, /userPinnedContent\(userId, token\)/);
+  assert.match(apiSource, /pinNote\(noteId, token\)/);
+  assert.match(apiSource, /unpinNote\(noteId, token\)/);
+  assert.match(profileSource, /bbsApi\.currentPinnedContent\(requestAccessToken\)/);
+  assert.match(profileSource, /bbsApi\.userPinnedContent\(requestUserId, requestAccessToken\)/);
+  assert.match(profileSource, /matchesPinnedScope/);
+  assert.match(profileSource, /className="user-pinned-content"/);
+  assert.match(profileSource, /onPinnedChange=\{handlePinnedChange\}/);
+  assert.match(cardSource, /async function togglePin\(\)/);
+  assert.match(cardSource, /bbsApi\.pinNote\(post\.id, requestAccessToken\)/);
+  assert.match(cardSource, /bbsApi\.unpinNote\(post\.id, requestAccessToken\)/);
+  assert.match(cardSource, /matchesPinScope\(pinScopeRef\.current/);
+  assert.match(threadSource, /async function togglePin\(\)/);
+  assert.match(threadSource, /matchesThreadPinScope\(pinScopeRef\.current/);
+  assert.match(threadSource, /<Pin size=\{18\}/);
+});
+
 test("maps circle directory and channel management routes to the circle navigation section", () => {
   const appSource = fs.readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
   const channelSource = fs.readFileSync(new URL("./pages/ChannelRoutes.jsx", import.meta.url), "utf8");

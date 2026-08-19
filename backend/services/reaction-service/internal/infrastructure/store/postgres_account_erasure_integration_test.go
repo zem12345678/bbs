@@ -34,11 +34,13 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	t.Cleanup(cancel)
 	likeRepo := NewPostgresLikeRepository(db)
 	favoriteRepo := NewPostgresFavoriteRepository(db)
+	pinRepo := NewPostgresPinRepository(db)
 	collectionRepo := NewPostgresCollectionRepository(db)
 	reportRepo := NewPostgresReportRepository(db)
 	erasureRepo := NewAccountErasureRepository(db)
 	require.NoError(t, likeRepo.EnsureSchema(ctx))
 	require.NoError(t, favoriteRepo.EnsureSchema(ctx))
+	require.NoError(t, pinRepo.EnsureSchema(ctx))
 	require.NoError(t, collectionRepo.EnsureSchema(ctx))
 	require.NoError(t, reportRepo.EnsureSchema(ctx))
 	require.NoError(t, erasureRepo.EnsureSchema(ctx))
@@ -61,6 +63,7 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 		_ = cleanup.Where("entity_id IN ?", entityIDs).Delete(&reportPO{}).Error
 		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&collectionPO{}).Error
 		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&favoritePO{}).Error
+		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&pinPO{}).Error
 		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&likePO{}).Error
 		_ = cleanup.Where("user_id IN ?", userIDs).Delete(&reactionErasedUserPO{}).Error
 	})
@@ -76,6 +79,8 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	_, _, err = favoriteRepo.Favorite(ctx, topic, targetUserID)
 	require.NoError(t, err)
 	_, _, err = favoriteRepo.Unfavorite(ctx, topic, targetUserID)
+	require.NoError(t, err)
+	_, _, err = pinRepo.Pin(ctx, article, targetUserID)
 	require.NoError(t, err)
 
 	targetCollection := &reactionDomain.Collection{UserID: targetUserID, Name: "Erasure target"}
@@ -133,6 +138,8 @@ func TestAccountErasurePostgresIntegration(t *testing.T) {
 	require.ErrorIs(t, err, accountDomain.ErrUserErased)
 	_, _, err = favoriteRepo.Favorite(ctx, otherArticle, targetUserID)
 	require.ErrorIs(t, err, accountDomain.ErrUserErased)
+	_, _, err = pinRepo.Pin(ctx, otherArticle, targetUserID)
+	require.ErrorIs(t, err, accountDomain.ErrUserErased)
 	require.ErrorIs(t, collectionRepo.CreateCollection(ctx, &reactionDomain.Collection{UserID: targetUserID, Name: "Late"}), accountDomain.ErrUserErased)
 	_, err = collectionRepo.AddCollectionItem(ctx, targetUserID, otherCollection.ID, otherArticle)
 	require.ErrorIs(t, err, accountDomain.ErrUserErased)
@@ -173,6 +180,7 @@ func assertReactionAccountErased(t *testing.T, ctx context.Context, db *gorm.DB,
 	assertDatabaseValue(t, ctx, db, 1, `SELECT COUNT(*) FROM reaction_erased_users WHERE user_id = ?`, userID)
 	assertDatabaseValue(t, ctx, db, 0, `SELECT COUNT(*) FROM user_likes WHERE user_id = ?`, userID)
 	assertDatabaseValue(t, ctx, db, 0, `SELECT COUNT(*) FROM favorites WHERE user_id = ?`, userID)
+	assertDatabaseValue(t, ctx, db, 0, `SELECT COUNT(*) FROM user_pins WHERE user_id = ?`, userID)
 	assertDatabaseValue(t, ctx, db, 0, `SELECT COUNT(*) FROM favorite_collections WHERE user_id = ?`, userID)
 	assertDatabaseValue(t, ctx, db, 0, `SELECT COUNT(*) FROM user_reports WHERE reporter_id = ? OR handled_by = ?`, userID, userID)
 }

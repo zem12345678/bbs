@@ -29,6 +29,9 @@ service ReactionService {
   rpc ListPublicCollections(ListPublicCollectionsRequest) returns (ListCollectionsResponse);
   rpc ListPublicCollectionsForEntity(ListPublicCollectionsForEntityRequest) returns (ListCollectionsResponse);
   rpc EraseAccountReactions(EraseAccountReactionsRequest) returns (EraseAccountReactionsResponse);
+  rpc Pin(ReactRequest) returns (ReactResponse);
+  rpc Unpin(ReactRequest) returns (ReactResponse);
+  rpc ListPins(ListPinsRequest) returns (PinListResponse);
 }
 
 message EntityRef {
@@ -285,4 +288,22 @@ message EraseAccountReactionsResponse {
   int64 deleted_collections = 4;
   int64 anonymized_reports = 5;
   int64 anonymized_handled_reports = 6;
+}
+
+message PinInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 user_id = 3;
+  int64 created_at = 4;
+}
+
+message ListPinsRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message PinListResponse {
+  repeated PinInfo items = 1;
+  int64 total = 2;
 }

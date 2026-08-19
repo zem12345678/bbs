@@ -38,6 +38,12 @@ func toStatus(err error) error {
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType), errors.Is(err, domain.ErrInvalidCollectionCursor), errors.Is(err, domain.ErrInvalidFavoriteCursor):
 		code = codes.InvalidArgument
+	case errors.Is(err, domain.ErrInvalidPinnedEntityType):
+		code = codes.InvalidArgument
+	case errors.Is(err, domain.ErrAlreadyPinned):
+		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrPinLimitExceeded):
+		code = codes.ResourceExhausted
 	case errors.Is(err, domain.ErrReportNotFound):
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrCollectionNotFound):
@@ -45,6 +51,8 @@ func toStatus(err error) error {
 	case errors.Is(err, domain.ErrCollectionNameExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrCollectionRepositoryUnavailable):
+		code = codes.Unavailable
+	case errors.Is(err, domain.ErrPinRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, accountDomain.ErrInvalidErasure):
 		code = codes.InvalidArgument
@@ -121,6 +129,21 @@ func toFavoritePb(favorite *domain.Favorite) *pb.FavoriteInfo {
 		UserId:    favorite.UserID,
 		CreatedAt: favorite.CreatedAt.UnixMilli(),
 		UpdatedAt: favorite.UpdatedAt.UnixMilli(),
+	}
+}
+
+func toPinPb(pin *domain.Pin) *pb.PinInfo {
+	if pin == nil {
+		return nil
+	}
+	return &pb.PinInfo{
+		Id: pin.ID,
+		Entity: &pb.EntityRef{
+			EntityType: string(pin.Entity.Type),
+			EntityId:   pin.Entity.ID,
+		},
+		UserId:    pin.UserID,
+		CreatedAt: pin.CreatedAt.UnixMilli(),
 	}
 }
 
@@ -202,6 +225,34 @@ func (h *Handler) Unfavorite(ctx context.Context, req *pb.ReactRequest) (*pb.Rea
 		return nil, toStatus(err)
 	}
 	return toResponse(result), nil
+}
+
+func (h *Handler) Pin(ctx context.Context, req *pb.ReactRequest) (*pb.ReactResponse, error) {
+	result, err := h.cmd.Pin(ctx, toRef(req.GetEntity()), req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toResponse(result), nil
+}
+
+func (h *Handler) Unpin(ctx context.Context, req *pb.ReactRequest) (*pb.ReactResponse, error) {
+	result, err := h.cmd.Unpin(ctx, toRef(req.GetEntity()), req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return toResponse(result), nil
+}
+
+func (h *Handler) ListPins(ctx context.Context, req *pb.ListPinsRequest) (*pb.PinListResponse, error) {
+	rows, total, err := h.qry.ListPins(ctx, req.GetUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.PinInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toPinPb(row))
+	}
+	return &pb.PinListResponse{Items: items, Total: total}, nil
 }
 
 func (h *Handler) GetCounts(ctx context.Context, req *pb.EntityRequest) (*pb.CountsResponse, error) {
