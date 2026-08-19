@@ -287,6 +287,41 @@ func (s *Service) List(ctx context.Context, userID int64, limit, offset int32, u
 	return s.repo.List(ctx, userID, limit, offset, unreadOnly)
 }
 
+func (s *Service) ListCompatibility(ctx context.Context, query domain.NotificationCompatibilityQuery) ([]domain.Notification, error) {
+	if query.UserID <= 0 || query.SinceID < 0 || query.UntilID < 0 {
+		return nil, domain.ErrInvalidNotificationQuery
+	}
+	if query.Limit <= 0 {
+		query.Limit = 10
+	}
+	if query.Limit > 100 {
+		return nil, domain.ErrInvalidNotificationQuery
+	}
+	query.IncludeTypes = normalizeNotificationTypes(query.IncludeTypes)
+	query.ExcludeTypes = normalizeNotificationTypes(query.ExcludeTypes)
+	if query.IncludeTypesSet && len(query.IncludeTypes) == 0 {
+		return []domain.Notification{}, nil
+	}
+	return s.repo.ListCompatibility(ctx, query)
+}
+
+func normalizeNotificationTypes(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
 func (s *Service) CountUnread(ctx context.Context, userID int64) (int64, error) {
 	return s.repo.UnreadCount(ctx, userID)
 }

@@ -130,6 +130,59 @@ func TestNotificationPreferencesDefaultAndUpdate(t *testing.T) {
 	}
 }
 
+func TestListCompatibilityNormalizesFiltersAndPreservesCursor(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	repo.compatibilityItems = []domain.Notification{{ID: 12, UserID: 42, Type: domain.NotificationTypeFollow}}
+	service := NewService(repo)
+	items, err := service.ListCompatibility(t.Context(), domain.NotificationCompatibilityQuery{
+		UserID:          42,
+		Limit:           10,
+		SinceID:         11,
+		IncludeTypesSet: true,
+		IncludeTypes:    []string{" follow ", "follow", ""},
+		ExcludeTypesSet: true,
+		ExcludeTypes:    []string{"comment"},
+	})
+	if err != nil {
+		t.Fatalf("ListCompatibility() error = %v", err)
+	}
+	if len(items) != 1 || items[0].ID != 12 {
+		t.Fatalf("items = %+v", items)
+	}
+	if repo.compatibilityQuery == nil {
+		t.Fatal("repository query was not recorded")
+	}
+	query := repo.compatibilityQuery
+	if query.SinceID != 11 || !query.IncludeTypesSet || len(query.IncludeTypes) != 1 || query.IncludeTypes[0] != domain.NotificationTypeFollow {
+		t.Fatalf("query = %+v", query)
+	}
+	if len(query.ExcludeTypes) != 1 || query.ExcludeTypes[0] != domain.NotificationTypeComment {
+		t.Fatalf("query exclusions = %+v", query.ExcludeTypes)
+	}
+}
+
+func TestListCompatibilityEmptyIncludeAndInvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	repo := newMemoryRepo()
+	service := NewService(repo)
+	items, err := service.ListCompatibility(t.Context(), domain.NotificationCompatibilityQuery{UserID: 42, Limit: 10, IncludeTypesSet: true})
+	if err != nil {
+		t.Fatalf("empty include: %v", err)
+	}
+	if len(items) != 0 || repo.compatibilityQuery != nil {
+		t.Fatalf("empty include = items:%+v query:%+v", items, repo.compatibilityQuery)
+	}
+	if _, err := service.ListCompatibility(t.Context(), domain.NotificationCompatibilityQuery{UserID: 42, Limit: 101}); !errors.Is(err, domain.ErrInvalidNotificationQuery) {
+		t.Fatalf("invalid limit error = %v", err)
+	}
+	if _, err := service.ListCompatibility(t.Context(), domain.NotificationCompatibilityQuery{UserID: 0, Limit: 10}); !errors.Is(err, domain.ErrInvalidNotificationQuery) {
+		t.Fatalf("invalid user error = %v", err)
+	}
+}
+
 func TestNotifyTopicReactionCreatesNotification(t *testing.T) {
 	t.Parallel()
 
@@ -768,18 +821,20 @@ type userErasure struct {
 }
 
 type memoryRepo struct {
-	contents        map[string]domain.ContentRef
-	articles        map[int64]domain.ArticleRef
-	comments        map[int64]domain.CommentRef
-	pending         []pendingNotification
-	pendingReplies  []pendingReplyNotification
-	created         []domain.Notification
-	createdEventIDs map[string]struct{}
-	systemCommands  []domain.SystemNotificationCommand
-	systemKeys      map[string]struct{}
-	systemErr       error
-	preferences     []domain.NotificationPreference
-	erasures        []userErasure
+	contents           map[string]domain.ContentRef
+	articles           map[int64]domain.ArticleRef
+	comments           map[int64]domain.CommentRef
+	pending            []pendingNotification
+	pendingReplies     []pendingReplyNotification
+	created            []domain.Notification
+	createdEventIDs    map[string]struct{}
+	systemCommands     []domain.SystemNotificationCommand
+	systemKeys         map[string]struct{}
+	systemErr          error
+	preferences        []domain.NotificationPreference
+	erasures           []userErasure
+	compatibilityItems []domain.Notification
+	compatibilityQuery *domain.NotificationCompatibilityQuery
 }
 
 func newMemoryRepo() *memoryRepo {
@@ -962,6 +1017,14 @@ func (r *memoryRepo) ReplacePreferences(_ context.Context, _ int64, preferences 
 
 func (r *memoryRepo) List(context.Context, int64, int32, int32, bool) ([]domain.Notification, int64, int64, error) {
 	return nil, 0, 0, nil
+}
+
+func (r *memoryRepo) ListCompatibility(_ context.Context, query domain.NotificationCompatibilityQuery) ([]domain.Notification, error) {
+	copyQuery := query
+	copyQuery.IncludeTypes = append([]string(nil), query.IncludeTypes...)
+	copyQuery.ExcludeTypes = append([]string(nil), query.ExcludeTypes...)
+	r.compatibilityQuery = &copyQuery
+	return append([]domain.Notification(nil), r.compatibilityItems...), nil
 }
 
 func (r *memoryRepo) UnreadCount(context.Context, int64) (int64, error) { return 0, nil }

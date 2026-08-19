@@ -6,6 +6,7 @@ option go_package = "api-gateway/api/proto/notificationpb;notificationpb";
 
 service NotificationService {
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc ListNotificationsCompat(ListNotificationsCompatRequest) returns (ListNotificationsResponse);
   rpc CountUnread(CountUnreadRequest) returns (CountUnreadResponse);
   rpc MarkRead(MarkReadRequest) returns (MutationResponse);
   rpc MarkAllRead(MarkAllReadRequest) returns (MutationResponse);
@@ -47,6 +48,17 @@ message ListNotificationsRequest {
   int32 limit = 2;
   int32 offset = 3;
   bool unread_only = 4;
+}
+
+message ListNotificationsCompatRequest {
+  int64 user_id = 1;
+  int32 limit = 2;
+  int64 since_id = 3;
+  int64 until_id = 4;
+  repeated string include_types = 5;
+  repeated string exclude_types = 6;
+  bool include_types_set = 7;
+  bool exclude_types_set = 8;
 }
 
 message ListNotificationsResponse {

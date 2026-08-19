@@ -999,6 +999,12 @@ export const bbsApi = {
   notifications(params = {}, token) {
     return request(`/notifications${buildQuery({ limit: 20, offset: 0, ...params })}`, { token });
   },
+  misskeyNotifications(params = {}, token) {
+    return request("/i/notifications", { method: "POST", body: params, token });
+  },
+  misskeyGroupedNotifications(params = {}, token) {
+    return request("/i/notifications-grouped", { method: "POST", body: params, token });
+  },
   notificationUnreadCount(token) {
     return request("/notifications/unread-count", { token });
   },

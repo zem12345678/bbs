@@ -273,6 +273,10 @@ func (r *mallProjectorRepo) List(context.Context, int64, int32, int32, bool) ([]
 	return nil, 0, 0, nil
 }
 
+func (r *mallProjectorRepo) ListCompatibility(context.Context, domain.NotificationCompatibilityQuery) ([]domain.Notification, error) {
+	return nil, nil
+}
+
 func (r *mallProjectorRepo) UnreadCount(context.Context, int64) (int64, error) { return 0, nil }
 func (r *mallProjectorRepo) MarkRead(context.Context, int64, int64) error      { return nil }
 func (r *mallProjectorRepo) MarkAllRead(context.Context, int64) error          { return nil }

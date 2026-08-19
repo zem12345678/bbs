@@ -31,6 +31,27 @@ func (h *Handler) ListNotifications(ctx context.Context, req *pb.ListNotificatio
 	return resp, nil
 }
 
+func (h *Handler) ListNotificationsCompat(ctx context.Context, req *pb.ListNotificationsCompatRequest) (*pb.ListNotificationsResponse, error) {
+	items, err := h.service.ListCompatibility(ctx, domain.NotificationCompatibilityQuery{
+		UserID:          req.GetUserId(),
+		Limit:           req.GetLimit(),
+		SinceID:         req.GetSinceId(),
+		UntilID:         req.GetUntilId(),
+		IncludeTypes:    req.GetIncludeTypes(),
+		ExcludeTypes:    req.GetExcludeTypes(),
+		IncludeTypesSet: req.GetIncludeTypesSet(),
+		ExcludeTypesSet: req.GetExcludeTypesSet(),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	resp := &pb.ListNotificationsResponse{Items: make([]*pb.Notification, 0, len(items))}
+	for _, item := range items {
+		resp.Items = append(resp.Items, toPB(item))
+	}
+	return resp, nil
+}
+
 func (h *Handler) CountUnread(ctx context.Context, req *pb.CountUnreadRequest) (*pb.CountUnreadResponse, error) {
 	count, err := h.service.CountUnread(ctx, req.GetUserId())
 	if err != nil {

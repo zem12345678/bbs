@@ -45,6 +45,12 @@ type runtimeConfig struct {
 			UserRate        int
 		}
 	}
+	Notifications struct {
+		RateLimit struct {
+			Interval time.Duration
+			Rate     int
+		}
+	}
 	Files struct {
 		RateLimit struct {
 			UploadInterval time.Duration
@@ -119,6 +125,8 @@ const (
 	defaultSearchContentRate         = 60
 	defaultSearchUserInterval        = time.Minute
 	defaultSearchUserRate            = 10
+	defaultNotificationInterval      = 30 * time.Second
+	defaultNotificationRate          = 30
 	defaultFileUploadInterval        = time.Minute
 	defaultFileUploadRate            = 10
 	defaultAccountDataExportInterval = 72 * time.Hour
@@ -180,6 +188,8 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	cfg.Search.RateLimit.ContentRate = positiveInt(v.GetInt("search.rateLimit.contentRate"), defaultSearchContentRate)
 	cfg.Search.RateLimit.UserInterval = positiveDuration(v.GetDuration("search.rateLimit.userInterval"), defaultSearchUserInterval)
 	cfg.Search.RateLimit.UserRate = positiveInt(v.GetInt("search.rateLimit.userRate"), defaultSearchUserRate)
+	cfg.Notifications.RateLimit.Interval = positiveDuration(v.GetDuration("notifications.rateLimit.interval"), defaultNotificationInterval)
+	cfg.Notifications.RateLimit.Rate = positiveInt(v.GetInt("notifications.rateLimit.rate"), defaultNotificationRate)
 	cfg.Files.RateLimit.UploadInterval = positiveDuration(v.GetDuration("files.rateLimit.uploadInterval"), defaultFileUploadInterval)
 	cfg.Files.RateLimit.UploadRate = positiveInt(v.GetInt("files.rateLimit.uploadRate"), defaultFileUploadRate)
 	cfg.Exports.RateLimit.AccountDataInterval = positiveDuration(v.GetDuration("exports.rateLimit.accountDataInterval"), defaultAccountDataExportInterval)
@@ -240,6 +250,8 @@ func loadRuntimeConfig(v *viper.Viper) (*runtimeConfig, error) {
 	v.Set("search.rateLimit.contentRate", cfg.Search.RateLimit.ContentRate)
 	v.Set("search.rateLimit.userInterval", cfg.Search.RateLimit.UserInterval)
 	v.Set("search.rateLimit.userRate", cfg.Search.RateLimit.UserRate)
+	v.Set("notifications.rateLimit.interval", cfg.Notifications.RateLimit.Interval)
+	v.Set("notifications.rateLimit.rate", cfg.Notifications.RateLimit.Rate)
 	v.Set("files.rateLimit.uploadInterval", cfg.Files.RateLimit.UploadInterval)
 	v.Set("files.rateLimit.uploadRate", cfg.Files.RateLimit.UploadRate)
 	v.Set("exports.rateLimit.accountDataInterval", cfg.Exports.RateLimit.AccountDataInterval)
@@ -591,6 +603,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "search.rateLimit.contentRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_RATE")
 	bindEnv(v, "search.rateLimit.userInterval", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_INTERVAL")
 	bindEnv(v, "search.rateLimit.userRate", "BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE")
+	bindEnv(v, "notifications.rateLimit.interval", "BBS_GATEWAY_NOTIFICATIONS_RATE_LIMIT_INTERVAL")
+	bindEnv(v, "notifications.rateLimit.rate", "BBS_GATEWAY_NOTIFICATIONS_RATE_LIMIT_RATE")
 	bindEnv(v, "files.rateLimit.uploadInterval", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL")
 	bindEnv(v, "files.rateLimit.uploadRate", "BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE")
 	bindEnv(v, "exports.rateLimit.accountDataInterval", "BBS_GATEWAY_EXPORTS_RATE_LIMIT_ACCOUNT_DATA_INTERVAL")

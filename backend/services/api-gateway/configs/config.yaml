@@ -67,6 +67,11 @@ search:
     userInterval: 1m
     userRate: 10
 
+notifications:
+  rateLimit:
+    interval: 30s
+    rate: 30
+
 files:
   rateLimit:
     uploadInterval: 1m

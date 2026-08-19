@@ -61,6 +61,8 @@ upstreams:
 	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_CONTENT_RATE", "42")
 	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_INTERVAL", "3m")
 	t.Setenv("BBS_GATEWAY_SEARCH_RATE_LIMIT_USER_RATE", "6")
+	t.Setenv("BBS_GATEWAY_NOTIFICATIONS_RATE_LIMIT_INTERVAL", "45s")
+	t.Setenv("BBS_GATEWAY_NOTIFICATIONS_RATE_LIMIT_RATE", "29")
 	t.Setenv("BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_INTERVAL", "9m")
 	t.Setenv("BBS_GATEWAY_FILES_RATE_LIMIT_UPLOAD_RATE", "8")
 	t.Setenv("BBS_GATEWAY_EXPORTS_RATE_LIMIT_ACCOUNT_DATA_INTERVAL", "96h")
@@ -156,6 +158,9 @@ upstreams:
 	}
 	if cfg.Search.RateLimit.UserInterval != 3*time.Minute || cfg.Search.RateLimit.UserRate != 6 {
 		t.Fatalf("user search rate limit = %s/%d", cfg.Search.RateLimit.UserInterval, cfg.Search.RateLimit.UserRate)
+	}
+	if cfg.Notifications.RateLimit.Interval != 45*time.Second || cfg.Notifications.RateLimit.Rate != 29 {
+		t.Fatalf("notification rate limit = %s/%d", cfg.Notifications.RateLimit.Interval, cfg.Notifications.RateLimit.Rate)
 	}
 	if cfg.Files.RateLimit.UploadInterval != 9*time.Minute || cfg.Files.RateLimit.UploadRate != 8 {
 		t.Fatalf("file upload rate limit = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)
@@ -360,6 +365,9 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	}
 	if cfg.Search.RateLimit.UserInterval != time.Minute || cfg.Search.RateLimit.UserRate != 10 {
 		t.Fatalf("user search defaults = %s/%d", cfg.Search.RateLimit.UserInterval, cfg.Search.RateLimit.UserRate)
+	}
+	if cfg.Notifications.RateLimit.Interval != 30*time.Second || cfg.Notifications.RateLimit.Rate != 30 {
+		t.Fatalf("notification defaults = %s/%d", cfg.Notifications.RateLimit.Interval, cfg.Notifications.RateLimit.Rate)
 	}
 	if cfg.Files.RateLimit.UploadInterval != time.Minute || cfg.Files.RateLimit.UploadRate != 10 {
 		t.Fatalf("file upload defaults = %s/%d", cfg.Files.RateLimit.UploadInterval, cfg.Files.RateLimit.UploadRate)

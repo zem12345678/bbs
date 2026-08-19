@@ -80,6 +80,25 @@ test("loads public custom emojis without authentication", async () => {
   assert.equal(data.emojis[0].name, "party");
 });
 
+test("requests Misskey-compatible notification feeds with the bearer token", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, []);
+  };
+
+  await bbsApi.misskeyNotifications({ limit: 10, sinceId: "9007199254740993", includeTypes: ["reaction"] }, "access-token");
+  await bbsApi.misskeyGroupedNotifications({ markAsRead: false }, "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [url, options.method, options.headers.Authorization, JSON.parse(options.body)]),
+    [
+      ["http://127.0.0.1:18080/api/v1/i/notifications", "POST", "Bearer access-token", { limit: 10, sinceId: "9007199254740993", includeTypes: ["reaction"] }],
+      ["http://127.0.0.1:18080/api/v1/i/notifications-grouped", "POST", "Bearer access-token", { markAsRead: false }]
+    ]
+  );
+});
+
 test("requests favorite export with the interactive bearer token", async () => {
   let captured;
   globalThis.fetch = async (url, options) => {

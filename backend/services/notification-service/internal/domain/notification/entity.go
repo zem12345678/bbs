@@ -58,6 +58,7 @@ var (
 	ErrInvalidSystemNotification          = errors.New("invalid system notification")
 	ErrInvalidExportCompletedNotification = errors.New("invalid export completed notification")
 	ErrInvalidUserErasure                 = errors.New("invalid user erasure")
+	ErrInvalidNotificationQuery           = errors.New("invalid notification query")
 	ErrInvalidNotificationPreferences     = errors.New("invalid notification preferences")
 	ErrInvalidWebPushSubscription         = errors.New("invalid web push subscription")
 	ErrWebPushDisabled                    = errors.New("web push is disabled")
@@ -76,6 +77,17 @@ type Notification struct {
 	SourceID   int64
 	ReadAt     *time.Time
 	CreatedAt  time.Time
+}
+
+type NotificationCompatibilityQuery struct {
+	UserID          int64
+	Limit           int32
+	SinceID         int64
+	UntilID         int64
+	IncludeTypes    []string
+	ExcludeTypes    []string
+	IncludeTypesSet bool
+	ExcludeTypesSet bool
 }
 
 type NotificationPreference struct {
@@ -248,6 +260,7 @@ type Repository interface {
 	ListPreferences(ctx context.Context, userID int64) ([]NotificationPreference, error)
 	ReplacePreferences(ctx context.Context, userID int64, preferences []NotificationPreference) error
 	List(ctx context.Context, userID int64, limit, offset int32, unreadOnly bool) ([]Notification, int64, int64, error)
+	ListCompatibility(ctx context.Context, query NotificationCompatibilityQuery) ([]Notification, error)
 	UnreadCount(ctx context.Context, userID int64) (int64, error)
 	MarkRead(ctx context.Context, userID, id int64) error
 	MarkAllRead(ctx context.Context, userID int64) error

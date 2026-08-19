@@ -50,6 +50,11 @@ search:
     userInterval: 1m
     userRate: 10
 
+notifications:
+  rateLimit:
+    interval: 30s
+    rate: 30
+
 http:
   publicBaseURL: http://127.0.0.1:18080
 

@@ -194,6 +194,9 @@ CREATE INDEX IF NOT EXISTS idx_pending_reply_notifications_parent
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created
   ON notifications(user_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id
+  ON notifications(user_id, id);
+
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
   ON notifications(user_id, created_at DESC)
   WHERE read_at IS NULL;
@@ -1262,6 +1265,62 @@ LIMIT $2 OFFSET $3
 		return nil, 0, 0, err
 	}
 	return items, total, unread, nil
+}
+
+func (r *PostgresRepository) ListCompatibility(ctx context.Context, query domain.NotificationCompatibilityQuery) ([]domain.Notification, error) {
+	if query.IncludeTypesSet && len(query.IncludeTypes) == 0 {
+		return []domain.Notification{}, nil
+	}
+	filter := "user_id = $1"
+	args := []any{query.UserID}
+	nextArg := 2
+	if query.SinceID > 0 {
+		filter += " AND id > $" + strconv.Itoa(nextArg)
+		args = append(args, query.SinceID)
+		nextArg++
+	}
+	if query.UntilID > 0 {
+		filter += " AND id < $" + strconv.Itoa(nextArg)
+		args = append(args, query.UntilID)
+		nextArg++
+	}
+	if query.IncludeTypesSet {
+		filter += " AND type = ANY($" + strconv.Itoa(nextArg) + ")"
+		args = append(args, query.IncludeTypes)
+		nextArg++
+	} else if query.ExcludeTypesSet && len(query.ExcludeTypes) > 0 {
+		filter += " AND NOT (type = ANY($" + strconv.Itoa(nextArg) + "))"
+		args = append(args, query.ExcludeTypes)
+		nextArg++
+	}
+	order := "DESC"
+	if query.SinceID > 0 && query.UntilID == 0 {
+		order = "ASC"
+	}
+	args = append(args, query.Limit)
+	rows, err := r.pool.Query(ctx, `
+SELECT id, user_id, type, title, content, actor_id, entity_type, entity_id, source_id, read_at, created_at
+FROM notifications
+WHERE `+filter+`
+ORDER BY id `+order+`
+LIMIT $`+strconv.Itoa(nextArg), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]domain.Notification, 0, query.Limit)
+	for rows.Next() {
+		var item domain.Notification
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Type, &item.Title, &item.Content, &item.ActorID, &item.EntityType, &item.EntityID, &item.SourceID, &item.ReadAt, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (r *PostgresRepository) UnreadCount(ctx context.Context, userID int64) (int64, error) {

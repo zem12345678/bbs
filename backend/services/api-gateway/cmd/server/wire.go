@@ -144,6 +144,14 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 			redisClient, runtimeCfg.Search.RateLimit.UserInterval, runtimeCfg.Search.RateLimit.UserRate,
 		),
 	}
+	notificationRateLimits := httpiface.NotificationRateLimits{
+		List: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Notifications.RateLimit.Interval, runtimeCfg.Notifications.RateLimit.Rate,
+		),
+		Grouped: ratelimit.NewRedisSlidingWindowLimiter(
+			redisClient, runtimeCfg.Notifications.RateLimit.Interval, runtimeCfg.Notifications.RateLimit.Rate,
+		),
+	}
 	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
 	)
@@ -202,6 +210,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetChatReadLimit(chatReadLimit)
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
+	handler.SetNotificationRateLimits(notificationRateLimits)
 	handler.SetFileUploadLimit(fileUploadLimit)
 	handler.SetAntennaImportLimit(antennaImportLimit)
 	handler.SetBlockingImportLimit(blockingImportLimit)

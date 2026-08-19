@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	NotificationService_ListNotifications_FullMethodName             = "/bbs.notification.v1.NotificationService/ListNotifications"
+	NotificationService_ListNotificationsCompat_FullMethodName       = "/bbs.notification.v1.NotificationService/ListNotificationsCompat"
 	NotificationService_CountUnread_FullMethodName                   = "/bbs.notification.v1.NotificationService/CountUnread"
 	NotificationService_MarkRead_FullMethodName                      = "/bbs.notification.v1.NotificationService/MarkRead"
 	NotificationService_MarkAllRead_FullMethodName                   = "/bbs.notification.v1.NotificationService/MarkAllRead"
@@ -42,6 +43,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NotificationServiceClient interface {
 	ListNotifications(ctx context.Context, in *ListNotificationsRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error)
+	ListNotificationsCompat(ctx context.Context, in *ListNotificationsCompatRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error)
 	CountUnread(ctx context.Context, in *CountUnreadRequest, opts ...grpc.CallOption) (*CountUnreadResponse, error)
 	MarkRead(ctx context.Context, in *MarkReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 	MarkAllRead(ctx context.Context, in *MarkAllReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
@@ -71,6 +73,16 @@ func (c *notificationServiceClient) ListNotifications(ctx context.Context, in *L
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListNotificationsResponse)
 	err := c.cc.Invoke(ctx, NotificationService_ListNotifications_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) ListNotificationsCompat(ctx context.Context, in *ListNotificationsCompatRequest, opts ...grpc.CallOption) (*ListNotificationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListNotificationsResponse)
+	err := c.cc.Invoke(ctx, NotificationService_ListNotificationsCompat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +244,7 @@ func (c *notificationServiceClient) TestWebhook(ctx context.Context, in *TestWeb
 // for forward compatibility.
 type NotificationServiceServer interface {
 	ListNotifications(context.Context, *ListNotificationsRequest) (*ListNotificationsResponse, error)
+	ListNotificationsCompat(context.Context, *ListNotificationsCompatRequest) (*ListNotificationsResponse, error)
 	CountUnread(context.Context, *CountUnreadRequest) (*CountUnreadResponse, error)
 	MarkRead(context.Context, *MarkReadRequest) (*MutationResponse, error)
 	MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error)
@@ -259,6 +272,9 @@ type UnimplementedNotificationServiceServer struct{}
 
 func (UnimplementedNotificationServiceServer) ListNotifications(context.Context, *ListNotificationsRequest) (*ListNotificationsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListNotifications not implemented")
+}
+func (UnimplementedNotificationServiceServer) ListNotificationsCompat(context.Context, *ListNotificationsCompatRequest) (*ListNotificationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListNotificationsCompat not implemented")
 }
 func (UnimplementedNotificationServiceServer) CountUnread(context.Context, *CountUnreadRequest) (*CountUnreadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CountUnread not implemented")
@@ -340,6 +356,24 @@ func _NotificationService_ListNotifications_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotificationServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_ListNotificationsCompat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotificationsCompatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).ListNotificationsCompat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_ListNotificationsCompat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).ListNotificationsCompat(ctx, req.(*ListNotificationsCompatRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -624,6 +658,10 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListNotifications",
 			Handler:    _NotificationService_ListNotifications_Handler,
+		},
+		{
+			MethodName: "ListNotificationsCompat",
+			Handler:    _NotificationService_ListNotificationsCompat_Handler,
 		},
 		{
 			MethodName: "CountUnread",

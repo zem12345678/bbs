@@ -88,6 +88,7 @@ type Handler struct {
 	chatReadLimit                      ratelimit.Limiter
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
+	notificationRateLimits             NotificationRateLimits
 	fileUploadLimit                    ratelimit.Limiter
 	antennaImportLimit                 ratelimit.Limiter
 	blockingImportLimit                ratelimit.Limiter
@@ -511,6 +512,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 			r.POST(prefix+"/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 			r.POST(prefix+"/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
+			r.POST(prefix+"/i/notifications", h.requireAuthScope("read"), h.listNotificationsCompat)
+			r.POST(prefix+"/i/notifications-grouped", h.requireAuthScope("read"), h.listGroupedNotificationsCompat)
 			r.POST(prefix+"/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
 			r.POST(prefix+"/i/import-blocking", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importBlocking)
 			r.POST(prefix+"/i/import-muting", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importMuting)
@@ -559,6 +562,8 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/i/export-mute", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportMute)
 		api.POST("/i/export-notes", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportNotes)
 		api.POST("/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
+		api.POST("/i/notifications", h.requireAuthScope("read"), h.listNotificationsCompat)
+		api.POST("/i/notifications-grouped", h.requireAuthScope("read"), h.listGroupedNotificationsCompat)
 		api.POST("/i/pin", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.pinNote)
 		api.POST("/i/unpin", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.unpinNote)
 		api.POST("/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
