@@ -184,6 +184,8 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
   const [relationAction, setRelationAction] = React.useState("");
   const [followError, setFollowError] = React.useState("");
   const [shareNotice, setShareNotice] = React.useState("");
+  const [memoForm, setMemoForm] = React.useState("");
+  const [memoState, setMemoState] = React.useState({ loading: false, saving: false, error: "", message: "" });
   const [followerCount, setFollowerCount] = React.useState(toNumber(person?.followerCount));
   const [pinnedState, setPinnedState] = React.useState({ posts: [], loading: false, error: "" });
   const relationSessionRef = React.useRef(0);
@@ -192,10 +194,13 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
   const relationScopeRef = React.useRef({ targetUserId: "", accessToken: "" });
   const pinnedSessionRef = React.useRef(0);
   const pinnedScopeRef = React.useRef({ targetUserId: "", accessToken: "", self: false });
+  const memoSessionRef = React.useRef(0);
+  const memoScopeRef = React.useRef({ targetUserId: "", accessToken: "" });
   const profileUserId = toId(person?.id);
   const self = sameId(auth?.user?.id, profileUserId);
   relationScopeRef.current = { targetUserId: profileUserId, accessToken: auth?.accessToken || "" };
   pinnedScopeRef.current = { targetUserId: profileUserId, accessToken: auth?.accessToken || "", self };
+  memoScopeRef.current = { targetUserId: profileUserId, accessToken: auth?.accessToken || "" };
 
   React.useEffect(() => {
     setFollowerCount(toNumber(person?.followerCount));
@@ -285,6 +290,33 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
       alive = false;
     };
   }, [auth, auth?.accessToken, profileUserId, self]);
+
+  React.useEffect(() => {
+    const session = memoSessionRef.current + 1;
+    memoSessionRef.current = session;
+    setMemoForm("");
+    setMemoState({ loading: false, saving: false, error: "", message: "" });
+    if (!publicSpace || self || !profileUserId || !auth?.accessToken) {
+      return undefined;
+    }
+    let alive = true;
+    const requestTargetUserId = profileUserId;
+    const requestAccessToken = auth.accessToken;
+    setMemoState({ loading: true, saving: false, error: "", message: "" });
+    bbsApi.getUserMemo(requestTargetUserId, requestAccessToken)
+      .then((data) => {
+        if (!alive || memoSessionRef.current !== session || !matchesRelationScope(memoScopeRef.current, requestTargetUserId, requestAccessToken)) return;
+        setMemoForm(String(data?.memo || ""));
+        setMemoState({ loading: false, saving: false, error: "", message: "" });
+      })
+      .catch((error) => {
+        if (!alive || memoSessionRef.current !== session || !matchesRelationScope(memoScopeRef.current, requestTargetUserId, requestAccessToken)) return;
+        setMemoState({ loading: false, saving: false, error: error.message || "个人备注加载失败", message: "" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [auth?.accessToken, profileUserId, publicSpace, self]);
 
   async function toggleFollow() {
     if (!profileUserId) {
@@ -415,6 +447,23 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
     setShareNotice(result.message);
   }
 
+  async function saveUserMemo() {
+    if (!profileUserId || !auth?.accessToken || self || memoState.loading || memoState.saving) return;
+    const requestTargetUserId = profileUserId;
+    const requestAccessToken = auth.accessToken;
+    const requestSession = memoSessionRef.current;
+    setMemoState({ loading: false, saving: true, error: "", message: "" });
+    try {
+      await bbsApi.updateUserMemo(requestTargetUserId, memoForm, requestAccessToken);
+      if (memoSessionRef.current !== requestSession || !matchesRelationScope(memoScopeRef.current, requestTargetUserId, requestAccessToken)) return;
+      setMemoForm((value) => value.trim());
+      setMemoState({ loading: false, saving: false, error: "", message: memoForm.trim() ? "个人备注已保存。" : "个人备注已删除。" });
+    } catch (error) {
+      if (memoSessionRef.current !== requestSession || !matchesRelationScope(memoScopeRef.current, requestTargetUserId, requestAccessToken)) return;
+      setMemoState({ loading: false, saving: false, error: error.message || "个人备注保存失败", message: "" });
+    }
+  }
+
   if (!person) {
     return <EmptyState title={auth ? "暂无用户资料" : "请先登录"} description="登录后可以查看并维护个人资料。" />;
   }
@@ -472,6 +521,24 @@ function UserProfilePanel({ auth, person, publicSpace, publicUsername }) {
           </div>
         )}
       </div>
+      {publicSpace && !self && auth?.accessToken && (
+        <div className="user-profile-memo">
+          <label htmlFor="user-profile-memo-field">个人备注</label>
+          <textarea
+            id="user-profile-memo-field"
+            maxLength={2048}
+            value={memoForm}
+            disabled={memoState.loading || memoState.saving}
+            onChange={(event) => setMemoForm(event.target.value)}
+          />
+          <button type="button" disabled={memoState.loading || memoState.saving} onClick={saveUserMemo}>
+            <Pencil size={16} aria-hidden="true" />
+            {memoState.loading ? "加载中" : memoState.saving ? "保存中" : "保存备注"}
+          </button>
+          {memoState.error && <p className="form-error" role="alert">{memoState.error}</p>}
+          {memoState.message && <p className="form-success" role="status">{memoState.message}</p>}
+        </div>
+      )}
       {publicSpace && !self && auth && (safety.blocked || safety.blockedBy) && (
         <p className="user-safety-note">{safety.blocked ? "你已屏蔽该用户；解除屏蔽后才能重新关注。" : "该用户已屏蔽你，当前无法关注。"}</p>
       )}

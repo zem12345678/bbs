@@ -8006,6 +8006,42 @@ a {
   padding: 0 24px 12px;
 }
 
+.user-profile-memo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 0 24px 18px;
+}
+
+.user-profile-memo label,
+.user-profile-memo .form-error,
+.user-profile-memo .form-success {
+  grid-column: 1 / -1;
+}
+
+.user-profile-memo label {
+  color: #344054;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.user-profile-memo textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.user-profile-memo button {
+  display: inline-flex;
+  width: auto;
+  min-width: 112px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .user-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -9679,6 +9715,14 @@ a {
   .user-profile-actions .user-safety-action {
     width: auto;
     flex: 1;
+  }
+
+  .user-profile-memo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-memo button {
+    width: 100%;
   }
 }
 

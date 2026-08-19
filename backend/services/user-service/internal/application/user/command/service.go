@@ -439,6 +439,41 @@ func (s *Service) UpdateProfile(ctx context.Context, id int64, cmd domain.Update
 	return u, nil
 }
 
+// UpdateUserMemo creates, replaces, or deletes the caller's private memo for
+// a target user. The target lookup keeps the API's no-such-user behavior
+// independent from the memo table's foreign-key implementation.
+func (s *Service) UpdateUserMemo(ctx context.Context, userID, targetUserID int64, memo string) error {
+	if userID <= 0 || targetUserID <= 0 {
+		return domain.ErrInvalidID
+	}
+	if _, err := s.repo.FindByID(ctx, targetUserID); err != nil {
+		return err
+	}
+	memo = domain.NormalizeUserMemo(memo)
+	if !domain.ValidUserMemo(memo) {
+		return domain.ErrUserMemoTooLong
+	}
+	repo, ok := s.repo.(domain.UserMemoRepository)
+	if !ok {
+		return domain.ErrUserMemoRepositoryUnavailable
+	}
+	return repo.UpdateUserMemo(ctx, userID, targetUserID, memo)
+}
+
+func (s *Service) GetUserMemo(ctx context.Context, userID, targetUserID int64) (string, error) {
+	if userID <= 0 || targetUserID <= 0 {
+		return "", domain.ErrInvalidID
+	}
+	if _, err := s.repo.FindByID(ctx, targetUserID); err != nil {
+		return "", err
+	}
+	repo, ok := s.repo.(domain.UserMemoRepository)
+	if !ok {
+		return "", domain.ErrUserMemoRepositoryUnavailable
+	}
+	return repo.GetUserMemo(ctx, userID, targetUserID)
+}
+
 func (s *Service) ChangePassword(ctx context.Context, id int64, oldPassword string, newPassword string) error {
 	if err := s.validatePassword(newPassword); err != nil {
 		return err

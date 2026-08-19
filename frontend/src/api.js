@@ -77,7 +77,7 @@ function buildQuery(params = {}) {
   return text ? `?${text}` : "";
 }
 
-async function request(path, { method = "GET", body, token } = {}) {
+async function request(path, { method = "GET", body, token, rawResponse = false } = {}) {
   const headers = {};
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   if (body !== undefined && !isFormData) {
@@ -101,6 +101,9 @@ async function request(path, { method = "GET", body, token } = {}) {
     const error = buildApiError(data, response, text);
     notifyAuthInvalidated(error, token);
     throw error;
+  }
+  if (rawResponse) {
+    return text === "" ? undefined : data;
   }
   if (isEnvelope) {
     if (data.code !== 0) {
@@ -155,7 +158,38 @@ function filenameFromContentDisposition(value) {
 }
 
 function parseJsonPreservingLargeInts(text) {
-  return JSON.parse(text.replace(/(:\s*)(-?\d{16,})(?=[,}\]])/g, '$1"$2"'));
+  let normalized = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      normalized += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      normalized += char;
+      continue;
+    }
+    if (char === "-" || (char >= "0" && char <= "9")) {
+      const token = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text.slice(index))?.[0];
+      if (token) {
+        normalized += /^-?\d{16,}$/.test(token) ? `"${token}"` : token;
+        index += token.length - 1;
+        continue;
+      }
+    }
+    normalized += char;
+  }
+  return JSON.parse(normalized);
 }
 
 function parseResponseBody(text) {
@@ -259,6 +293,16 @@ export const bbsApi = {
   },
   updateMe(payload, token) {
     return request("/users/me", { method: "PUT", body: payload, token });
+  },
+  updateUserMemo(userId, memo, token) {
+    return request("/users/update-memo", {
+      method: "POST",
+      body: { userId: String(userId), memo: memo == null ? null : String(memo) },
+      token
+    });
+  },
+  getUserMemo(userId, token) {
+    return request(`/users/${encodeURIComponent(userId)}/memo`, { token });
   },
   changePassword(payload, token) {
     return request("/users/me/password", { method: "POST", body: payload, token });
@@ -1005,6 +1049,33 @@ export const bbsApi = {
   misskeyGroupedNotifications(params = {}, token) {
     return request("/i/notifications-grouped", { method: "POST", body: params, token });
   },
+  registrySet(payload, token) {
+    return request("/i/registry/set", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryGet(payload, token) {
+    return request("/i/registry/get", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryGetAll(payload, token) {
+    return request("/i/registry/get-all", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryGetDetail(payload, token) {
+    return request("/i/registry/get-detail", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryGetUnsecure(payload, token) {
+    return request("/i/registry/get-unsecure", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryKeys(payload, token) {
+    return request("/i/registry/keys", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryKeysWithType(payload, token) {
+    return request("/i/registry/keys-with-type", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryRemove(payload, token) {
+    return request("/i/registry/remove", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  registryScopesWithDomain(token) {
+    return request("/i/registry/scopes-with-domain", { method: "POST", body: {}, token, rawResponse: true });
+  },
   notificationUnreadCount(token) {
     return request("/notifications/unread-count", { token });
   },
@@ -1013,6 +1084,9 @@ export const bbsApi = {
   },
   markAllNotificationsRead(token) {
     return request("/notifications/read-all", { method: "POST", token });
+  },
+  flushNotifications(token) {
+    return request("/notifications/flush", { method: "POST", token });
   },
   notificationPreferences(token) {
     return request("/users/me/notification-preferences", { token });

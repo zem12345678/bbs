@@ -10,6 +10,7 @@ service NotificationService {
   rpc CountUnread(CountUnreadRequest) returns (CountUnreadResponse);
   rpc MarkRead(MarkReadRequest) returns (MutationResponse);
   rpc MarkAllRead(MarkAllReadRequest) returns (MutationResponse);
+  rpc Flush(FlushRequest) returns (MutationResponse);
   rpc GetPreferences(GetPreferencesRequest) returns (PreferencesResponse);
   rpc UpdatePreferences(UpdatePreferencesRequest) returns (PreferencesResponse);
   rpc GetWebPushConfig(GetWebPushConfigRequest) returns (WebPushConfigResponse);
@@ -81,6 +82,10 @@ message MarkReadRequest {
 }
 
 message MarkAllReadRequest {
+  int64 user_id = 1;
+}
+
+message FlushRequest {
   int64 user_id = 1;
 }
 

@@ -280,6 +280,7 @@ func (r *mallProjectorRepo) ListCompatibility(context.Context, domain.Notificati
 func (r *mallProjectorRepo) UnreadCount(context.Context, int64) (int64, error) { return 0, nil }
 func (r *mallProjectorRepo) MarkRead(context.Context, int64, int64) error      { return nil }
 func (r *mallProjectorRepo) MarkAllRead(context.Context, int64) error          { return nil }
+func (r *mallProjectorRepo) Flush(context.Context, int64) error                { return nil }
 
 func (*mallProjectorRepo) CreateWebhook(context.Context, domain.Webhook, int) (domain.Webhook, error) {
 	return domain.Webhook{}, nil

@@ -74,6 +74,13 @@ func (h *Handler) MarkAllRead(ctx context.Context, req *pb.MarkAllReadRequest) (
 	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
 }
 
+func (h *Handler) Flush(ctx context.Context, req *pb.FlushRequest) (*pb.MutationResponse, error) {
+	if err := h.service.Flush(ctx, req.GetUserId()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.MutationResponse{Success: true, Message: "ok"}, nil
+}
+
 func (h *Handler) GetPreferences(ctx context.Context, req *pb.GetPreferencesRequest) (*pb.PreferencesResponse, error) {
 	items, err := h.service.GetNotificationPreferences(ctx, req.GetUserId())
 	if err != nil {

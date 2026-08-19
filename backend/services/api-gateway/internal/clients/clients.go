@@ -11,6 +11,7 @@ import (
 type Clients struct {
 	Admin                 AdminClient
 	User                  UserClient
+	UserMemos             UserMemoClient
 	UserCharts            UserChartClient
 	UserFollowingCharts   UserFollowingChartClient
 	UserActiveUsersCharts UserActiveUsersChartClient
@@ -24,6 +25,7 @@ type Clients struct {
 	UserCredentialVersion UserCredentialVersionClient
 	UserSessions          UserSessionClient
 	UserAPITokens         UserAPITokenClient
+	UserRegistry          UserRegistryClient
 	Content               ContentClient
 	Comment               CommentClient
 	Reaction              ReactionClient

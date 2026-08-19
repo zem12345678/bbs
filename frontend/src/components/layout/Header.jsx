@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, MessageCircle, Pencil, Search } from "lucide-react";
+import { Bell, ChevronDown, MessageCircle, Pencil, Search, Trash2 } from "lucide-react";
 import { bbsApi } from "../../api";
 import { creditBalance, listItems, notificationRead, unreadCount } from "../../lib/apiShapes";
 import { timeAgoMillis, toNumber } from "../../lib/formatters";
@@ -142,6 +142,18 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
     await refreshNotifications(true);
   }
 
+  async function flushNotifications() {
+    if (!auth?.accessToken || notificationState.items.length === 0) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm("确定清空全部通知吗？")) {
+      return;
+    }
+    await bbsApi.flushNotifications(auth.accessToken);
+    emitNotificationsChanged();
+    await refreshNotifications(true);
+  }
+
   async function openNotification(item) {
     const target = notificationTarget(item);
     if (!target) {
@@ -212,6 +224,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
               items={notificationState.items}
               loading={notificationState.loading}
               unreadCount={notificationState.unreadCount}
+              onFlush={flushNotifications}
               onMarkAllRead={markAllNotificationsRead}
               onMarkRead={markNotificationRead}
               onOpenNotification={openNotification}
@@ -265,7 +278,7 @@ export default function Header({ activePage, auth, onAuthSuccess, onCreate, onDa
   );
 }
 
-function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead, onOpenNotification, onRefresh, unreadCount }) {
+function NotificationPopover({ error, items, loading, onFlush, onMarkAllRead, onMarkRead, onOpenNotification, onRefresh, unreadCount }) {
   const [filter, setFilter] = React.useState("all");
   const summary = React.useMemo(() => summarizeNotifications(items), [items]);
   const visibleItems = React.useMemo(() => filterNotifications(items, filter), [items, filter]);
@@ -283,6 +296,10 @@ function NotificationPopover({ error, items, loading, onMarkAllRead, onMarkRead,
         </div>
         <button type="button" onClick={onMarkAllRead} disabled={unreadCount === 0}>
           全部已读
+        </button>
+        <button type="button" onClick={onFlush} disabled={loading || items.length === 0} title="清空通知">
+          <Trash2 size={14} aria-hidden="true" />
+          清空
         </button>
       </header>
       {!error && !loading && items.length > 0 && (

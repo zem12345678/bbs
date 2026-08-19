@@ -1291,6 +1291,16 @@ test("profile actions ignore stale auth sessions", () => {
   }
 });
 
+test("public profiles load and update private user memos", () => {
+  const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const profilePanel = source.slice(source.indexOf("function UserProfilePanel"), source.indexOf("function matchesRelationScope"));
+
+  assert.match(profilePanel, /bbsApi\.getUserMemo\(requestTargetUserId, requestAccessToken\)/);
+  assert.match(profilePanel, /bbsApi\.updateUserMemo\(requestTargetUserId, memoForm, requestAccessToken\)/);
+  assert.match(profilePanel, /memoSessionRef\.current !== requestSession/);
+  assert.match(profilePanel, /maxLength=\{2048\}/);
+});
+
 test("public profiles keep pending follow requests out of follower counts", () => {
   const source = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
   const profilePanel = source.slice(source.indexOf("function UserProfilePanel"), source.indexOf("function matchesRelationScope"));

@@ -89,6 +89,7 @@ type Handler struct {
 	authRateLimits                     AuthRateLimits
 	searchRateLimits                   SearchRateLimits
 	notificationRateLimits             NotificationRateLimits
+	registryRateLimits                 RegistryRateLimits
 	fileUploadLimit                    ratelimit.Limiter
 	antennaImportLimit                 ratelimit.Limiter
 	blockingImportLimit                ratelimit.Limiter
@@ -473,6 +474,18 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			compatibility.POST("/antennas/show", h.requireAuthScope("read"), h.showAntenna)
 			compatibility.POST("/antennas/update", h.requireAuthScope("write"), h.updateAntenna)
 		}
+		for _, prefix := range []string{"/i", "/api/i"} {
+			registry := r.Group(prefix + "/registry")
+			registry.POST("/set", h.requireAuthScope("write"), h.setRegistryItem)
+			registry.POST("/get", h.requireAuthScope("read"), h.getRegistryItem)
+			registry.POST("/get-all", h.requireAuthScope("read"), h.getAllRegistryItems)
+			registry.POST("/get-detail", h.requireAuthScope("read"), h.getRegistryItemDetail)
+			registry.POST("/get-unsecure", h.requireAuthScope("read"), h.getUnsecureRegistryItem)
+			registry.POST("/keys", h.requireAuthScope("read"), h.listRegistryKeys)
+			registry.POST("/keys-with-type", h.requireAuthScope("read"), h.listRegistryKeysWithType)
+			registry.POST("/remove", h.requireAuthScope("write"), h.removeRegistryItem)
+			registry.POST("/scopes-with-domain", h.requireAuth(), h.requireInteractiveAuth(), h.listRegistryScopesWithDomain)
+		}
 		for _, prefix := range []string{"/api", ""} {
 			compatibility := r.Group(prefix + "/antennas")
 			compatibility.POST("/create", h.requireAuthScope("write"), h.createAntenna)
@@ -514,6 +527,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 			r.POST(prefix+"/i/notifications", h.requireAuthScope("read"), h.listNotificationsCompat)
 			r.POST(prefix+"/i/notifications-grouped", h.requireAuthScope("read"), h.listGroupedNotificationsCompat)
+			r.POST(prefix+"/i/notifications/flush", h.requireAuthScope("write"), h.flushNotifications)
+			r.POST(prefix+"/users/relation", h.requireAuthScope("read"), h.getUserRelationsCompat)
+			r.POST(prefix+"/users/update-memo", h.requireAuthScope("write"), h.updateUserMemo)
 			r.POST(prefix+"/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
 			r.POST(prefix+"/i/import-blocking", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importBlocking)
 			r.POST(prefix+"/i/import-muting", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importMuting)
@@ -540,6 +556,15 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/v2/admin/emoji/list", h.requireAdminAuth(), h.requireAdminPermission("governance:list_emojis"), h.listAdminEmojisV2)
 		}
 		api := r.Group("/api/v1")
+		api.POST("/i/registry/set", h.requireAuthScope("write"), h.setRegistryItem)
+		api.POST("/i/registry/get", h.requireAuthScope("read"), h.getRegistryItem)
+		api.POST("/i/registry/get-all", h.requireAuthScope("read"), h.getAllRegistryItems)
+		api.POST("/i/registry/get-detail", h.requireAuthScope("read"), h.getRegistryItemDetail)
+		api.POST("/i/registry/get-unsecure", h.requireAuthScope("read"), h.getUnsecureRegistryItem)
+		api.POST("/i/registry/keys", h.requireAuthScope("read"), h.listRegistryKeys)
+		api.POST("/i/registry/keys-with-type", h.requireAuthScope("read"), h.listRegistryKeysWithType)
+		api.POST("/i/registry/remove", h.requireAuthScope("write"), h.removeRegistryItem)
+		api.POST("/i/registry/scopes-with-domain", h.requireAuth(), h.requireInteractiveAuth(), h.listRegistryScopesWithDomain)
 		api.POST("/clips/create", h.requireAuthScope("write"), h.createClip)
 		api.POST("/clips/update", h.requireAuthScope("write"), h.updateClip)
 		api.POST("/clips/delete", h.requireAuthScope("write"), h.deleteClip)
@@ -564,6 +589,9 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/i/export-user-lists", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportUserLists)
 		api.POST("/i/notifications", h.requireAuthScope("read"), h.listNotificationsCompat)
 		api.POST("/i/notifications-grouped", h.requireAuthScope("read"), h.listGroupedNotificationsCompat)
+		api.POST("/i/notifications/flush", h.requireAuthScope("write"), h.flushNotifications)
+		api.POST("/users/relation", h.requireAuthScope("read"), h.getUserRelationsCompat)
+		api.POST("/users/update-memo", h.requireAuthScope("write"), h.updateUserMemo)
 		api.POST("/i/pin", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.pinNote)
 		api.POST("/i/unpin", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.unpinNote)
 		api.POST("/i/import-antennas", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.importAntennas)
@@ -722,6 +750,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/users/:id/lists", h.optionalAuth(), h.listUserLists)
 		api.GET("/users/:id/pinned", h.optionalAuth(), h.listUserPinned)
 		api.GET("/users/:id/badges", h.listUserBadges)
+		api.GET("/users/:id/memo", h.requireAuthScope("read"), h.getUserMemo)
 		api.GET("/levels", h.listLevels)
 		api.GET("/users/:id", h.getUser)
 		api.GET("/users/:id/followers", h.listFollowers)
@@ -841,6 +870,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.GET("/notifications", h.requireAuth(), h.listNotifications)
 		api.GET("/notifications/unread-count", h.requireAuth(), h.countUnreadNotifications)
 		api.POST("/notifications/read-all", h.requireAuth(), h.markAllNotificationsRead)
+		api.POST("/notifications/flush", h.requireAuthScope("write"), h.flushNotifications)
 		api.POST("/notifications/:id/read", h.requireAuth(), h.markNotificationRead)
 		api.GET("/users/me/notification-preferences", h.requireAuth(), h.getNotificationPreferences)
 		api.PUT("/users/me/notification-preferences", h.requireAuth(), h.updateNotificationPreferences)
@@ -1931,6 +1961,70 @@ func (h *Handler) updateMe(c *gin.Context) {
 	}
 	h.sanitizeUserProfileTheme(ctx, resp.GetUser())
 	response.Success(c, resp)
+}
+
+func (h *Handler) updateUserMemo(c *gin.Context) {
+	if h == nil || h.clients == nil || h.clients.UserMemos == nil {
+		writeError(c, http.StatusServiceUnavailable, "user memo service unavailable", "service_unavailable")
+		return
+	}
+	var req updateUserMemoRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	targetUserID := req.UserID.Int64()
+	if targetUserID <= 0 {
+		writeError(c, http.StatusBadRequest, "userId must be a positive integer", "invalid_argument")
+		return
+	}
+	if len(req.Memo) == 0 {
+		writeError(c, http.StatusBadRequest, "memo is required", "invalid_argument")
+		return
+	}
+	memo := ""
+	if string(req.Memo) != "null" {
+		if err := json.Unmarshal(req.Memo, &memo); err != nil {
+			writeError(c, http.StatusBadRequest, "memo must be a string or null", "invalid_argument")
+			return
+		}
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	_, err := h.clients.UserMemos.UpdateUserMemo(ctx, &userpb.UpdateUserMemoRequest{
+		UserId:       currentUserID(c),
+		TargetUserId: targetUserID,
+		Memo:         memo,
+	})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			writeError(c, http.StatusBadRequest, "No such user.", "NO_SUCH_USER")
+			return
+		}
+		writeRPCError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) getUserMemo(c *gin.Context) {
+	if h == nil || h.clients == nil || h.clients.UserMemos == nil {
+		writeError(c, http.StatusServiceUnavailable, "user memo service unavailable", "service_unavailable")
+		return
+	}
+	targetUserID, ok := pathInt64(c, "id")
+	if !ok || targetUserID <= 0 {
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	resp, err := h.clients.UserMemos.GetUserMemo(ctx, &userpb.GetUserMemoRequest{
+		UserId: currentUserID(c), TargetUserId: targetUserID,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"memo": resp.GetMemo()})
 }
 
 func (h *Handler) changePassword(c *gin.Context) {
@@ -3508,6 +3602,17 @@ func (h *Handler) markAllNotificationsRead(c *gin.Context) {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) flushNotifications(c *gin.Context) {
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	_, err := h.clients.Notification.Flush(ctx, &notificationpb.FlushRequest{UserId: currentUserID(c)})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *Handler) getNotificationPreferences(c *gin.Context) {

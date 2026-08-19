@@ -1339,6 +1339,13 @@ func (r *PostgresRepository) MarkAllRead(ctx context.Context, userID int64) erro
 	return err
 }
 
+func (r *PostgresRepository) Flush(ctx context.Context, userID int64) error {
+	return r.withUserLocks(ctx, []int64{userID}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `DELETE FROM notifications WHERE user_id = $1`, userID)
+		return err
+	})
+}
+
 func nullableTime(t time.Time) any {
 	if t.IsZero() {
 		return nil

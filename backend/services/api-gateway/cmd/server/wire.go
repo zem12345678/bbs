@@ -152,6 +152,17 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 			redisClient, runtimeCfg.Notifications.RateLimit.Interval, runtimeCfg.Notifications.RateLimit.Rate,
 		),
 	}
+	registryRateLimits := httpiface.RegistryRateLimits{
+		Set:              ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Second, 2),
+		Get:              ratelimit.NewRedisSlidingWindowLimiter(redisClient, 5*time.Second, 10),
+		GetAll:           ratelimit.NewRedisTokenBucketLimiter(redisClient, 50, 500*time.Millisecond),
+		GetDetail:        ratelimit.NewRedisSlidingWindowLimiter(redisClient, 5*time.Second, 10),
+		GetUnsecure:      ratelimit.NewRedisSlidingWindowLimiter(redisClient, 5*time.Second, 10),
+		Keys:             ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Second, 2),
+		KeysWithType:     ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Second, 2),
+		Remove:           ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Second, 2),
+		ScopesWithDomain: ratelimit.NewRedisSlidingWindowLimiter(redisClient, time.Second, 2),
+	}
 	fileUploadLimit := ratelimit.NewRedisSlidingWindowLimiter(
 		redisClient, runtimeCfg.Files.RateLimit.UploadInterval, runtimeCfg.Files.RateLimit.UploadRate,
 	)
@@ -211,6 +222,7 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	handler.SetAuthRateLimits(authRateLimits)
 	handler.SetSearchRateLimits(searchRateLimits)
 	handler.SetNotificationRateLimits(notificationRateLimits)
+	handler.SetRegistryRateLimits(registryRateLimits)
 	handler.SetFileUploadLimit(fileUploadLimit)
 	handler.SetAntennaImportLimit(antennaImportLimit)
 	handler.SetBlockingImportLimit(blockingImportLimit)

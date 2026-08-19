@@ -264,4 +264,5 @@ type Repository interface {
 	UnreadCount(ctx context.Context, userID int64) (int64, error)
 	MarkRead(ctx context.Context, userID, id int64) error
 	MarkAllRead(ctx context.Context, userID int64) error
+	Flush(ctx context.Context, userID int64) error
 }

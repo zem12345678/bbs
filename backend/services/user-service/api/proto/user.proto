@@ -16,6 +16,8 @@ service UserService {
   // credential-version claims. It is not part of the public profile surface.
   rpc GetCredentialVersion(UserIDRequest) returns (CredentialVersionResponse);
   rpc UpdateProfile(UpdateProfileRequest) returns (UserResponse);
+  rpc UpdateUserMemo(UpdateUserMemoRequest) returns (SimpleResponse);
+  rpc GetUserMemo(GetUserMemoRequest) returns (UserMemoResponse);
   rpc UpdateStatus(UpdateStatusRequest) returns (UserResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (SimpleResponse);
   rpc RequestPasswordReset(PasswordResetRequest) returns (PasswordResetResponse);
@@ -78,6 +80,11 @@ service UserService {
   rpc DeleteAntenna(DeleteAntennaRequest) returns (SimpleResponse);
   rpc GetAntenna(GetAntennaRequest) returns (AntennaInfoResponse);
   rpc ListAntennas(ListAntennasRequest) returns (AntennaListResponse);
+  rpc SetRegistryItem(SetRegistryItemRequest) returns (RegistryItemResponse);
+  rpc GetRegistryItem(GetRegistryItemRequest) returns (RegistryItemResponse);
+  rpc ListRegistryItems(ListRegistryItemsRequest) returns (RegistryItemListResponse);
+  rpc RemoveRegistryItem(GetRegistryItemRequest) returns (SimpleResponse);
+  rpc ListRegistryScopeDomains(UserIDRequest) returns (RegistryScopeDomainListResponse);
   rpc ListSessions(ListSessionsRequest) returns (SessionListResponse);
   rpc GetSession(GetSessionRequest) returns (SessionResponse);
   rpc RevokeSession(RevokeSessionRequest) returns (SessionResponse);
@@ -355,6 +362,23 @@ message UpdateProfileRequest {
   string bio = 4;
   string background_url = 5;
   string profile_theme = 6;
+}
+
+message UpdateUserMemoRequest {
+  int64 user_id = 1;
+  int64 target_user_id = 2;
+  string memo = 3;
+}
+
+message GetUserMemoRequest {
+  int64 user_id = 1;
+  int64 target_user_id = 2;
+}
+
+message UserMemoResponse {
+  bool success = 1;
+  string message = 2;
+  string memo = 3;
 }
 
 message ChangePasswordRequest {
@@ -657,6 +681,63 @@ message InviteCodeInfo {
 message InviteCodeListResponse {
   repeated InviteCodeInfo items = 1;
   int64 total = 2;
+}
+
+message RegistryDomain {
+  string value = 1;
+}
+
+message RegistryItemInfo {
+  string id = 1;
+  int64 user_id = 2;
+  RegistryDomain domain = 3;
+  repeated string scope = 4;
+  string key = 5;
+  bytes value_json = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+}
+
+message SetRegistryItemRequest {
+  int64 user_id = 1;
+  RegistryDomain domain = 2;
+  repeated string scope = 3;
+  string key = 4;
+  bytes value_json = 5;
+}
+
+message GetRegistryItemRequest {
+  int64 user_id = 1;
+  RegistryDomain domain = 2;
+  repeated string scope = 3;
+  string key = 4;
+}
+
+message ListRegistryItemsRequest {
+  int64 user_id = 1;
+  RegistryDomain domain = 2;
+  repeated string scope = 3;
+}
+
+message RegistryItemResponse {
+  RegistryItemInfo item = 1;
+}
+
+message RegistryItemListResponse {
+  repeated RegistryItemInfo items = 1;
+}
+
+message RegistryScopeDomainInfo {
+  RegistryDomain domain = 1;
+  repeated RegistryScope scopes = 2;
+}
+
+message RegistryScope {
+  repeated string segments = 1;
+}
+
+message RegistryScopeDomainListResponse {
+  repeated RegistryScopeDomainInfo items = 1;
 }
 
 message SessionClientInfo {

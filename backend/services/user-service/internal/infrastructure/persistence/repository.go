@@ -39,6 +39,18 @@ type userPO struct {
 	EmailVerifiedAt        *time.Time `gorm:"index"`
 }
 
+type userMemoPO struct {
+	UserID       int64     `gorm:"primaryKey"`
+	TargetUserID int64     `gorm:"primaryKey"`
+	Memo         string    `gorm:"type:text;not null"`
+	CreatedAt    time.Time `gorm:"not null"`
+	UpdatedAt    time.Time `gorm:"not null"`
+}
+
+func (userMemoPO) TableName() string {
+	return "user_memos"
+}
+
 func (userPO) TableName() string {
 	return "users"
 }
@@ -254,6 +266,41 @@ func (r *Repo) UpdateProfile(ctx context.Context, u *domain.User) error {
 		return domain.ErrNotFound
 	}
 	return nil
+}
+
+func (r *Repo) UpdateUserMemo(ctx context.Context, userID, targetUserID int64, memo string) error {
+	if userID <= 0 || targetUserID <= 0 {
+		return domain.ErrInvalidID
+	}
+	memo = domain.NormalizeUserMemo(memo)
+	if !domain.ValidUserMemo(memo) {
+		return domain.ErrUserMemoTooLong
+	}
+	db := r.db.WithContext(ctx)
+	if memo == "" {
+		return db.Where("user_id = ? AND target_user_id = ?", userID, targetUserID).Delete(&userMemoPO{}).Error
+	}
+	now := time.Now()
+	row := userMemoPO{UserID: userID, TargetUserID: targetUserID, Memo: memo, CreatedAt: now, UpdatedAt: now}
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "target_user_id"}},
+		DoUpdates: clause.Assignments(map[string]any{"memo": memo, "updated_at": now}),
+	}).Create(&row).Error
+}
+
+func (r *Repo) GetUserMemo(ctx context.Context, userID, targetUserID int64) (string, error) {
+	if userID <= 0 || targetUserID <= 0 {
+		return "", domain.ErrInvalidID
+	}
+	var row userMemoPO
+	err := r.db.WithContext(ctx).Where("user_id = ? AND target_user_id = ?", userID, targetUserID).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return row.Memo, nil
 }
 
 func (r *Repo) UpdatePasswordAndCredentialVersion(ctx context.Context, u *domain.User, expectedPasswordHash string) error {

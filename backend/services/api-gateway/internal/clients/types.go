@@ -52,6 +52,11 @@ type UserClient interface {
 	SetFollowApprovalRequired(context.Context, *userpb.SetFollowApprovalRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 }
 
+type UserMemoClient interface {
+	UpdateUserMemo(context.Context, *userpb.UpdateUserMemoRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	GetUserMemo(context.Context, *userpb.GetUserMemoRequest, ...grpc.CallOption) (*userpb.UserMemoResponse, error)
+}
+
 // UserChartClient is kept separate from UserClient so chart additions do not
 // widen the public profile test surface.
 type UserChartClient interface {
@@ -149,6 +154,14 @@ type UserAPITokenClient interface {
 	CreateAPIToken(context.Context, *userpb.CreateAPITokenRequest, ...grpc.CallOption) (*userpb.CreateAPITokenResponse, error)
 	ListAPITokens(context.Context, *userpb.ListAPITokensRequest, ...grpc.CallOption) (*userpb.APITokenListResponse, error)
 	RevokeAPIToken(context.Context, *userpb.RevokeAPITokenRequest, ...grpc.CallOption) (*userpb.APITokenResponse, error)
+}
+
+type UserRegistryClient interface {
+	SetRegistryItem(context.Context, *userpb.SetRegistryItemRequest, ...grpc.CallOption) (*userpb.RegistryItemResponse, error)
+	GetRegistryItem(context.Context, *userpb.GetRegistryItemRequest, ...grpc.CallOption) (*userpb.RegistryItemResponse, error)
+	ListRegistryItems(context.Context, *userpb.ListRegistryItemsRequest, ...grpc.CallOption) (*userpb.RegistryItemListResponse, error)
+	RemoveRegistryItem(context.Context, *userpb.GetRegistryItemRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	ListRegistryScopeDomains(context.Context, *userpb.UserIDRequest, ...grpc.CallOption) (*userpb.RegistryScopeDomainListResponse, error)
 }
 
 type UserCredentialVersionClient interface {

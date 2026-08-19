@@ -30,13 +30,13 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrAntennaNotFound), errors.Is(err, domain.ErrPasskeyNotFound), errors.Is(err, domain.ErrFollowRequestNotFound), errors.Is(err, domain.ErrAPITokenNotFound):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrUserListNotFound), errors.Is(err, domain.ErrUserListMemberNotFound), errors.Is(err, domain.ErrUserListFavoriteNotFound), errors.Is(err, domain.ErrAntennaNotFound), errors.Is(err, domain.ErrPasskeyNotFound), errors.Is(err, domain.ErrFollowRequestNotFound), errors.Is(err, domain.ErrAPITokenNotFound), errors.Is(err, domain.ErrRegistryItemNotFound):
 		code = codes.NotFound
 	case errors.Is(err, domain.ErrUsernameExists), errors.Is(err, domain.ErrEmailExists), errors.Is(err, domain.ErrAlreadyFollowing), errors.Is(err, domain.ErrAlreadyBlocking), errors.Is(err, domain.ErrAlreadyMuted), errors.Is(err, domain.ErrUserListNameExists), errors.Is(err, domain.ErrUserListMemberExists), errors.Is(err, domain.ErrUserListFavoriteExists), errors.Is(err, domain.ErrPasskeyCredentialExists), errors.Is(err, domain.ErrFollowRequestAlreadyExists):
 		code = codes.AlreadyExists
 	case errors.Is(err, domain.ErrInviteCodeExists):
 		code = codes.AlreadyExists
-	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrNotBlocking), errors.Is(err, domain.ErrNotMuted), errors.Is(err, domain.ErrFollowBlocked), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired), errors.Is(err, domain.ErrInviteCodeExpired), errors.Is(err, domain.ErrInviteCodeUsed), errors.Is(err, domain.ErrInviteCodeRevoked), errors.Is(err, domain.ErrUserListLimitReached), errors.Is(err, domain.ErrUserListMemberLimitReached), errors.Is(err, domain.ErrUserListMemberBlocked), errors.Is(err, domain.ErrAntennaLimitReached), errors.Is(err, domain.ErrMFAEnrollmentNotStarted), errors.Is(err, domain.ErrMFAAlreadyEnabled), errors.Is(err, domain.ErrMFANotEnabled), errors.Is(err, domain.ErrPasskeyLimitReached), errors.Is(err, domain.ErrPasskeyPasswordlessUnavailable), errors.Is(err, domain.ErrPasskeyCredentialChanged), errors.Is(err, domain.ErrAccountSuspended), errors.Is(err, domain.ErrAccountDeletionPending), errors.Is(err, domain.ErrAccountAnonymized), errors.Is(err, domain.ErrAccountLifecycleChanged):
+	case errors.Is(err, domain.ErrMuted), errors.Is(err, domain.ErrNotFollowing), errors.Is(err, domain.ErrNotBlocking), errors.Is(err, domain.ErrNotMuted), errors.Is(err, domain.ErrFollowBlocked), errors.Is(err, domain.ErrResetTokenExpired), errors.Is(err, domain.ErrEmailVerificationTokenExpired), errors.Is(err, domain.ErrInviteCodeExpired), errors.Is(err, domain.ErrInviteCodeUsed), errors.Is(err, domain.ErrInviteCodeRevoked), errors.Is(err, domain.ErrUserListLimitReached), errors.Is(err, domain.ErrUserListMemberLimitReached), errors.Is(err, domain.ErrUserListMemberBlocked), errors.Is(err, domain.ErrAntennaLimitReached), errors.Is(err, domain.ErrMFAEnrollmentNotStarted), errors.Is(err, domain.ErrMFAAlreadyEnabled), errors.Is(err, domain.ErrMFANotEnabled), errors.Is(err, domain.ErrPasskeyLimitReached), errors.Is(err, domain.ErrPasskeyPasswordlessUnavailable), errors.Is(err, domain.ErrPasskeyCredentialChanged), errors.Is(err, domain.ErrAccountSuspended), errors.Is(err, domain.ErrAccountDeletionPending), errors.Is(err, domain.ErrAccountAnonymized), errors.Is(err, domain.ErrAccountLifecycleChanged), errors.Is(err, domain.ErrRegistryKeyLimitReached):
 		code = codes.FailedPrecondition
 	case errors.Is(err, domain.ErrMFACodeInvalid), errors.Is(err, domain.ErrMFACodeReplayed), errors.Is(err, domain.ErrMFAChallengeInvalid), errors.Is(err, domain.ErrMFAChallengeExpired), errors.Is(err, domain.ErrMFAChallengeAttemptsExceeded), errors.Is(err, domain.ErrPasskeyChallengeInvalid), errors.Is(err, domain.ErrPasskeyChallengeExpired), errors.Is(err, domain.ErrPasskeyChallengeAttemptsExceeded), errors.Is(err, domain.ErrPasskeyVerificationFailed):
 		code = codes.Unauthenticated
@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrAntennaRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrSessionRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrAntennaRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrSessionRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable), errors.Is(err, domain.ErrRegistryRepositoryUnavailable), errors.Is(err, domain.ErrUserMemoRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -88,7 +88,14 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrSessionIDInvalid),
 		errors.Is(err, domain.ErrUserChartSpanInvalid),
 		errors.Is(err, domain.ErrUserChartLimitInvalid),
-		errors.Is(err, domain.ErrUserChartOffsetInvalid):
+		errors.Is(err, domain.ErrUserChartOffsetInvalid),
+		errors.Is(err, domain.ErrRegistryKeyRequired),
+		errors.Is(err, domain.ErrRegistryKeyTooLong),
+		errors.Is(err, domain.ErrRegistryScopeInvalid),
+		errors.Is(err, domain.ErrRegistryDomainTooLong),
+		errors.Is(err, domain.ErrRegistryValueRequired),
+		errors.Is(err, domain.ErrRegistryValueTooLarge),
+		errors.Is(err, domain.ErrUserMemoTooLong):
 		code = codes.InvalidArgument
 	}
 	return status.Error(code, err.Error())
@@ -424,6 +431,21 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReques
 		return nil, toStatus(err)
 	}
 	return &pb.UserResponse{Success: true, Message: "ok", User: toPb(u)}, nil
+}
+
+func (h *Handler) UpdateUserMemo(ctx context.Context, req *pb.UpdateUserMemoRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.UpdateUserMemo(ctx, req.GetUserId(), req.GetTargetUserId(), req.GetMemo()); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) GetUserMemo(ctx context.Context, req *pb.GetUserMemoRequest) (*pb.UserMemoResponse, error) {
+	memo, err := h.cmd.GetUserMemo(ctx, req.GetUserId(), req.GetTargetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.UserMemoResponse{Success: true, Message: "ok", Memo: memo}, nil
 }
 
 func (h *Handler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.SimpleResponse, error) {

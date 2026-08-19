@@ -12,6 +12,7 @@ import (
 )
 
 const userInternalAuthMetadataKey = "x-bbs-internal-token"
+const userMaxCallReceiveBytes = 32 << 20
 
 type userInternalAuthCredentials struct {
 	token  string
@@ -33,13 +34,17 @@ func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
 	}
 	conn, err := c.dial(grpcClient, o.User, "user",
 		iocgrpc.WithSecureConnection(o.UserInternalAuthSecure),
-		iocgrpc.WithGrpcDialOptions(grpc.WithPerRPCCredentials(userInternalAuthCredentials{token: token, secure: o.UserInternalAuthSecure})),
+		iocgrpc.WithGrpcDialOptions(
+			grpc.WithPerRPCCredentials(userInternalAuthCredentials{token: token, secure: o.UserInternalAuthSecure}),
+			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(userMaxCallReceiveBytes)),
+		),
 	)
 	if err != nil {
 		return err
 	}
 	client := userpb.NewUserServiceClient(conn)
 	c.User = client
+	c.UserMemos = client
 	c.UserCharts = client
 	c.UserFollowingCharts = client
 	c.UserActiveUsersCharts = client
@@ -53,5 +58,6 @@ func (c *Clients) initUser(grpcClient *iocgrpc.Client, o Options) error {
 	c.UserCredentialVersion = client
 	c.UserSessions = client
 	c.UserAPITokens = client
+	c.UserRegistry = client
 	return nil
 }

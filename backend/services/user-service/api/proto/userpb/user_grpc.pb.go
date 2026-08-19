@@ -28,6 +28,8 @@ const (
 	UserService_GetUserByUsername_FullMethodName                = "/bbs.user.v1.UserService/GetUserByUsername"
 	UserService_GetCredentialVersion_FullMethodName             = "/bbs.user.v1.UserService/GetCredentialVersion"
 	UserService_UpdateProfile_FullMethodName                    = "/bbs.user.v1.UserService/UpdateProfile"
+	UserService_UpdateUserMemo_FullMethodName                   = "/bbs.user.v1.UserService/UpdateUserMemo"
+	UserService_GetUserMemo_FullMethodName                      = "/bbs.user.v1.UserService/GetUserMemo"
 	UserService_UpdateStatus_FullMethodName                     = "/bbs.user.v1.UserService/UpdateStatus"
 	UserService_ChangePassword_FullMethodName                   = "/bbs.user.v1.UserService/ChangePassword"
 	UserService_RequestPasswordReset_FullMethodName             = "/bbs.user.v1.UserService/RequestPasswordReset"
@@ -90,6 +92,11 @@ const (
 	UserService_DeleteAntenna_FullMethodName                    = "/bbs.user.v1.UserService/DeleteAntenna"
 	UserService_GetAntenna_FullMethodName                       = "/bbs.user.v1.UserService/GetAntenna"
 	UserService_ListAntennas_FullMethodName                     = "/bbs.user.v1.UserService/ListAntennas"
+	UserService_SetRegistryItem_FullMethodName                  = "/bbs.user.v1.UserService/SetRegistryItem"
+	UserService_GetRegistryItem_FullMethodName                  = "/bbs.user.v1.UserService/GetRegistryItem"
+	UserService_ListRegistryItems_FullMethodName                = "/bbs.user.v1.UserService/ListRegistryItems"
+	UserService_RemoveRegistryItem_FullMethodName               = "/bbs.user.v1.UserService/RemoveRegistryItem"
+	UserService_ListRegistryScopeDomains_FullMethodName         = "/bbs.user.v1.UserService/ListRegistryScopeDomains"
 	UserService_ListSessions_FullMethodName                     = "/bbs.user.v1.UserService/ListSessions"
 	UserService_GetSession_FullMethodName                       = "/bbs.user.v1.UserService/GetSession"
 	UserService_RevokeSession_FullMethodName                    = "/bbs.user.v1.UserService/RevokeSession"
@@ -117,6 +124,8 @@ type UserServiceClient interface {
 	// credential-version claims. It is not part of the public profile surface.
 	GetCredentialVersion(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*CredentialVersionResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UserResponse, error)
+	UpdateUserMemo(ctx context.Context, in *UpdateUserMemoRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	GetUserMemo(ctx context.Context, in *GetUserMemoRequest, opts ...grpc.CallOption) (*UserMemoResponse, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	RequestPasswordReset(ctx context.Context, in *PasswordResetRequest, opts ...grpc.CallOption) (*PasswordResetResponse, error)
@@ -179,6 +188,11 @@ type UserServiceClient interface {
 	DeleteAntenna(ctx context.Context, in *DeleteAntennaRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	GetAntenna(ctx context.Context, in *GetAntennaRequest, opts ...grpc.CallOption) (*AntennaInfoResponse, error)
 	ListAntennas(ctx context.Context, in *ListAntennasRequest, opts ...grpc.CallOption) (*AntennaListResponse, error)
+	SetRegistryItem(ctx context.Context, in *SetRegistryItemRequest, opts ...grpc.CallOption) (*RegistryItemResponse, error)
+	GetRegistryItem(ctx context.Context, in *GetRegistryItemRequest, opts ...grpc.CallOption) (*RegistryItemResponse, error)
+	ListRegistryItems(ctx context.Context, in *ListRegistryItemsRequest, opts ...grpc.CallOption) (*RegistryItemListResponse, error)
+	RemoveRegistryItem(ctx context.Context, in *GetRegistryItemRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ListRegistryScopeDomains(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*RegistryScopeDomainListResponse, error)
 	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error)
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
 	RevokeSession(ctx context.Context, in *RevokeSessionRequest, opts ...grpc.CallOption) (*SessionResponse, error)
@@ -283,6 +297,26 @@ func (c *userServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfile
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserResponse)
 	err := c.cc.Invoke(ctx, UserService_UpdateProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateUserMemo(ctx context.Context, in *UpdateUserMemoRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateUserMemo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetUserMemo(ctx context.Context, in *GetUserMemoRequest, opts ...grpc.CallOption) (*UserMemoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserMemoResponse)
+	err := c.cc.Invoke(ctx, UserService_GetUserMemo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -909,6 +943,56 @@ func (c *userServiceClient) ListAntennas(ctx context.Context, in *ListAntennasRe
 	return out, nil
 }
 
+func (c *userServiceClient) SetRegistryItem(ctx context.Context, in *SetRegistryItemRequest, opts ...grpc.CallOption) (*RegistryItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegistryItemResponse)
+	err := c.cc.Invoke(ctx, UserService_SetRegistryItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetRegistryItem(ctx context.Context, in *GetRegistryItemRequest, opts ...grpc.CallOption) (*RegistryItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegistryItemResponse)
+	err := c.cc.Invoke(ctx, UserService_GetRegistryItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListRegistryItems(ctx context.Context, in *ListRegistryItemsRequest, opts ...grpc.CallOption) (*RegistryItemListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegistryItemListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListRegistryItems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RemoveRegistryItem(ctx context.Context, in *GetRegistryItemRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_RemoveRegistryItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListRegistryScopeDomains(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*RegistryScopeDomainListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegistryScopeDomainListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListRegistryScopeDomains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*SessionListResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SessionListResponse)
@@ -1024,6 +1108,8 @@ type UserServiceServer interface {
 	// credential-version claims. It is not part of the public profile surface.
 	GetCredentialVersion(context.Context, *UserIDRequest) (*CredentialVersionResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UserResponse, error)
+	UpdateUserMemo(context.Context, *UpdateUserMemoRequest) (*SimpleResponse, error)
+	GetUserMemo(context.Context, *GetUserMemoRequest) (*UserMemoResponse, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UserResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*SimpleResponse, error)
 	RequestPasswordReset(context.Context, *PasswordResetRequest) (*PasswordResetResponse, error)
@@ -1086,6 +1172,11 @@ type UserServiceServer interface {
 	DeleteAntenna(context.Context, *DeleteAntennaRequest) (*SimpleResponse, error)
 	GetAntenna(context.Context, *GetAntennaRequest) (*AntennaInfoResponse, error)
 	ListAntennas(context.Context, *ListAntennasRequest) (*AntennaListResponse, error)
+	SetRegistryItem(context.Context, *SetRegistryItemRequest) (*RegistryItemResponse, error)
+	GetRegistryItem(context.Context, *GetRegistryItemRequest) (*RegistryItemResponse, error)
+	ListRegistryItems(context.Context, *ListRegistryItemsRequest) (*RegistryItemListResponse, error)
+	RemoveRegistryItem(context.Context, *GetRegistryItemRequest) (*SimpleResponse, error)
+	ListRegistryScopeDomains(context.Context, *UserIDRequest) (*RegistryScopeDomainListResponse, error)
 	ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error)
 	GetSession(context.Context, *GetSessionRequest) (*SessionResponse, error)
 	RevokeSession(context.Context, *RevokeSessionRequest) (*SessionResponse, error)
@@ -1132,6 +1223,12 @@ func (UnimplementedUserServiceServer) GetCredentialVersion(context.Context, *Use
 }
 func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*UserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateUserMemo(context.Context, *UpdateUserMemoRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateUserMemo not implemented")
+}
+func (UnimplementedUserServiceServer) GetUserMemo(context.Context, *GetUserMemoRequest) (*UserMemoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserMemo not implemented")
 }
 func (UnimplementedUserServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateStatus not implemented")
@@ -1318,6 +1415,21 @@ func (UnimplementedUserServiceServer) GetAntenna(context.Context, *GetAntennaReq
 }
 func (UnimplementedUserServiceServer) ListAntennas(context.Context, *ListAntennasRequest) (*AntennaListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAntennas not implemented")
+}
+func (UnimplementedUserServiceServer) SetRegistryItem(context.Context, *SetRegistryItemRequest) (*RegistryItemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetRegistryItem not implemented")
+}
+func (UnimplementedUserServiceServer) GetRegistryItem(context.Context, *GetRegistryItemRequest) (*RegistryItemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRegistryItem not implemented")
+}
+func (UnimplementedUserServiceServer) ListRegistryItems(context.Context, *ListRegistryItemsRequest) (*RegistryItemListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRegistryItems not implemented")
+}
+func (UnimplementedUserServiceServer) RemoveRegistryItem(context.Context, *GetRegistryItemRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveRegistryItem not implemented")
+}
+func (UnimplementedUserServiceServer) ListRegistryScopeDomains(context.Context, *UserIDRequest) (*RegistryScopeDomainListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRegistryScopeDomains not implemented")
 }
 func (UnimplementedUserServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*SessionListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
@@ -1528,6 +1640,42 @@ func _UserService_UpdateProfile_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).UpdateProfile(ctx, req.(*UpdateProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateUserMemo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserMemoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateUserMemo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateUserMemo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateUserMemo(ctx, req.(*UpdateUserMemoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetUserMemo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserMemoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUserMemo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetUserMemo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserMemo(ctx, req.(*GetUserMemoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2648,6 +2796,96 @@ func _UserService_ListAntennas_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_SetRegistryItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetRegistryItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SetRegistryItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SetRegistryItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SetRegistryItem(ctx, req.(*SetRegistryItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetRegistryItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRegistryItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetRegistryItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetRegistryItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetRegistryItem(ctx, req.(*GetRegistryItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListRegistryItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRegistryItemsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListRegistryItems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListRegistryItems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListRegistryItems(ctx, req.(*ListRegistryItemsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RemoveRegistryItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRegistryItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RemoveRegistryItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RemoveRegistryItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RemoveRegistryItem(ctx, req.(*GetRegistryItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListRegistryScopeDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListRegistryScopeDomains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListRegistryScopeDomains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListRegistryScopeDomains(ctx, req.(*UserIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListSessionsRequest)
 	if err := dec(in); err != nil {
@@ -2870,6 +3108,14 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProfile",
 			Handler:    _UserService_UpdateProfile_Handler,
+		},
+		{
+			MethodName: "UpdateUserMemo",
+			Handler:    _UserService_UpdateUserMemo_Handler,
+		},
+		{
+			MethodName: "GetUserMemo",
+			Handler:    _UserService_GetUserMemo_Handler,
 		},
 		{
 			MethodName: "UpdateStatus",
@@ -3118,6 +3364,26 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAntennas",
 			Handler:    _UserService_ListAntennas_Handler,
+		},
+		{
+			MethodName: "SetRegistryItem",
+			Handler:    _UserService_SetRegistryItem_Handler,
+		},
+		{
+			MethodName: "GetRegistryItem",
+			Handler:    _UserService_GetRegistryItem_Handler,
+		},
+		{
+			MethodName: "ListRegistryItems",
+			Handler:    _UserService_ListRegistryItems_Handler,
+		},
+		{
+			MethodName: "RemoveRegistryItem",
+			Handler:    _UserService_RemoveRegistryItem_Handler,
+		},
+		{
+			MethodName: "ListRegistryScopeDomains",
+			Handler:    _UserService_ListRegistryScopeDomains_Handler,
 		},
 		{
 			MethodName: "ListSessions",

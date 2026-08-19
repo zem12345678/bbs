@@ -1030,6 +1030,7 @@ func (r *memoryRepo) ListCompatibility(_ context.Context, query domain.Notificat
 func (r *memoryRepo) UnreadCount(context.Context, int64) (int64, error) { return 0, nil }
 func (r *memoryRepo) MarkRead(context.Context, int64, int64) error      { return nil }
 func (r *memoryRepo) MarkAllRead(context.Context, int64) error          { return nil }
+func (r *memoryRepo) Flush(context.Context, int64) error                { return nil }
 
 func contentKey(entityType string, id int64) string {
 	return entityType + ":" + stringID(id)

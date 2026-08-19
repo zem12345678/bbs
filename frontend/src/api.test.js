@@ -84,19 +84,72 @@ test("requests Misskey-compatible notification feeds with the bearer token", asy
   const requests = [];
   globalThis.fetch = async (url, options) => {
     requests.push({ url, options });
+    if (url.endsWith("/notifications/flush")) return textResponse(204, "");
     return jsonResponse(200, []);
   };
 
   await bbsApi.misskeyNotifications({ limit: 10, sinceId: "9007199254740993", includeTypes: ["reaction"] }, "access-token");
   await bbsApi.misskeyGroupedNotifications({ markAsRead: false }, "access-token");
+  await bbsApi.flushNotifications("access-token");
 
   assert.deepEqual(
-    requests.map(({ url, options }) => [url, options.method, options.headers.Authorization, JSON.parse(options.body)]),
+    requests.map(({ url, options }) => [url, options.method, options.headers.Authorization, options.body === undefined ? undefined : JSON.parse(options.body)]),
     [
       ["http://127.0.0.1:18080/api/v1/i/notifications", "POST", "Bearer access-token", { limit: 10, sinceId: "9007199254740993", includeTypes: ["reaction"] }],
-      ["http://127.0.0.1:18080/api/v1/i/notifications-grouped", "POST", "Bearer access-token", { markAsRead: false }]
+      ["http://127.0.0.1:18080/api/v1/i/notifications-grouped", "POST", "Bearer access-token", { markAsRead: false }],
+      ["http://127.0.0.1:18080/api/v1/notifications/flush", "POST", "Bearer access-token", undefined]
     ]
   );
+});
+
+test("maps registry requests without normalizing arbitrary JSON values", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (url.endsWith("/i/registry/get")) {
+      return jsonResponse(200, { http_code: 418, code: 0, data: { nested: true } });
+    }
+    if (url.endsWith("/i/registry/get-unsecure")) {
+      return textResponse(200, '[9223372036854775807,{"nested":-9223372036854775808}]');
+    }
+    return jsonResponse(200, null);
+  };
+
+  const address = { key: "editor", scope: ["client", "preferences"], domain: null };
+  const value = { layout: ["wide", { columns: 3 }], externalId: "9223372036854775807" };
+
+  await bbsApi.registrySet({ ...address, value }, "access-token");
+  const received = await bbsApi.registryGet(address, "access-token");
+  await bbsApi.registryGetAll({ scope: [], domain: "" }, "access-token");
+  await bbsApi.registryGetDetail(address, "access-token");
+  const unsecure = await bbsApi.registryGetUnsecure({ key: "reactions", scope: [] }, "access-token");
+  await bbsApi.registryKeys({ scope: [], domain: null }, "access-token");
+  await bbsApi.registryKeysWithType({ scope: [], domain: "client-token" }, "access-token");
+  await bbsApi.registryRemove(address, "access-token");
+  await bbsApi.registryScopesWithDomain("access-token");
+
+  assert.deepEqual(received, { http_code: 418, code: 0, data: { nested: true } });
+  assert.deepEqual(unsecure, ["9223372036854775807", { nested: "-9223372036854775808" }]);
+  assert.deepEqual(
+    requests.map(({ url }) => new URL(url).pathname),
+    [
+      "/api/v1/i/registry/set",
+      "/api/v1/i/registry/get",
+      "/api/v1/i/registry/get-all",
+      "/api/v1/i/registry/get-detail",
+      "/api/v1/i/registry/get-unsecure",
+      "/api/v1/i/registry/keys",
+      "/api/v1/i/registry/keys-with-type",
+      "/api/v1/i/registry/remove",
+      "/api/v1/i/registry/scopes-with-domain"
+    ]
+  );
+  assert.equal(requests.every(({ options }) => options.method === "POST"), true);
+  assert.equal(requests.every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { ...address, value });
+  assert.deepEqual(JSON.parse(requests[2].options.body), { scope: [], domain: "" });
+  assert.deepEqual(JSON.parse(requests[4].options.body), { key: "reactions", scope: [] });
+  assert.deepEqual(JSON.parse(requests[8].options.body), {});
 });
 
 test("requests favorite export with the interactive bearer token", async () => {
@@ -159,6 +212,40 @@ test("maps personal content pin mutations and profile queries with string-safe i
   assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
   assert.deepEqual(JSON.parse(requests[0].options.body), { noteId: "9223372036854775807" });
   assert.deepEqual(JSON.parse(requests[1].options.body), { noteId: "9223372036854775807" });
+});
+
+test("loads and updates a private user memo with string-safe ids", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (options.method === "GET") {
+      return jsonResponse(200, {
+        service: "api-gateway",
+        http_code: 200,
+        code: 0,
+        message: "success",
+        data: { memo: "project lead" }
+      });
+    }
+    return new Response(null, { status: 204 });
+  };
+
+  const loaded = await bbsApi.getUserMemo("9223372036854775807", "access-token");
+  await bbsApi.updateUserMemo("9223372036854775807", "project lead", "access-token");
+  await bbsApi.updateUserMemo("9223372036854775807", null, "access-token");
+
+  assert.equal(loaded.memo, "project lead");
+  assert.deepEqual(
+    requests.map((request) => [new URL(request.url).pathname, request.options.method]),
+    [
+      ["/api/v1/users/9223372036854775807/memo", "GET"],
+      ["/api/v1/users/update-memo", "POST"],
+      ["/api/v1/users/update-memo", "POST"]
+    ]
+  );
+  assert.deepEqual(JSON.parse(requests[1].options.body), { userId: "9223372036854775807", memo: "project lead" });
+  assert.deepEqual(JSON.parse(requests[2].options.body), { userId: "9223372036854775807", memo: null });
+  assert.equal(requests[1].options.headers.Authorization, "Bearer access-token");
 });
 
 test("requests note import with the selected source and interactive bearer token", async () => {

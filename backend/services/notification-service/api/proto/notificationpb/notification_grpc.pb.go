@@ -24,6 +24,7 @@ const (
 	NotificationService_CountUnread_FullMethodName                   = "/bbs.notification.v1.NotificationService/CountUnread"
 	NotificationService_MarkRead_FullMethodName                      = "/bbs.notification.v1.NotificationService/MarkRead"
 	NotificationService_MarkAllRead_FullMethodName                   = "/bbs.notification.v1.NotificationService/MarkAllRead"
+	NotificationService_Flush_FullMethodName                         = "/bbs.notification.v1.NotificationService/Flush"
 	NotificationService_GetPreferences_FullMethodName                = "/bbs.notification.v1.NotificationService/GetPreferences"
 	NotificationService_UpdatePreferences_FullMethodName             = "/bbs.notification.v1.NotificationService/UpdatePreferences"
 	NotificationService_GetWebPushConfig_FullMethodName              = "/bbs.notification.v1.NotificationService/GetWebPushConfig"
@@ -47,6 +48,7 @@ type NotificationServiceClient interface {
 	CountUnread(ctx context.Context, in *CountUnreadRequest, opts ...grpc.CallOption) (*CountUnreadResponse, error)
 	MarkRead(ctx context.Context, in *MarkReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 	MarkAllRead(ctx context.Context, in *MarkAllReadRequest, opts ...grpc.CallOption) (*MutationResponse, error)
+	Flush(ctx context.Context, in *FlushRequest, opts ...grpc.CallOption) (*MutationResponse, error)
 	GetPreferences(ctx context.Context, in *GetPreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
 	UpdatePreferences(ctx context.Context, in *UpdatePreferencesRequest, opts ...grpc.CallOption) (*PreferencesResponse, error)
 	GetWebPushConfig(ctx context.Context, in *GetWebPushConfigRequest, opts ...grpc.CallOption) (*WebPushConfigResponse, error)
@@ -113,6 +115,16 @@ func (c *notificationServiceClient) MarkAllRead(ctx context.Context, in *MarkAll
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MutationResponse)
 	err := c.cc.Invoke(ctx, NotificationService_MarkAllRead_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) Flush(ctx context.Context, in *FlushRequest, opts ...grpc.CallOption) (*MutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationResponse)
+	err := c.cc.Invoke(ctx, NotificationService_Flush_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +260,7 @@ type NotificationServiceServer interface {
 	CountUnread(context.Context, *CountUnreadRequest) (*CountUnreadResponse, error)
 	MarkRead(context.Context, *MarkReadRequest) (*MutationResponse, error)
 	MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error)
+	Flush(context.Context, *FlushRequest) (*MutationResponse, error)
 	GetPreferences(context.Context, *GetPreferencesRequest) (*PreferencesResponse, error)
 	UpdatePreferences(context.Context, *UpdatePreferencesRequest) (*PreferencesResponse, error)
 	GetWebPushConfig(context.Context, *GetWebPushConfigRequest) (*WebPushConfigResponse, error)
@@ -284,6 +297,9 @@ func (UnimplementedNotificationServiceServer) MarkRead(context.Context, *MarkRea
 }
 func (UnimplementedNotificationServiceServer) MarkAllRead(context.Context, *MarkAllReadRequest) (*MutationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method MarkAllRead not implemented")
+}
+func (UnimplementedNotificationServiceServer) Flush(context.Context, *FlushRequest) (*MutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Flush not implemented")
 }
 func (UnimplementedNotificationServiceServer) GetPreferences(context.Context, *GetPreferencesRequest) (*PreferencesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPreferences not implemented")
@@ -428,6 +444,24 @@ func _NotificationService_MarkAllRead_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotificationServiceServer).MarkAllRead(ctx, req.(*MarkAllReadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_Flush_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).Flush(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_Flush_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).Flush(ctx, req.(*FlushRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -674,6 +708,10 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MarkAllRead",
 			Handler:    _NotificationService_MarkAllRead_Handler,
+		},
+		{
+			MethodName: "Flush",
+			Handler:    _NotificationService_Flush_Handler,
 		},
 		{
 			MethodName: "GetPreferences",

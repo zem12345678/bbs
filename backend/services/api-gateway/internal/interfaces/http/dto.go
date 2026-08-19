@@ -94,6 +94,11 @@ type updateProfileRequest struct {
 	Description   string  `json:"description"`
 }
 
+type updateUserMemoRequest struct {
+	UserID jsonInt64       `json:"userId"`
+	Memo   json.RawMessage `json:"memo"`
+}
+
 type changePasswordRequest struct {
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`

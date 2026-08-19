@@ -334,6 +334,13 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	return s.repo.MarkAllRead(ctx, userID)
 }
 
+func (s *Service) Flush(ctx context.Context, userID int64) error {
+	if userID <= 0 {
+		return domain.ErrInvalidNotificationQuery
+	}
+	return s.repo.Flush(ctx, userID)
+}
+
 func (s *Service) GetNotificationPreferences(ctx context.Context, userID int64) ([]domain.NotificationPreference, error) {
 	if userID <= 0 {
 		return nil, domain.ErrInvalidNotificationPreferences

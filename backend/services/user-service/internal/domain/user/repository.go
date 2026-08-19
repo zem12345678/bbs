@@ -202,3 +202,19 @@ type Repository interface {
 	ListFollowers(ctx context.Context, q FollowListQuery) ([]*User, int64, error)
 	ListFollowing(ctx context.Context, q FollowListQuery) ([]*User, int64, error)
 }
+
+// UserMemoRepository stores private, viewer-owned notes about another user.
+// It remains optional so existing user persistence test doubles do not need to
+// implement this separate capability.
+type UserMemoRepository interface {
+	UpdateUserMemo(ctx context.Context, userID, targetUserID int64, memo string) error
+	GetUserMemo(ctx context.Context, userID, targetUserID int64) (string, error)
+}
+
+type RegistryRepository interface {
+	SetRegistryItem(ctx context.Context, item *RegistryItem) error
+	GetRegistryItem(ctx context.Context, userID int64, domain *string, scope []string, key string) (*RegistryItem, error)
+	ListRegistryItems(ctx context.Context, userID int64, domain *string, scope []string) ([]*RegistryItem, error)
+	RemoveRegistryItem(ctx context.Context, userID int64, domain *string, scope []string, key string) error
+	ListRegistryScopeDomains(ctx context.Context, userID int64) ([]RegistryScopeDomain, error)
+}
