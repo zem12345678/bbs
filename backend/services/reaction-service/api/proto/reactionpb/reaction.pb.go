@@ -1959,6 +1959,8 @@ type ListPublicCollectionItemsRequest struct {
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
 	ViewerUserId  int64                  `protobuf:"varint,4,opt,name=viewer_user_id,json=viewerUserId,proto3" json:"viewer_user_id,omitempty"`
+	SinceId       int64                  `protobuf:"varint,5,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
+	UntilId       int64                  `protobuf:"varint,6,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2017,6 +2019,20 @@ func (x *ListPublicCollectionItemsRequest) GetOffset() int32 {
 func (x *ListPublicCollectionItemsRequest) GetViewerUserId() int64 {
 	if x != nil {
 		return x.ViewerUserId
+	}
+	return 0
+}
+
+func (x *ListPublicCollectionItemsRequest) GetSinceId() int64 {
+	if x != nil {
+		return x.SinceId
+	}
+	return 0
+}
+
+func (x *ListPublicCollectionItemsRequest) GetUntilId() int64 {
+	if x != nil {
+		return x.UntilId
 	}
 	return 0
 }
@@ -2875,12 +2891,14 @@ const file_reaction_proto_rawDesc = "" +
 	"\x0fascending_by_id\x18\a \x01(\bR\rascendingById\"L\n" +
 	"\x14GetCollectionRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12$\n" +
-	"\x0eviewer_user_id\x18\x02 \x01(\x03R\fviewerUserId\"\x9b\x01\n" +
+	"\x0eviewer_user_id\x18\x02 \x01(\x03R\fviewerUserId\"\xd1\x01\n" +
 	" ListPublicCollectionItemsRequest\x12#\n" +
 	"\rcollection_id\x18\x01 \x01(\x03R\fcollectionId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12$\n" +
-	"\x0eviewer_user_id\x18\x04 \x01(\x03R\fviewerUserId\"\xa9\x01\n" +
+	"\x0eviewer_user_id\x18\x04 \x01(\x03R\fviewerUserId\x12\x19\n" +
+	"\bsince_id\x18\x05 \x01(\x03R\asinceId\x12\x19\n" +
+	"\buntil_id\x18\x06 \x01(\x03R\auntilId\"\xa9\x01\n" +
 	"\x1cListPublicCollectionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x19\n" +

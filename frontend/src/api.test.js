@@ -1070,12 +1070,12 @@ test("uses Misskey-compatible clip endpoints with string-safe ids", async () => 
   globalThis.fetch = async (url, options) => { requests.push({ url, options }); return jsonResponse(204, null); };
   await bbsApi.clips("access-token");
   await bbsApi.exportClips("access-token");
-  await bbsApi.createClip({ name: "阅读", isPublic: false }, "access-token");
-  await bbsApi.updateClip({ clipId: "9007199254740993", isPublic: true }, "access-token");
+  await bbsApi.createClip({ name: "阅读", description: null, isPublic: false }, "access-token");
+  await bbsApi.updateClip({ clipId: "9007199254740993", description: null, isPublic: true }, "access-token");
   await bbsApi.showClip("9007199254740993", "access-token");
   await bbsApi.addClipNote("9007199254740993", "9007199254740999", "access-token");
   await bbsApi.removeClipNote("9007199254740993", "9007199254740999", "access-token");
-  await bbsApi.clipNotes("9007199254740993", { limit: 10, sinceId: "7" }, "access-token");
+  await bbsApi.clipNotes("9007199254740993", { limit: 10, sinceId: "7", untilId: "3" }, "access-token");
   await bbsApi.favoriteClip("9007199254740993", "access-token");
   await bbsApi.unfavoriteClip("9007199254740993", "access-token");
   await bbsApi.myFavoriteClips("access-token");
@@ -1086,7 +1086,10 @@ test("uses Misskey-compatible clip endpoints with string-safe ids", async () => 
     ["/api/v1/clips/add-note", "POST"], ["/api/v1/clips/remove-note", "POST"], ["/api/v1/clips/notes", "POST"], ["/api/v1/clips/favorite", "POST"], ["/api/v1/clips/unfavorite", "POST"], ["/api/v1/clips/my-favorites", "POST"], ["/api/v1/users/clips", "POST"], ["/api/v1/notes/clips", "POST"]
   ]);
   assert.deepEqual(JSON.parse(requests[1].options.body), {});
+  assert.equal(JSON.parse(requests[2].options.body).description, null);
+  assert.equal(JSON.parse(requests[3].options.body).description, null);
   assert.equal(JSON.parse(requests[7].options.body).sinceId, "7");
+  assert.equal(JSON.parse(requests[7].options.body).untilId, "3");
   assert.equal(JSON.parse(requests[11].options.body).userId, "9007199254740993");
   assert.equal(JSON.parse(requests[11].options.body).untilId, "3");
   assert.equal(JSON.parse(requests[12].options.body).noteId, "9007199254740999");

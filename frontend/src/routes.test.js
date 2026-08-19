@@ -244,6 +244,10 @@ test("keeps named collection management inside the existing favorites route", ()
   assert.match(source, /favoriteExportRequestRef\.current === requestId/);
   assert.match(source, /收藏导出已请求，完成后可在文件库查看。/);
   assert.match(source, /<Download size=\{17\} aria-hidden="true" \/>/);
+  assert.match(source, /Array\.from\(name\)\.length > 100/);
+  assert.match(source, /Array\.from\(description\)\.length > 2048/);
+  assert.match(source, /<input maxLength=\{100\} required/);
+  assert.match(source, /<input maxLength=\{2048\} value=\{editor\.description\}/);
 });
 
 test("connects user-list management and timelines to member routes", () => {

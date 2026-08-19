@@ -423,7 +423,15 @@ func (h *Handler) GetCollection(ctx context.Context, req *pb.GetCollectionReques
 }
 
 func (h *Handler) ListPublicCollectionItems(ctx context.Context, req *pb.ListPublicCollectionItemsRequest) (*pb.CollectionItemsResponse, error) {
-	rows, total, err := h.qry.ListPublicCollectionItems(ctx, req.GetCollectionId(), req.GetViewerUserId(), int(req.GetLimit()), int(req.GetOffset()))
+	rows, total, err := h.qry.ListPublicCollectionItems(
+		ctx,
+		req.GetCollectionId(),
+		req.GetViewerUserId(),
+		int(req.GetLimit()),
+		int(req.GetOffset()),
+		req.GetSinceId(),
+		req.GetUntilId(),
+	)
 	if err != nil {
 		return nil, toStatus(err)
 	}

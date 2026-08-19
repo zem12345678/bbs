@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	collectionNameMaxLength              = 80
-	collectionDescriptionMaxLength       = 500
+	collectionNameMaxLength              = 100
+	collectionDescriptionMaxLength       = 2048
 	collectionDefaultLimit         int32 = 20
 	collectionMaxLimit             int32 = 100
 )
@@ -227,7 +227,7 @@ func validateCollectionFields(c *gin.Context, rawName string, rawDescription str
 	name := strings.TrimSpace(rawName)
 	description := strings.TrimSpace(rawDescription)
 	if name == "" || len([]rune(name)) > collectionNameMaxLength {
-		writeError(c, http.StatusBadRequest, "collection name must be between 1 and 80 characters", "invalid_argument")
+		writeError(c, http.StatusBadRequest, "collection name must be between 1 and 100 characters", "invalid_argument")
 		return "", "", false
 	}
 	if len([]rune(description)) > collectionDescriptionMaxLength {

@@ -49,6 +49,26 @@ func TestValidateCollectionFieldsNormalizesAndValidates(t *testing.T) {
 	}
 }
 
+func TestValidateCollectionFieldsAcceptsClipContractLimits(t *testing.T) {
+	name := strings.Repeat("名", 100)
+	description := strings.Repeat("注", 2048)
+
+	gotName, gotDescription, err := ValidateCollectionFields(42, name, description)
+	if err != nil {
+		t.Fatalf("ValidateCollectionFields() error = %v", err)
+	}
+	if gotName != name || gotDescription != description {
+		t.Fatalf("validated fields were changed")
+	}
+
+	if _, _, err := ValidateCollectionFields(42, name+"名", description); err != ErrInvalidCollectionName {
+		t.Fatalf("101-rune name error = %v, want %v", err, ErrInvalidCollectionName)
+	}
+	if _, _, err := ValidateCollectionFields(42, name, description+"注"); err != ErrInvalidCollectionDescription {
+		t.Fatalf("2049-rune description error = %v, want %v", err, ErrInvalidCollectionDescription)
+	}
+}
+
 func TestEntityRefValidateForCollection(t *testing.T) {
 	if err := (EntityRef{Type: EntityArticle, ID: 1}).ValidateForCollection(); err != nil {
 		t.Fatalf("article validation error = %v", err)

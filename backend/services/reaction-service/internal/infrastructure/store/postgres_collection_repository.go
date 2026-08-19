@@ -17,7 +17,7 @@ const collectionNameUniqueConstraint = "ux_favorite_collections_owner_name"
 type collectionPO struct {
 	ID            int64      `gorm:"primaryKey;autoIncrement"`
 	UserID        int64      `gorm:"column:user_id;not null"`
-	Name          string     `gorm:"size:80;not null"`
+	Name          string     `gorm:"size:100;not null"`
 	Description   string     `gorm:"type:text;not null;default:''"`
 	IsPublic      bool       `gorm:"not null;default:false"`
 	ItemCount     int64      `gorm:"->;-:migration"`
@@ -51,13 +51,18 @@ func (r *PostgresCollectionRepository) EnsureSchema(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS favorite_collections (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL,
-  name VARCHAR(80) NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
-  description TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 500),
+  name VARCHAR(100) NOT NULL CHECK (char_length(name) BETWEEN 1 AND 100),
+  description TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 2048),
   is_public BOOLEAN NOT NULL DEFAULT FALSE,
   last_clipped_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`,
+		`ALTER TABLE favorite_collections ALTER COLUMN name TYPE VARCHAR(100)`,
+		`ALTER TABLE favorite_collections DROP CONSTRAINT IF EXISTS favorite_collections_name_check`,
+		`ALTER TABLE favorite_collections ADD CONSTRAINT favorite_collections_name_check CHECK (char_length(name) BETWEEN 1 AND 100)`,
+		`ALTER TABLE favorite_collections DROP CONSTRAINT IF EXISTS favorite_collections_description_check`,
+		`ALTER TABLE favorite_collections ADD CONSTRAINT favorite_collections_description_check CHECK (char_length(description) <= 2048)`,
 		`ALTER TABLE favorite_collections ADD COLUMN IF NOT EXISTS last_clipped_at TIMESTAMPTZ`,
 		`UPDATE favorite_collections
 SET last_clipped_at = (
@@ -383,19 +388,28 @@ func (r *PostgresCollectionRepository) GetCollection(ctx context.Context, collec
 	return toCollectionEntity(&row), nil
 }
 
-func (r *PostgresCollectionRepository) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*domain.CollectionItem, int64, error) {
+func (r *PostgresCollectionRepository) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int, sinceID, untilID int64) ([]*domain.CollectionItem, int64, error) {
+	if sinceID < 0 || untilID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
 	collection, err := r.GetCollection(ctx, collectionID, viewerUserID)
 	if err != nil {
 		return nil, 0, err
 	}
 	limit, offset = normalizeCollectionPage(limit, offset)
 	query := r.db.WithContext(ctx).Model(&collectionItemPO{}).Where("collection_id = ?", collection.ID)
+	if sinceID > 0 {
+		query = query.Where("entity_id > ?", sinceID)
+	}
+	if untilID > 0 {
+		query = query.Where("entity_id < ?", untilID)
+	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []collectionItemPO
-	if err := query.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+	if err := query.Order("entity_id DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]*domain.CollectionItem, 0, len(rows))

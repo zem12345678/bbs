@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	MaxCollectionNameRunes        = 80
-	MaxCollectionDescriptionRunes = 500
+	MaxCollectionNameRunes        = 100
+	MaxCollectionDescriptionRunes = 2048
 )
 
 // ValidCollectionEntityType intentionally narrows the general reaction entity

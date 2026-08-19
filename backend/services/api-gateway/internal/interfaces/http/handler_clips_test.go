@@ -81,12 +81,83 @@ func TestListNoteClipsResolvesPublishedArticle(t *testing.T) {
 	require.EqualValues(t, noteID, reaction.entityReq.GetEntity().GetEntityId())
 }
 
+func TestUpdateClipDistinguishesNullAndOmittedDescription(t *testing.T) {
+	const clipID int64 = 9007199254740993
+	for _, tc := range []struct {
+		name     string
+		body     string
+		wantDesc string
+	}{
+		{name: "explicit null clears", body: `{"clipId":"9007199254740993","description":null}`, wantDesc: ""},
+		{name: "omitted preserves", body: `{"clipId":"9007199254740993"}`, wantDesc: "existing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reaction := &publicClipReactionClient{collectionResp: &reactionpb.CollectionResponse{
+				Collection: &reactionpb.CollectionInfo{Id: clipID, UserId: 42, Name: "Reading", Description: "existing"},
+			}}
+			h := NewHandler(&clients.Clients{Reaction: reaction, User: &publicClipUserClient{}}, "Authorization", "Bearer", testJWTSecret)
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Set("user_id", int64(42))
+			c.Request = httptest.NewRequest(stdhttp.MethodPost, "/clips/update", strings.NewReader(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			h.updateClip(c)
+			require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+			require.NotNil(t, reaction.updateReq)
+			require.Equal(t, tc.wantDesc, reaction.updateReq.GetDescription())
+		})
+	}
+}
+
+func TestListClipNotesForwardsBothCursors(t *testing.T) {
+	const noteID int64 = 9007199254740999
+	reaction := &publicClipReactionClient{itemsResp: &reactionpb.CollectionItemsResponse{Items: []*reactionpb.CollectionItemInfo{{
+		Id: 1, CollectionId: 7, Entity: &reactionpb.EntityRef{EntityType: "article", EntityId: noteID},
+	}}}}
+	content := &publicClipContentClient{article: &contentpb.ArticleInfo{Id: noteID, Status: contentStatusPublished, AuthorId: 42}}
+	h := NewHandler(&clients.Clients{Reaction: reaction, Content: content, User: &publicClipUserClient{}}, "Authorization", "Bearer", testJWTSecret)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("user_id", int64(42))
+	c.Request = httptest.NewRequest(stdhttp.MethodPost, "/clips/notes", strings.NewReader(`{"clipId":"7","limit":1,"sinceId":"9007199254740990","untilId":"9007199254741000"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.listClipNotes(c)
+	require.Equal(t, stdhttp.StatusOK, recorder.Code, recorder.Body.String())
+	require.NotNil(t, reaction.itemsReq)
+	require.EqualValues(t, 9007199254740990, reaction.itemsReq.GetSinceId())
+	require.EqualValues(t, 9007199254741000, reaction.itemsReq.GetUntilId())
+}
+
 type publicClipReactionClient struct {
 	reactionpb.ReactionServiceClient
-	publicResp *reactionpb.ListCollectionsResponse
-	entityResp *reactionpb.ListCollectionsResponse
-	publicReq  *reactionpb.ListPublicCollectionsRequest
-	entityReq  *reactionpb.ListPublicCollectionsForEntityRequest
+	publicResp     *reactionpb.ListCollectionsResponse
+	entityResp     *reactionpb.ListCollectionsResponse
+	collectionResp *reactionpb.CollectionResponse
+	updateReq      *reactionpb.UpdateCollectionRequest
+	itemsResp      *reactionpb.CollectionItemsResponse
+	itemsReq       *reactionpb.ListPublicCollectionItemsRequest
+	publicReq      *reactionpb.ListPublicCollectionsRequest
+	entityReq      *reactionpb.ListPublicCollectionsForEntityRequest
+}
+
+func (f *publicClipReactionClient) GetCollection(_ context.Context, _ *reactionpb.GetCollectionRequest, _ ...grpc.CallOption) (*reactionpb.CollectionResponse, error) {
+	return f.collectionResp, nil
+}
+
+func (f *publicClipReactionClient) ListFavorites(context.Context, *reactionpb.ListFavoritesRequest, ...grpc.CallOption) (*reactionpb.FavoriteListResponse, error) {
+	return &reactionpb.FavoriteListResponse{}, nil
+}
+
+func (f *publicClipReactionClient) UpdateCollection(_ context.Context, req *reactionpb.UpdateCollectionRequest, _ ...grpc.CallOption) (*reactionpb.CollectionResponse, error) {
+	f.updateReq = req
+	return &reactionpb.CollectionResponse{Success: true, Collection: &reactionpb.CollectionInfo{Id: req.GetId(), UserId: req.GetUserId(), Name: req.GetName(), Description: req.GetDescription()}}, nil
+}
+
+func (f *publicClipReactionClient) ListPublicCollectionItems(_ context.Context, req *reactionpb.ListPublicCollectionItemsRequest, _ ...grpc.CallOption) (*reactionpb.CollectionItemsResponse, error) {
+	f.itemsReq = req
+	return f.itemsResp, nil
 }
 
 func (f *publicClipReactionClient) ListPublicCollections(_ context.Context, req *reactionpb.ListPublicCollectionsRequest, _ ...grpc.CallOption) (*reactionpb.ListCollectionsResponse, error) {

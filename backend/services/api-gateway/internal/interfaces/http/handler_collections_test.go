@@ -75,7 +75,7 @@ func TestCreateAndUpdateCollectionValidateName(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, updateRecorder.Code)
 	require.Nil(t, reaction.updateReq)
 
-	longRecorder, longContext := collectionContext(http.MethodPost, "/api/v1/users/me/collections", `{"name":"Saved","description":"`+strings.Repeat("界", 501)+`"}`)
+	longRecorder, longContext := collectionContext(http.MethodPost, "/api/v1/users/me/collections", `{"name":"Saved","description":"`+strings.Repeat("界", 2049)+`"}`)
 	h.createCurrentUserCollection(longContext)
 	require.Equal(t, http.StatusBadRequest, longRecorder.Code)
 }

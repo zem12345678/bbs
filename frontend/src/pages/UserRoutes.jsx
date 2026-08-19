@@ -2792,7 +2792,7 @@ function UserFavoritesPanel({ auth }) {
     if (!editor) return;
     const name = editor.name.trim();
     const description = editor.description.trim();
-    if (!name || Array.from(name).length > 80 || Array.from(description).length > 500) {
+    if (!name || Array.from(name).length > 100 || Array.from(description).length > 2048) {
       setAction((current) => ({ ...current, error: "请检查收藏夹名称和描述长度", notice: "" }));
       return;
     }
@@ -2967,11 +2967,11 @@ function UserFavoritesPanel({ auth }) {
           <form className="collection-editor" onSubmit={submitEditor}>
             <label>
               名称
-              <input maxLength={80} required value={editor.name} onChange={(event) => updateEditor("name", event.target.value)} />
+              <input maxLength={100} required value={editor.name} onChange={(event) => updateEditor("name", event.target.value)} />
             </label>
             <label className="is-wide">
               描述
-              <input maxLength={500} value={editor.description} onChange={(event) => updateEditor("description", event.target.value)} />
+              <input maxLength={2048} value={editor.description} onChange={(event) => updateEditor("description", event.target.value)} />
             </label>
             <label className="collection-editor__visibility">
               <input type="checkbox" checked={editor.is_public} onChange={(event) => updateEditor("is_public", event.target.checked)} />

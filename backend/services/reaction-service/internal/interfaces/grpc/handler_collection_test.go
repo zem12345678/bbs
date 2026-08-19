@@ -155,6 +155,26 @@ func TestListPublicCollectionsMapsItems(t *testing.T) {
 	}
 }
 
+func TestListPublicCollectionItemsForwardsExclusiveCursors(t *testing.T) {
+	repo := &collectionRepositoryStub{items: []*domain.CollectionItem{{ID: 11, CollectionID: 7, Entity: domain.EntityRef{Type: domain.EntityArticle, ID: 88}}}}
+	h := newCollectionHandler(repo)
+
+	response, err := h.ListPublicCollectionItems(context.Background(), &pb.ListPublicCollectionItemsRequest{
+		CollectionId: 7, Limit: 10, SinceId: 90, UntilId: 30,
+	})
+	if err != nil {
+		t.Fatalf("list public collection items: %v", err)
+	}
+	if response.GetTotal() != 1 || repo.publicSinceID != 90 || repo.publicUntilID != 30 {
+		t.Fatalf("response = %+v, cursors = %d/%d", response, repo.publicSinceID, repo.publicUntilID)
+	}
+
+	_, err = h.ListPublicCollectionItems(context.Background(), &pb.ListPublicCollectionItemsRequest{CollectionId: 7, SinceId: -1})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("negative cursor status = %s, want %s", status.Code(err), codes.InvalidArgument)
+	}
+}
+
 func newCollectionHandler(repo domain.CollectionRepository) *Handler {
 	cmd := command.NewService(nil, nil, nil, nil, nil, repo, nil, nil)
 	qry := query.NewService(nil, nil, nil, nil, nil, repo)
@@ -170,6 +190,8 @@ type collectionRepositoryStub struct {
 	lastCollectionID   int64
 	collectionsAfterID int64
 	itemsAfterID       int64
+	publicSinceID      int64
+	publicUntilID      int64
 }
 
 func (r *collectionRepositoryStub) CreateCollection(_ context.Context, collection *domain.Collection) error {
@@ -220,7 +242,9 @@ func (r *collectionRepositoryStub) GetCollection(context.Context, int64, int64) 
 	return nil, nil
 }
 
-func (r *collectionRepositoryStub) ListPublicCollectionItems(context.Context, int64, int64, int, int) ([]*domain.CollectionItem, int64, error) {
+func (r *collectionRepositoryStub) ListPublicCollectionItems(_ context.Context, _ int64, _ int64, _ int, _ int, sinceID, untilID int64) ([]*domain.CollectionItem, int64, error) {
+	r.publicSinceID = sinceID
+	r.publicUntilID = untilID
 	return r.items, int64(len(r.items)), r.listItemsErr
 }
 

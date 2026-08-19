@@ -205,7 +205,7 @@ func (s *Service) GetCollection(ctx context.Context, collectionID, viewerUserID 
 	return publicCollections.GetCollection(ctx, collectionID, viewerUserID)
 }
 
-func (s *Service) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int) ([]*domain.CollectionItem, int64, error) {
+func (s *Service) ListPublicCollectionItems(ctx context.Context, collectionID, viewerUserID int64, limit, offset int, sinceID, untilID int64) ([]*domain.CollectionItem, int64, error) {
 	publicCollections, ok := s.collections.(domain.PublicCollectionRepository)
 	if !ok {
 		return nil, 0, domain.ErrCollectionRepositoryUnavailable
@@ -216,7 +216,10 @@ func (s *Service) ListPublicCollectionItems(ctx context.Context, collectionID, v
 	if viewerUserID < 0 {
 		return nil, 0, domain.ErrInvalidUserID
 	}
-	return publicCollections.ListPublicCollectionItems(ctx, collectionID, viewerUserID, limit, offset)
+	if sinceID < 0 || untilID < 0 {
+		return nil, 0, domain.ErrInvalidCollectionCursor
+	}
+	return publicCollections.ListPublicCollectionItems(ctx, collectionID, viewerUserID, limit, offset, sinceID, untilID)
 }
 
 func (s *Service) ListPublicCollections(ctx context.Context, userID, viewerUserID int64, limit int, sinceID, untilID int64) ([]*domain.Collection, error) {

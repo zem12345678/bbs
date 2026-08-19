@@ -1,7 +1,9 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	stdhttp "net/http"
 	"strconv"
 	"strings"
@@ -20,19 +22,39 @@ type clipCreateRequest struct {
 }
 
 type clipUpdateRequest struct {
-	ClipID      jsonInt64 `json:"clipId"`
-	Name        *string   `json:"name"`
-	Description *string   `json:"description"`
-	IsPublic    *bool     `json:"isPublic"`
+	ClipID      jsonInt64          `json:"clipId"`
+	Name        *string            `json:"name"`
+	Description clipNullableString `json:"description"`
+	IsPublic    *bool              `json:"isPublic"`
+}
+
+// clipNullableString preserves omitted versus explicit null descriptions.
+type clipNullableString struct {
+	Present bool
+	Value   *string
+}
+
+func (v *clipNullableString) UnmarshalJSON(data []byte) error {
+	v.Present = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		v.Value = nil
+		return nil
+	}
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	v.Value = &value
+	return nil
 }
 
 type clipIDRequest struct {
 	ClipID jsonInt64 `json:"clipId"`
 }
 type clipNoteRequest struct {
-	ClipID jsonInt64 `json:"clipId"`
-	NoteID jsonInt64 `json:"noteId"`
-	Limit  *int32 `json:"limit"`
+	ClipID  jsonInt64 `json:"clipId"`
+	NoteID  jsonInt64 `json:"noteId"`
+	Limit   *int32    `json:"limit"`
 	SinceID jsonInt64 `json:"sinceId"`
 	UntilID jsonInt64 `json:"untilId"`
 }
@@ -131,14 +153,33 @@ func (h *Handler) updateClip(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	current, err := h.clients.Reaction.GetCollection(ctx, &reactionpb.GetCollectionRequest{Id: req.ClipID.Int64(), ViewerUserId: currentUserID(c)})
-	if err != nil { writeRPCError(c, err); return }
-	if current.GetCollection() == nil { writeError(c, stdhttp.StatusNotFound, "clip not found", "not_found"); return }
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	if current.GetCollection() == nil {
+		writeError(c, stdhttp.StatusNotFound, "clip not found", "not_found")
+		return
+	}
 	name := current.GetCollection().GetName()
-	if req.Name != nil { name = strings.TrimSpace(*req.Name) }
+	if req.Name != nil {
+		name = strings.TrimSpace(*req.Name)
+	}
 	description := current.GetCollection().GetDescription()
-	if req.Description != nil { description = strings.TrimSpace(*req.Description) }
+	if req.Description.Present {
+		description = ""
+		if req.Description.Value != nil {
+			description = strings.TrimSpace(*req.Description.Value)
+		}
+	}
 	isPublic := current.GetCollection().GetIsPublic()
-	if req.IsPublic != nil { isPublic = *req.IsPublic }
+	if req.IsPublic != nil {
+		isPublic = *req.IsPublic
+	}
+	if name == "" || len([]rune(name)) > collectionNameMaxLength || len([]rune(description)) > collectionDescriptionMaxLength {
+		writeError(c, stdhttp.StatusBadRequest, "invalid clip fields", "invalid_argument")
+		return
+	}
 	resp, err := h.clients.Reaction.UpdateCollection(ctx, &reactionpb.UpdateCollectionRequest{UserId: currentUserID(c), Id: req.ClipID.Int64(), Name: name, Description: description, IsPublic: isPublic})
 	if err != nil {
 		writeRPCError(c, err)
@@ -219,7 +260,9 @@ func (h *Handler) mutateClipNote(c *gin.Context, add bool) {
 	if add {
 		var ok bool
 		entityType, ok = h.resolvePublishedClipNote(c, ctx, req.NoteID.Int64())
-		if !ok { return }
+		if !ok {
+			return
+		}
 	}
 	item := &reactionpb.CollectionItemRequest{UserId: currentUserID(c), CollectionId: req.ClipID.Int64(), Entity: &reactionpb.EntityRef{EntityType: entityType, EntityId: req.NoteID.Int64()}}
 	var err error
@@ -229,7 +272,9 @@ func (h *Handler) mutateClipNote(c *gin.Context, add bool) {
 		_, err = h.clients.Reaction.RemoveCollectionItem(ctx, item)
 		if err == nil {
 			otherType := "topic"
-			if entityType == otherType { otherType = "article" }
+			if entityType == otherType {
+				otherType = "article"
+			}
 			_, err = h.clients.Reaction.RemoveCollectionItem(ctx, &reactionpb.CollectionItemRequest{UserId: currentUserID(c), CollectionId: req.ClipID.Int64(), Entity: &reactionpb.EntityRef{EntityType: otherType, EntityId: req.NoteID.Int64()}})
 		}
 	}
@@ -247,14 +292,21 @@ func (h *Handler) listClipNotes(c *gin.Context) {
 		return
 	}
 	limit := collectionDefaultLimit
-	if req.Limit != nil { limit = *req.Limit } else if v, ok := strictQueryInt32(c, "limit", collectionDefaultLimit); ok { limit = v }
-	if limit < 1 || limit > 100 {
+	if req.Limit != nil {
+		limit = *req.Limit
+	} else if v, ok := strictQueryInt32(c, "limit", collectionDefaultLimit); ok {
+		limit = v
+	}
+	if limit < 1 || limit > 100 || req.SinceID.Int64() < 0 || req.UntilID.Int64() < 0 {
 		writeError(c, stdhttp.StatusBadRequest, "limit must be between 1 and 100", "invalid_argument")
 		return
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Reaction.ListPublicCollectionItems(ctx, &reactionpb.ListPublicCollectionItemsRequest{CollectionId: req.ClipID.Int64(), ViewerUserId: currentUserID(c), Limit: limit})
+	resp, err := h.clients.Reaction.ListPublicCollectionItems(ctx, &reactionpb.ListPublicCollectionItemsRequest{
+		CollectionId: req.ClipID.Int64(), ViewerUserId: currentUserID(c), Limit: limit,
+		SinceId: req.SinceID.Int64(), UntilId: req.UntilID.Int64(),
+	})
 	if err != nil {
 		writeRPCError(c, err)
 		return
@@ -272,13 +324,27 @@ func (h *Handler) listClipNotes(c *gin.Context) {
 
 func (h *Handler) mutateClipFavorite(c *gin.Context) {
 	var req clipIDRequest
-	if !bindJSON(c, &req) || req.ClipID.Int64() <= 0 { writeError(c, stdhttp.StatusBadRequest, "clipId must be a positive integer", "invalid_argument"); return }
-	ctx, cancel := rpcContext(c); defer cancel()
-	if _, err := h.clients.Reaction.GetCollection(ctx, &reactionpb.GetCollectionRequest{Id: req.ClipID.Int64(), ViewerUserId: currentUserID(c)}); err != nil { writeRPCError(c, err); return }
+	if !bindJSON(c, &req) || req.ClipID.Int64() <= 0 {
+		writeError(c, stdhttp.StatusBadRequest, "clipId must be a positive integer", "invalid_argument")
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	if _, err := h.clients.Reaction.GetCollection(ctx, &reactionpb.GetCollectionRequest{Id: req.ClipID.Int64(), ViewerUserId: currentUserID(c)}); err != nil {
+		writeRPCError(c, err)
+		return
+	}
 	ref := &reactionpb.EntityRef{EntityType: "collection", EntityId: req.ClipID.Int64()}
 	var err error
-	if strings.HasSuffix(c.Request.URL.Path, "/unfavorite") { _, err = h.clients.Reaction.Unfavorite(ctx, &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)}) } else { _, err = h.clients.Reaction.Favorite(ctx, &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)}) }
-	if err != nil { writeRPCError(c, err); return }
+	if strings.HasSuffix(c.Request.URL.Path, "/unfavorite") {
+		_, err = h.clients.Reaction.Unfavorite(ctx, &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)})
+	} else {
+		_, err = h.clients.Reaction.Favorite(ctx, &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)})
+	}
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
 	c.Status(stdhttp.StatusNoContent)
 }
 
@@ -286,13 +352,21 @@ func (h *Handler) listFavoriteClips(c *gin.Context) {
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	resp, err := h.clients.Reaction.ListFavorites(ctx, &reactionpb.ListFavoritesRequest{UserId: currentUserID(c), EntityType: "collection", Limit: 100})
-	if err != nil { writeRPCError(c, err); return }
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
 	out := make([]misskeyClip, 0, len(resp.GetItems()))
 	for _, favorite := range resp.GetItems() {
 		collection, err := h.clients.Reaction.GetCollection(ctx, &reactionpb.GetCollectionRequest{Id: favorite.GetEntity().GetEntityId(), ViewerUserId: currentUserID(c)})
-		if err != nil { writeRPCError(c, err); return }
+		if err != nil {
+			writeRPCError(c, err)
+			return
+		}
 		clip, ok := h.clipFromCollection(c, ctx, collection.GetCollection(), currentUserID(c), false)
-		if !ok { return }
+		if !ok {
+			return
+		}
 		out = append(out, clip)
 	}
 	c.JSON(stdhttp.StatusOK, out)
@@ -368,10 +442,23 @@ func (h *Handler) resolvePublishedClipNote(c *gin.Context, ctx context.Context, 
 	topic, topicErr := h.clients.Content.GetTopic(ctx, &contentpb.GetTopicRequest{Key: &contentpb.GetTopicRequest_Id{Id: id}})
 	articlePublished := articleErr == nil && article.GetArticle() != nil && article.GetArticle().GetStatus() == contentStatusPublished
 	topicPublished := topicErr == nil && topic.GetTopic() != nil && topic.GetTopic().GetStatus() == contentStatusPublished
-	if articlePublished && topicPublished { writeError(c, stdhttp.StatusConflict, "note id matches both an article and a topic", "ambiguous_note_id"); return "", false }
-	if articlePublished { return "article", true }
-	if topicPublished { return "topic", true }
-	if articleErr != nil { writeRPCError(c, articleErr) } else if topicErr != nil { writeRPCError(c, topicErr) } else { writeError(c, stdhttp.StatusNotFound, "note not found", "not_found") }
+	if articlePublished && topicPublished {
+		writeError(c, stdhttp.StatusConflict, "note id matches both an article and a topic", "ambiguous_note_id")
+		return "", false
+	}
+	if articlePublished {
+		return "article", true
+	}
+	if topicPublished {
+		return "topic", true
+	}
+	if articleErr != nil {
+		writeRPCError(c, articleErr)
+	} else if topicErr != nil {
+		writeRPCError(c, topicErr)
+	} else {
+		writeError(c, stdhttp.StatusNotFound, "note not found", "not_found")
+	}
 	return "", false
 }
 
