@@ -126,7 +126,7 @@ func TestChannelRoutesMapOwnerMutationsAndChannelTimeline(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/channels/7001/topics?limit=6&offset=2", nil))
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.NotNil(t, content.getRequest)
-	require.True(t, content.getRequest.GetIncludeArchived())
+	require.False(t, content.getRequest.GetIncludeArchived())
 	require.EqualValues(t, 7001, content.topicListRequest.GetChannelId())
 	require.EqualValues(t, contentStatusPublished, content.topicListRequest.GetStatus())
 	require.EqualValues(t, 6, content.topicListRequest.GetLimit())
@@ -137,6 +137,74 @@ func TestChannelRoutesMapOwnerMutationsAndChannelTimeline(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	require.EqualValues(t, 42, content.archiveRequest.GetActorId())
+}
+
+func TestChannelReadsHideArchivedChannelsFromNonOwners(t *testing.T) {
+	tests := []struct {
+		name        string
+		userID      int64
+		archived    bool
+		wantStatus  int
+		wantInclude bool
+	}{
+		{name: "anonymous active", archived: false, wantStatus: http.StatusOK},
+		{name: "anonymous archived", archived: true, wantStatus: http.StatusNotFound},
+		{name: "non-owner archived", userID: 7, archived: true, wantStatus: http.StatusNotFound, wantInclude: true},
+		{name: "owner archived", userID: 42, archived: true, wantStatus: http.StatusOK, wantInclude: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := &channelHTTPClient{channelResponse: &contentpb.ChannelResponse{
+				Success: true,
+				Channel: &contentpb.ChannelInfo{Id: 7001, OwnerId: 42, IsArchived: tt.archived},
+			}}
+			router := channelTestRouter(content)
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/channels/7001", nil)
+			if tt.userID != 0 {
+				request.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": tt.userID}))
+			}
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
+			require.Equal(t, tt.wantInclude, content.getRequest.GetIncludeArchived())
+		})
+	}
+}
+
+func TestChannelTopicsUseSameArchivedVisibility(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		userID         int64
+		wantStatus     int
+		wantListTopics bool
+	}{
+		{name: "anonymous", wantStatus: http.StatusNotFound},
+		{name: "non-owner", userID: 7, wantStatus: http.StatusNotFound},
+		{name: "owner", userID: 42, wantStatus: http.StatusOK, wantListTopics: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			content := &channelHTTPClient{channelResponse: &contentpb.ChannelResponse{
+				Success: true,
+				Channel: &contentpb.ChannelInfo{Id: 7001, OwnerId: 42, IsArchived: true},
+			}}
+			router := channelTestRouter(content)
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/channels/7001/topics", nil)
+			if tt.userID != 0 {
+				request.Header.Set("Authorization", "Bearer "+signedAuthToken(t, jwt.MapClaims{"sub": tt.userID}))
+			}
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			require.Equal(t, tt.wantStatus, recorder.Code, recorder.Body.String())
+			if tt.wantListTopics {
+				require.NotNil(t, content.topicListRequest)
+			} else {
+				require.Nil(t, content.topicListRequest)
+			}
+		})
+	}
 }
 
 func TestCreateTopicForwardsChannelID(t *testing.T) {
@@ -176,6 +244,7 @@ type channelHTTPClient struct {
 	categoryRequest  *contentpb.ListChannelCategoriesRequest
 	action           string
 	actionRequest    *contentpb.ChannelUserRequest
+	channelResponse  *contentpb.ChannelResponse
 }
 
 func (c *channelHTTPClient) CreateChannel(_ context.Context, request *contentpb.CreateChannelRequest, _ ...grpc.CallOption) (*contentpb.ChannelResponse, error) {
@@ -195,7 +264,10 @@ func (c *channelHTTPClient) ArchiveChannel(_ context.Context, request *contentpb
 
 func (c *channelHTTPClient) GetChannel(_ context.Context, request *contentpb.GetChannelRequest, _ ...grpc.CallOption) (*contentpb.ChannelResponse, error) {
 	c.getRequest = request
-	return &contentpb.ChannelResponse{Success: true, Channel: &contentpb.ChannelInfo{Id: request.GetId()}}, nil
+	if c.channelResponse != nil {
+		return c.channelResponse, nil
+	}
+	return &contentpb.ChannelResponse{Success: true, Channel: &contentpb.ChannelInfo{Id: request.GetId(), OwnerId: 42}}, nil
 }
 
 func (c *channelHTTPClient) ListChannels(_ context.Context, request *contentpb.ListChannelsRequest, _ ...grpc.CallOption) (*contentpb.ChannelListResponse, error) {

@@ -2571,12 +2571,28 @@ func (h *Handler) getChannel(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.Content.GetChannel(ctx, &contentpb.GetChannelRequest{Id: id, ViewerUserId: currentUserID(c), IncludeArchived: true})
-	if err != nil {
-		writeRPCError(c, err)
+	resp, ok := h.visibleChannel(c, ctx, id)
+	if !ok {
 		return
 	}
 	response.Success(c, resp)
+}
+
+func (h *Handler) visibleChannel(c *gin.Context, ctx context.Context, id int64) (*contentpb.ChannelResponse, bool) {
+	viewerID := currentUserID(c)
+	resp, err := h.clients.Content.GetChannel(ctx, &contentpb.GetChannelRequest{
+		Id: id, ViewerUserId: viewerID, IncludeArchived: viewerID != 0,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return nil, false
+	}
+	channel := resp.GetChannel()
+	if channel == nil || (channel.GetIsArchived() && (viewerID == 0 || channel.GetOwnerId() != viewerID)) {
+		writeRPCError(c, status.Error(codes.NotFound, "channel not found"))
+		return nil, false
+	}
+	return resp, true
 }
 
 func (h *Handler) listChannels(c *gin.Context) {
@@ -2640,8 +2656,7 @@ func (h *Handler) listChannelTopics(c *gin.Context) {
 	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	if _, err := h.clients.Content.GetChannel(ctx, &contentpb.GetChannelRequest{Id: id, ViewerUserId: currentUserID(c), IncludeArchived: true}); err != nil {
-		writeRPCError(c, err)
+	if _, ok := h.visibleChannel(c, ctx, id); !ok {
 		return
 	}
 	resp, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{
