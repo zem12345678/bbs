@@ -488,8 +488,35 @@ export const bbsApi = {
     ).join(",");
     return request(`/users/batch${buildQuery({ ids })}`);
   },
-  followUser(userId, token) {
-    return request(`/users/${userId}/follow`, { method: "POST", token });
+  followUser(userId, optionsOrToken, token) {
+    const legacyCall = typeof optionsOrToken === "string";
+    const booleanCall = typeof optionsOrToken === "boolean";
+    const options = legacyCall ? {} : booleanCall ? { withReplies: optionsOrToken } : optionsOrToken || {};
+    const body = Object.prototype.hasOwnProperty.call(options, "withReplies") && options.withReplies !== undefined
+      ? { withReplies: Boolean(options.withReplies) }
+      : undefined;
+    return request(`/users/${encodeURIComponent(userId)}/follow`, {
+      method: "POST",
+      body,
+      token: legacyCall ? optionsOrToken : token
+    });
+  },
+  updateFollowing(userId, preferences = {}, token) {
+    const body = { userId: String(userId) };
+    if (Object.prototype.hasOwnProperty.call(preferences, "withReplies") && preferences.withReplies !== undefined) {
+      body.withReplies = Boolean(preferences.withReplies);
+    }
+    if (Object.prototype.hasOwnProperty.call(preferences, "notify") && preferences.notify !== undefined) {
+      body.notify = preferences.notify;
+    }
+    return request("/following/update", { method: "POST", body, token });
+  },
+  listFollowingEdges(userId, params = {}, token) {
+    const body = { userId: String(userId) };
+    if (params.sinceId !== undefined && params.sinceId !== null && params.sinceId !== "") body.sinceId = String(params.sinceId);
+    if (params.untilId !== undefined && params.untilId !== null && params.untilId !== "") body.untilId = String(params.untilId);
+    if (params.limit !== undefined && params.limit !== null && params.limit !== "") body.limit = params.limit;
+    return request("/users/following", { method: "POST", body, token });
   },
   cancelFollowRequest(userId, token) {
     return request(`/users/${userId}/follow/cancel`, { method: "POST", token });

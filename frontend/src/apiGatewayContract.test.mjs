@@ -21,6 +21,10 @@ const gatewayRouteFiles = [
   {
     path: "backend/services/api-gateway/internal/interfaces/http/handler_clips.go",
     prefix: "/clips"
+  },
+  {
+    path: "backend/services/api-gateway/internal/interfaces/http/handler_following_compat.go",
+    prefix: ""
   }
 ];
 
@@ -99,6 +103,18 @@ function extractGatewayRoutes() {
   const routes = new Set();
   for (const item of gatewayRouteFiles) {
     const source = read(item.path);
+    if (item.path.endsWith("handler_following_compat.go")) {
+      for (const raw of [
+        "/following/create",
+        "/following/delete",
+        "/following/update",
+        "/following/update-all",
+        "/users/following",
+        "/users/followers"
+      ]) {
+        routes.add(routeKey("post", `/api/v1${raw}`));
+      }
+    }
     const routePattern =
       /(?:api|chat)\.(GET|POST|PUT|PATCH|DELETE)\("([^"]+)"/g;
     for (const match of source.matchAll(routePattern)) {

@@ -3757,11 +3757,13 @@ function appendUniqueBadgeRows(currentRows, pageRows) {
 function UserFollowPanel({ auth, direction, editable = false, userId }) {
   const accessToken = auth?.accessToken || "";
   const removeRequestRef = React.useRef(0);
+  const preferenceSessionRef = React.useRef(0);
   const importRequestRef = React.useRef(0);
   const importInputRef = React.useRef(null);
   const importScopeRef = React.useRef({ accessToken, direction, editable, userId });
   importScopeRef.current = { accessToken, direction, editable, userId };
   const [removal, setRemoval] = React.useState({ busy: "", error: "" });
+  const [preferenceActions, setPreferenceActions] = React.useState({});
   const [importState, setImportState] = React.useState({ busy: false, error: "", notice: "" });
   const [withReplies, setWithReplies] = React.useState(false);
   const [state, setState] = React.useState({
@@ -3770,12 +3772,16 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
     page: 0,
     loading: false,
     loadingMore: false,
-    error: ""
+    error: "",
+    edgeCursor: "",
+    edgeHasMore: false
   });
 
-  const loadFollows = React.useCallback((page = 1, appending = false) => {
+  const canEditFollowingPreferences = editable && direction === "following" && Boolean(accessToken);
+
+  const loadFollows = React.useCallback((page = 1, appending = false, untilId = "") => {
     if (!userId) {
-      setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: "" });
+      setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: "", edgeCursor: "", edgeHasMore: false });
       return undefined;
     }
     let alive = true;
@@ -3788,21 +3794,27 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
       loadingMore: appending,
       error: ""
     }));
-    const loader = direction === "followers" ? bbsApi.followers : bbsApi.following;
-    loader(userId, { page, page_size: FOLLOW_LIST_PAGE_SIZE })
+    const loader = canEditFollowingPreferences
+      ? () => bbsApi.listFollowingEdges(userId, { limit: FOLLOW_LIST_PAGE_SIZE, untilId: untilId || undefined }, accessToken)
+      : () => (direction === "followers" ? bbsApi.followers : bbsApi.following)(userId, { page, page_size: FOLLOW_LIST_PAGE_SIZE });
+    loader()
       .then((data) => {
         if (!alive) return;
-        const pageRows = followRows(listItems(data));
+        const edgeItems = canEditFollowingPreferences ? followingEdgeItems(data) : [];
+        const pageRows = canEditFollowingPreferences ? followingEdgeRows(edgeItems) : followRows(listItems(data));
+        const edgeCursor = canEditFollowingPreferences && pageRows.length > 0 ? pageRows[pageRows.length - 1].edgeId : "";
         if (appending) {
           setState((current) => {
             const rows = appendUniqueFollowRows(current.rows, pageRows);
             return {
               ...current,
               rows,
-              total: pageRows.length > 0 ? Math.max(listTotal(data, pageRows), rows.length) : rows.length,
+              total: canEditFollowingPreferences ? rows.length : pageRows.length > 0 ? Math.max(listTotal(data, pageRows), rows.length) : rows.length,
               page: pageRows.length > 0 ? page : current.page,
               loadingMore: false,
-              error: ""
+              error: "",
+              edgeCursor: edgeCursor || current.edgeCursor,
+              edgeHasMore: canEditFollowingPreferences ? edgeItems.length >= FOLLOW_LIST_PAGE_SIZE && Boolean(edgeCursor) : false
             };
           });
           return;
@@ -3813,7 +3825,9 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
           page: pageRows.length > 0 ? page : 0,
           loading: false,
           loadingMore: false,
-          error: ""
+          error: "",
+          edgeCursor,
+          edgeHasMore: canEditFollowingPreferences && edgeItems.length >= FOLLOW_LIST_PAGE_SIZE && Boolean(edgeCursor)
         });
       })
       .catch((error) => {
@@ -3822,20 +3836,23 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
           setState((current) => ({ ...current, loadingMore: false, error: error.message || "更多用户加载失败" }));
           return;
         }
-        setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: error.message || "关系链加载失败" });
+        setState({ rows: [], total: 0, page: 0, loading: false, loadingMore: false, error: error.message || "关系链加载失败", edgeCursor: "", edgeHasMore: false });
       });
     return () => {
       alive = false;
     };
-  }, [direction, userId]);
+  }, [accessToken, canEditFollowingPreferences, direction, userId]);
 
   React.useEffect(() => {
     removeRequestRef.current += 1;
+    preferenceSessionRef.current += 1;
     setRemoval({ busy: "", error: "" });
+    setPreferenceActions({});
     const cleanup = loadFollows();
     return () => {
       cleanup?.();
       removeRequestRef.current += 1;
+      preferenceSessionRef.current += 1;
     };
   }, [accessToken, editable, loadFollows]);
 
@@ -3845,8 +3862,9 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
   }, [accessToken, direction, editable, userId]);
 
   function loadMoreFollows() {
-    if (state.loading || state.loadingMore || removal.busy || importState.busy || state.rows.length >= state.total) return;
-    loadFollows(state.page + 1, true);
+    const hasMore = canEditFollowingPreferences ? state.edgeHasMore : state.rows.length < state.total;
+    if (state.loading || state.loadingMore || removal.busy || importState.busy || !hasMore) return;
+    loadFollows(state.page + 1, true, state.edgeCursor);
   }
 
   const canRemove = editable && direction === "followers" && Boolean(accessToken);
@@ -3874,6 +3892,35 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
   }
 
   const canImportFollowing = editable && direction === "following" && Boolean(accessToken);
+
+  async function updateFollowingPreference(row, preferences) {
+    const rowKey = String(row?.key || "");
+    if (!canEditFollowingPreferences || !rowKey || preferenceActions[rowKey]?.busy) return;
+    const requestSession = preferenceSessionRef.current;
+    setPreferenceActions((current) => ({ ...current, [rowKey]: { busy: true, error: "" } }));
+    try {
+      const data = await bbsApi.updateFollowing(rowKey, preferences, accessToken);
+      if (preferenceSessionRef.current !== requestSession) return;
+      const updated = followingEdgeFromResponse(data);
+      setState((current) => ({
+        ...current,
+        rows: current.rows.map((item) => String(item.key) === rowKey
+          ? {
+              ...item,
+              withReplies: followingEdgeWithReplies(updated, preferences.withReplies ?? item.withReplies),
+              notify: followingEdgeNotify(updated, preferences.notify ?? item.notify)
+            }
+          : item)
+      }));
+      setPreferenceActions((current) => ({ ...current, [rowKey]: { busy: false, error: "" } }));
+    } catch (error) {
+      if (preferenceSessionRef.current !== requestSession) return;
+      setPreferenceActions((current) => ({
+        ...current,
+        [rowKey]: { busy: false, error: error.message || "关注偏好更新失败" }
+      }));
+    }
+  }
 
   async function importFollowing(event) {
     const file = event.target.files?.[0];
@@ -3934,7 +3981,47 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
   return (
     <>
       {importControls}
-      {canRemove ? (
+      {canEditFollowingPreferences ? (
+        <div className="data-rows">
+          {state.rows.map((row) => {
+            const preferenceAction = preferenceActions[String(row.key)] || {};
+            return (
+              <article className="data-row panel user-follow-row" key={row.key}>
+                <div>
+                  <strong>{row.title}</strong>
+                  {row.description && <p>{row.description}</p>}
+                  {row.meta && <span>{row.meta}</span>}
+                </div>
+                <div className="user-follow-preferences">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={row.withReplies}
+                      disabled={preferenceAction.busy || state.loadingMore || importState.busy}
+                      onChange={(event) => updateFollowingPreference(row, { withReplies: event.target.checked })}
+                    />
+                    含回复
+                  </label>
+                  <label>
+                    <Bell size={15} aria-hidden="true" />
+                    <select
+                      aria-label={`新内容通知 ${row.title}`}
+                      value={row.notify}
+                      disabled={preferenceAction.busy || state.loadingMore || importState.busy}
+                      onChange={(event) => updateFollowingPreference(row, { notify: event.target.value })}
+                    >
+                      <option value="normal">新内容通知</option>
+                      <option value="none">不通知</option>
+                    </select>
+                  </label>
+                  {preferenceAction.busy && <small role="status">保存中...</small>}
+                  {preferenceAction.error && <small className="form-error" role="alert">{preferenceAction.error}</small>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : canRemove ? (
         <div className="data-rows">
           {state.rows.map((row) => (
             <article className="data-row panel user-follow-row" key={row.key}>
@@ -3951,7 +4038,7 @@ function UserFollowPanel({ auth, direction, editable = false, userId }) {
         </div>
       ) : <DataRows rows={state.rows} />}
       {removal.error && <p className="form-error" role="alert">{removal.error}</p>}
-      {state.rows.length < state.total && (
+      {(canEditFollowingPreferences ? state.edgeHasMore : state.rows.length < state.total) && (
         <div className="dashboard-history-more">
           <span>{state.loadingMore ? `正在加载更多${label}...` : state.error || `继续查看更多${label}。`}</span>
           <button aria-label={`加载更多${label}`} type="button" disabled={state.loadingMore || Boolean(removal.busy) || importState.busy} onClick={loadMoreFollows}>
@@ -3973,6 +4060,40 @@ function followRows(items) {
       meta: `@${user.username || user.id}`
     };
   });
+}
+
+function followingEdgeItems(data) {
+  return Array.isArray(data) ? data : listItems(data);
+}
+
+function followingEdgeRows(items) {
+  return items.map((edge) => {
+    const followeeValue = edge?.followee ?? edge?.followee_id ?? edge?.followeeId;
+    const user = followeeValue && typeof followeeValue === "object"
+      ? followeeValue
+      : { id: toId(followeeValue ?? edge?.followee_id ?? edge?.followeeId) };
+    const row = followRows([user])[0];
+    return {
+      ...row,
+      edgeId: toId(edge?.id ?? edge?.following_id ?? edge?.followingId ?? row.key),
+      withReplies: followingEdgeWithReplies(edge, false),
+      notify: followingEdgeNotify(edge, "none")
+    };
+  }).filter((row) => Boolean(toId(row.key)));
+}
+
+function followingEdgeFromResponse(data) {
+  return data?.following || data?.edge || data || {};
+}
+
+function followingEdgeWithReplies(edge, fallback) {
+  const value = edge?.withReplies ?? edge?.with_replies;
+  return value === undefined ? Boolean(fallback) : Boolean(value);
+}
+
+function followingEdgeNotify(edge, fallback = "none") {
+  const value = String(edge?.notify ?? fallback ?? "none").toLowerCase();
+  return value === "normal" ? "normal" : "none";
 }
 
 function appendUniqueFollowRows(currentRows, pageRows) {

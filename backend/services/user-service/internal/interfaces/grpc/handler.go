@@ -46,7 +46,7 @@ func toStatus(err error) error {
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
-	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrAntennaRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrSessionRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable), errors.Is(err, domain.ErrRegistryRepositoryUnavailable), errors.Is(err, domain.ErrUserMemoRepositoryUnavailable):
+	case errors.Is(err, domain.ErrSecurityEmailDeliveryUnavailable), errors.Is(err, domain.ErrSafetyRepositoryUnavailable), errors.Is(err, domain.ErrInviteRepositoryUnavailable), errors.Is(err, domain.ErrUserListRepositoryUnavailable), errors.Is(err, domain.ErrAntennaRepositoryUnavailable), errors.Is(err, domain.ErrMFARepositoryUnavailable), errors.Is(err, domain.ErrMFAEncryptionUnavailable), errors.Is(err, domain.ErrPasskeyRepositoryUnavailable), errors.Is(err, domain.ErrPasskeyManagerUnavailable), errors.Is(err, domain.ErrAccountLifecycleRepositoryUnavailable), errors.Is(err, domain.ErrFollowRequestRepositoryUnavailable), errors.Is(err, domain.ErrFollowingRepositoryUnavailable), errors.Is(err, domain.ErrSessionRepositoryUnavailable), errors.Is(err, domain.ErrUserChartRepositoryUnavailable), errors.Is(err, domain.ErrUserFollowingChartRepositoryUnavailable), errors.Is(err, domain.ErrActiveUsersChartRepositoryUnavailable), errors.Is(err, domain.ErrRegistryRepositoryUnavailable), errors.Is(err, domain.ErrUserMemoRepositoryUnavailable):
 		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidID),
 		errors.Is(err, domain.ErrUsernameRequired),
@@ -63,6 +63,8 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidStatus),
 		errors.Is(err, domain.ErrInvalidAccountState),
 		errors.Is(err, domain.ErrInvalidProfileTheme),
+		errors.Is(err, domain.ErrFollowNotifyInvalid),
+		errors.Is(err, domain.ErrFollowingLimitInvalid),
 		errors.Is(err, domain.ErrCannotFollowSelf),
 		errors.Is(err, domain.ErrCannotRelateSelf),
 		errors.Is(err, domain.ErrInviteCodeRequired),
@@ -711,7 +713,11 @@ func (h *Handler) UpdateStatus(ctx context.Context, req *pb.UpdateStatusRequest)
 }
 
 func (h *Handler) Follow(ctx context.Context, req *pb.FollowRequest) (*pb.FollowResponse, error) {
-	pending, err := h.cmd.Follow(ctx, req.GetFollowerId(), req.GetFolloweeId())
+	withReplies := false
+	if req.WithReplies != nil {
+		withReplies = req.GetWithReplies()
+	}
+	pending, err := h.cmd.FollowWithPreferences(ctx, req.GetFollowerId(), req.GetFolloweeId(), withReplies)
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -720,6 +726,77 @@ func (h *Handler) Follow(ctx context.Context, req *pb.FollowRequest) (*pb.Follow
 		message = "follow request pending approval"
 	}
 	return &pb.FollowResponse{Success: true, Message: message, Pending: pending}, nil
+}
+
+func toPbFollowing(edge *domain.Following) *pb.FollowingInfo {
+	if edge == nil {
+		return nil
+	}
+	return &pb.FollowingInfo{
+		Id: edge.ID, FollowerId: edge.FollowerID, FolloweeId: edge.FolloweeID,
+		WithReplies: edge.WithReplies, Notify: string(edge.Notify), CreatedAt: edge.CreatedAt.UnixMilli(),
+		Follower: toPb(edge.Follower), Followee: toPb(edge.Followee),
+	}
+}
+
+func toPbFollowings(edges []*domain.Following) []*pb.FollowingInfo {
+	result := make([]*pb.FollowingInfo, 0, len(edges))
+	for _, edge := range edges {
+		result = append(result, toPbFollowing(edge))
+	}
+	return result
+}
+
+func followingPatch(withReplies *bool, notify *string) domain.FollowingPatch {
+	patch := domain.FollowingPatch{WithReplies: withReplies}
+	if notify != nil {
+		value := domain.FollowNotify(*notify)
+		patch.Notify = &value
+	}
+	return patch
+}
+
+func (h *Handler) GetFollowing(ctx context.Context, req *pb.GetFollowingRequest) (*pb.FollowingResponse, error) {
+	edge, err := h.qry.GetFollowing(ctx, req.GetFollowerId(), req.GetFolloweeId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowingResponse{Following: toPbFollowing(edge)}, nil
+}
+
+func (h *Handler) UpdateFollowing(ctx context.Context, req *pb.UpdateFollowingRequest) (*pb.FollowingResponse, error) {
+	edge, err := h.cmd.UpdateFollowing(ctx, req.GetFollowerId(), req.GetFolloweeId(), followingPatch(req.WithReplies, req.Notify))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowingResponse{Following: toPbFollowing(edge)}, nil
+}
+
+func (h *Handler) UpdateAllFollowings(ctx context.Context, req *pb.UpdateAllFollowingsRequest) (*pb.SimpleResponse, error) {
+	if err := h.cmd.UpdateAllFollowings(ctx, req.GetFollowerId(), followingPatch(req.WithReplies, req.Notify)); err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.SimpleResponse{Success: true, Message: "ok"}, nil
+}
+
+func (h *Handler) ListFollowingEdges(ctx context.Context, req *pb.ListFollowingEdgesRequest) (*pb.FollowingListResponse, error) {
+	edges, err := h.qry.ListFollowingEdges(ctx, domain.FollowingQuery{
+		UserID: req.GetUserId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowingListResponse{Items: toPbFollowings(edges)}, nil
+}
+
+func (h *Handler) ListFollowerEdges(ctx context.Context, req *pb.ListFollowingEdgesRequest) (*pb.FollowingListResponse, error) {
+	edges, err := h.qry.ListFollowerEdges(ctx, domain.FollowingQuery{
+		UserID: req.GetUserId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.FollowingListResponse{Items: toPbFollowings(edges)}, nil
 }
 
 func (h *Handler) Unfollow(ctx context.Context, req *pb.FollowRequest) (*pb.SimpleResponse, error) {
@@ -937,6 +1014,7 @@ func toPbFollowRequest(req *domain.FollowRequest) *pb.FollowRequestInfo {
 		TargetId:    req.TargetID,
 		CreatedAt:   req.CreatedAt.UnixMilli(),
 		Counterpart: toPb(counterpart),
+		WithReplies: req.WithReplies,
 	}
 }
 
@@ -949,7 +1027,10 @@ func toPbFollowRequests(rows []*domain.FollowRequest) []*pb.FollowRequestInfo {
 }
 
 func (h *Handler) ListReceivedFollowRequests(ctx context.Context, req *pb.ListFollowRequestsRequest) (*pb.FollowRequestListResponse, error) {
-	result, err := h.qry.ListReceivedFollowRequests(ctx, domain.FollowRequestQuery{ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListReceivedFollowRequests(ctx, domain.FollowRequestQuery{
+		ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -957,7 +1038,10 @@ func (h *Handler) ListReceivedFollowRequests(ctx context.Context, req *pb.ListFo
 }
 
 func (h *Handler) ListSentFollowRequests(ctx context.Context, req *pb.ListFollowRequestsRequest) (*pb.FollowRequestListResponse, error) {
-	result, err := h.qry.ListSentFollowRequests(ctx, domain.FollowRequestQuery{ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize())})
+	result, err := h.qry.ListSentFollowRequests(ctx, domain.FollowRequestQuery{
+		ActorID: req.GetActorId(), Page: int(req.GetPage()), PageSize: int(req.GetPageSize()),
+		SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+	})
 	if err != nil {
 		return nil, toStatus(err)
 	}

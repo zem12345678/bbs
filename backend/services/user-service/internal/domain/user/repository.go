@@ -34,18 +34,27 @@ type FollowRequestRepository interface {
 	// FollowOrRequest makes the privacy decision while holding the same pair
 	// lock used by blocks and approvals. created is false only when an identical
 	// pending request already existed.
-	FollowOrRequest(ctx context.Context, requestID, requesterID, targetID int64) (pending bool, created bool, err error)
+	FollowOrRequest(ctx context.Context, candidateID, requesterID, targetID int64, withReplies bool) (pending bool, created bool, err error)
 	CreateFollowRequest(ctx context.Context, req *FollowRequest) error
 	DeleteFollowRequest(ctx context.Context, requesterID, targetID int64) error
 	// AcceptFollowRequest deletes the pending row and creates the follow in one
 	// transaction so an approval can never leave a half-applied relation.
 	// The boolean reports whether a new follow was created; stale requests that
 	// already have a live relation are consumed without emitting follow events.
-	AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error)
+	AcceptFollowRequest(ctx context.Context, followingID, requesterID, targetID int64) (bool, error)
 	GetFollowRequest(ctx context.Context, requesterID, targetID int64) (*FollowRequest, error)
 	ListReceivedFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)
 	ListSentFollowRequests(ctx context.Context, q FollowRequestQuery) ([]*FollowRequest, int64, error)
 	SetFollowApprovalRequired(ctx context.Context, userID int64, required bool) error
+}
+
+type FollowingRepository interface {
+	CreateFollowing(ctx context.Context, following *Following) error
+	GetFollowing(ctx context.Context, followerID, followeeID int64) (*Following, error)
+	UpdateFollowing(ctx context.Context, followerID, followeeID int64, patch FollowingPatch) (*Following, error)
+	UpdateAllFollowings(ctx context.Context, followerID int64, patch FollowingPatch) error
+	ListFollowerEdges(ctx context.Context, query FollowingQuery) ([]*Following, error)
+	ListFollowingEdges(ctx context.Context, query FollowingQuery) ([]*Following, error)
 }
 type InviteRepository interface {
 	CreateWithInvite(ctx context.Context, u *User, code string, requireInvite bool) error

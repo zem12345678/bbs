@@ -654,6 +654,10 @@ func (s *Service) UpdateStatus(ctx context.Context, id int64, status domain.Stat
 // requires approval, records a pending request. The boolean reports whether the
 // caller ended up with a pending request instead of a live follow.
 func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) (bool, error) {
+	return s.FollowWithPreferences(ctx, followerID, followeeID, false)
+}
+
+func (s *Service) FollowWithPreferences(ctx context.Context, followerID, followeeID int64, withReplies bool) (bool, error) {
 	if followerID <= 0 || followeeID <= 0 {
 		return false, domain.ErrInvalidID
 	}
@@ -679,7 +683,7 @@ func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) (boo
 		return false, domain.ErrSafetyRepositoryUnavailable
 	}
 	if requests, ok := s.repo.(domain.FollowRequestRepository); ok {
-		pending, created, err := requests.FollowOrRequest(ctx, s.idgen.Generate(), followerID, followeeID)
+		pending, created, err := requests.FollowOrRequest(ctx, s.idgen.Generate(), followerID, followeeID, withReplies)
 		if err != nil {
 			return false, err
 		}
@@ -704,7 +708,16 @@ func (s *Service) Follow(ctx context.Context, followerID, followeeID int64) (boo
 	if followee.FollowApprovalRequired {
 		return false, domain.ErrFollowRequestRepositoryUnavailable
 	}
-	if err := s.repo.Follow(ctx, followerID, followeeID); err != nil {
+	following, err := domain.NewFollowing(s.idgen.Generate(), followerID, followeeID, withReplies)
+	if err != nil {
+		return false, err
+	}
+	if repository, ok := s.repo.(domain.FollowingRepository); ok {
+		err = repository.CreateFollowing(ctx, following)
+	} else {
+		err = s.repo.Follow(ctx, followerID, followeeID)
+	}
+	if err != nil {
 		return false, err
 	}
 	s.publishEvents(ctx, domain.NewFollowedEvent(followerID, followeeID))

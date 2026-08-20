@@ -164,15 +164,17 @@ func TestRepoPostgresFollowKeyset(t *testing.T) {
 	relations := make([]followPO, 0, len(targets)+2)
 	for index, target := range targets {
 		relations = append(relations, followPO{
+			ID:         base + 100 + int64(index),
 			FollowerID: owner.ID,
 			FolloweeID: target.ID,
+			Notify:     string(domain.FollowNotifyNone),
 			CreatedAt:  now.Add(-time.Duration(index+1) * time.Minute),
 		})
 	}
 	// Also exercise the symmetric followers keyset on the shared query type.
 	relations = append(relations,
-		followPO{FollowerID: targets[1].ID, FolloweeID: owner.ID, CreatedAt: now},
-		followPO{FollowerID: targets[3].ID, FolloweeID: owner.ID, CreatedAt: now},
+		followPO{ID: base + 200, FollowerID: targets[1].ID, FolloweeID: owner.ID, Notify: string(domain.FollowNotifyNone), CreatedAt: now},
+		followPO{ID: base + 201, FollowerID: targets[3].ID, FolloweeID: owner.ID, Notify: string(domain.FollowNotifyNone), CreatedAt: now},
 	)
 	if err := db.Create(&relations).Error; err != nil {
 		t.Fatalf("create follow fixtures: %v", err)

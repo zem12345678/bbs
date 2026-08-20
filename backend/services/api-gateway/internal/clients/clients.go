@@ -11,6 +11,7 @@ import (
 type Clients struct {
 	Admin                 AdminClient
 	User                  UserClient
+	UserFollowing         UserFollowingClient
 	UserMemos             UserMemoClient
 	UserCharts            UserChartClient
 	UserFollowingCharts   UserFollowingChartClient

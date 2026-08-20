@@ -455,6 +455,27 @@ test("connects following import to the editable following list", () => {
   assert.match(section, /<Upload size=\{16\} aria-hidden="true" \/>/);
 });
 
+test("edits per-user following preferences from the authenticated following list", () => {
+  const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
+  const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");
+  const sectionStart = userSource.indexOf("function UserFollowPanel");
+  const section = userSource.slice(sectionStart, userSource.indexOf("function UserListsPanel", sectionStart));
+
+  assert.ok(sectionStart >= 0, "UserFollowPanel is present");
+  assert.match(apiSource, /followUser\(userId, optionsOrToken, token\)/);
+  assert.match(apiSource, /request\("\/following\/update", \{ method: "POST", body, token \}\)/);
+  assert.match(apiSource, /request\("\/users\/following", \{ method: "POST", body, token \}\)/);
+  assert.match(section, /const canEditFollowingPreferences = editable && direction === "following" && Boolean\(accessToken\)/);
+  assert.match(section, /bbsApi\.listFollowingEdges\(userId, \{ limit: FOLLOW_LIST_PAGE_SIZE, untilId: untilId \|\| undefined \}, accessToken\)/);
+  assert.match(section, /await bbsApi\.updateFollowing\(rowKey, preferences, accessToken\)/);
+  assert.match(section, /const preferenceAction = preferenceActions\[String\(row\.key\)\] \|\| \{\}/);
+  assert.match(section, /preferenceSessionRef\.current !== requestSession/);
+  assert.match(section, /onChange=\{\(event\) => updateFollowingPreference\(row, \{ withReplies: event\.target\.checked \}\)\}/);
+  assert.match(section, /aria-label=\{`新内容通知 \$\{row\.title\}`\}/);
+  assert.match(section, /Array\.isArray\(data\) \? data : listItems\(data\)/);
+  assert.match(section, /typeof followeeValue === "object"[\s\S]*\{ id: toId\(followeeValue/);
+});
+
 test("connects complete account data export to account security", () => {
   const userSource = fs.readFileSync(new URL("./pages/UserRoutes.jsx", import.meta.url), "utf8");
   const apiSource = fs.readFileSync(new URL("./api.js", import.meta.url), "utf8");

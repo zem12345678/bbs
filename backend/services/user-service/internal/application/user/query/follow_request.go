@@ -36,6 +36,9 @@ func (s *Service) IsFollowRequestPending(ctx context.Context, actorID, targetID 
 
 // ListReceivedFollowRequests pages the approvals waiting on the actor.
 func (s *Service) ListReceivedFollowRequests(ctx context.Context, q domain.FollowRequestQuery) (FollowRequestsResult, error) {
+	if err := q.Normalize(); err != nil {
+		return FollowRequestsResult{}, err
+	}
 	repo, err := s.followRequestRepository(q.ActorID)
 	if err != nil {
 		return FollowRequestsResult{}, err
@@ -52,6 +55,9 @@ func (s *Service) ListReceivedFollowRequests(ctx context.Context, q domain.Follo
 
 // ListSentFollowRequests pages the approvals the actor is waiting on.
 func (s *Service) ListSentFollowRequests(ctx context.Context, q domain.FollowRequestQuery) (FollowRequestsResult, error) {
+	if err := q.Normalize(); err != nil {
+		return FollowRequestsResult{}, err
+	}
 	repo, err := s.followRequestRepository(q.ActorID)
 	if err != nil {
 		return FollowRequestsResult{}, err

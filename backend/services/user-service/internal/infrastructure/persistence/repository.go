@@ -56,9 +56,12 @@ func (userPO) TableName() string {
 }
 
 type followPO struct {
-	FollowerID int64     `gorm:"primaryKey"`
-	FolloweeID int64     `gorm:"primaryKey"`
-	CreatedAt  time.Time `gorm:"index"`
+	ID          int64     `gorm:"not null;uniqueIndex"`
+	FollowerID  int64     `gorm:"primaryKey"`
+	FolloweeID  int64     `gorm:"primaryKey"`
+	WithReplies bool      `gorm:"not null"`
+	Notify      string    `gorm:"size:16;not null"`
+	CreatedAt   time.Time `gorm:"index"`
 }
 
 func (followPO) TableName() string {
@@ -698,10 +701,22 @@ func (r *Repo) VerifyEmailWithToken(ctx context.Context, tokenHash string, now t
 }
 
 func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
-	if followerID == followeeID {
-		return domain.ErrCannotFollowSelf
+	following, err := domain.NewFollowing(time.Now().UnixNano(), followerID, followeeID, false)
+	if err != nil {
+		return err
 	}
-	now := time.Now()
+	return r.CreateFollowing(ctx, following)
+}
+
+func (r *Repo) CreateFollowing(ctx context.Context, following *domain.Following) error {
+	if err := validateFollowing(following); err != nil {
+		return err
+	}
+	now := following.CreatedAt
+	if now.IsZero() {
+		now = time.Now()
+	}
+	followerID, followeeID := following.FollowerID, following.FolloweeID
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockActiveUserPair(tx, followerID, followeeID); err != nil {
 			return err
@@ -709,10 +724,9 @@ func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
 		if err := ensureUserPairNotBlocked(tx, followerID, followeeID); err != nil {
 			return err
 		}
-		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followPO{
-			FollowerID: followerID,
-			FolloweeID: followeeID,
-			CreatedAt:  now,
+		res := tx.Clauses(followPairConflict).Create(&followPO{
+			ID: following.ID, FollowerID: followerID, FolloweeID: followeeID,
+			WithReplies: following.WithReplies, Notify: string(following.Notify), CreatedAt: now,
 		})
 		if res.Error != nil {
 			return res.Error
@@ -731,6 +745,24 @@ func (r *Repo) Follow(ctx context.Context, followerID, followeeID int64) error {
 		}
 		return nil
 	})
+}
+
+var followPairConflict = clause.OnConflict{
+	Columns:   []clause.Column{{Name: "follower_id"}, {Name: "followee_id"}},
+	DoNothing: true,
+}
+
+func validateFollowing(following *domain.Following) error {
+	if following == nil || following.ID <= 0 || following.FollowerID <= 0 || following.FolloweeID <= 0 {
+		return domain.ErrInvalidID
+	}
+	if following.FollowerID == following.FolloweeID {
+		return domain.ErrCannotFollowSelf
+	}
+	if !domain.ValidFollowNotify(following.Notify) {
+		return domain.ErrFollowNotifyInvalid
+	}
+	return nil
 }
 
 func (r *Repo) Unfollow(ctx context.Context, followerID, followeeID int64) error {

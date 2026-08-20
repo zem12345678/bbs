@@ -924,6 +924,51 @@ test("loads public users in one deduplicated batch request", async () => {
   assert.equal(url.searchParams.get("ids"), "42,7");
 });
 
+test("maps following preference compatibility requests without breaking legacy follow calls", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(200, {
+      service: "api-gateway",
+      http_code: 200,
+      code: 0,
+      message: "success",
+      data: { items: [] }
+    });
+  };
+
+  await bbsApi.followUser("9007199254740993", "legacy-token");
+  await bbsApi.followUser("9007199254740994", { withReplies: true }, "access-token");
+  await bbsApi.followUser("9007199254740995", false, "access-token");
+  await bbsApi.updateFollowing("9007199254740994", { notify: "normal" }, "access-token");
+  await bbsApi.listFollowingEdges("9007199254740993", {
+    sinceId: "9007199254741000",
+    untilId: "9007199254742000",
+    limit: 30
+  }, "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [new URL(url).pathname, options.method, options.headers.Authorization]),
+    [
+      ["/api/v1/users/9007199254740993/follow", "POST", "Bearer legacy-token"],
+      ["/api/v1/users/9007199254740994/follow", "POST", "Bearer access-token"],
+      ["/api/v1/users/9007199254740995/follow", "POST", "Bearer access-token"],
+      ["/api/v1/following/update", "POST", "Bearer access-token"],
+      ["/api/v1/users/following", "POST", "Bearer access-token"]
+    ]
+  );
+  assert.equal(requests[0].options.body, undefined);
+  assert.deepEqual(JSON.parse(requests[1].options.body), { withReplies: true });
+  assert.deepEqual(JSON.parse(requests[2].options.body), { withReplies: false });
+  assert.deepEqual(JSON.parse(requests[3].options.body), { userId: "9007199254740994", notify: "normal" });
+  assert.deepEqual(JSON.parse(requests[4].options.body), {
+    userId: "9007199254740993",
+    sinceId: "9007199254741000",
+    untilId: "9007199254742000",
+    limit: 30
+  });
+});
+
 test("loads a public user by username without authentication", async () => {
   let requestedUrl = "";
   let requestOptions;

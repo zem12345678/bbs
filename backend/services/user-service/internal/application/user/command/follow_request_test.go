@@ -32,7 +32,7 @@ func newFollowRequestMemoryRepo() *followRequestMemoryRepo {
 	}
 }
 
-func (r *followRequestMemoryRepo) FollowOrRequest(ctx context.Context, requestID, requesterID, targetID int64) (bool, bool, error) {
+func (r *followRequestMemoryRepo) FollowOrRequest(ctx context.Context, requestID, requesterID, targetID int64, withReplies bool) (bool, bool, error) {
 	requester, requesterOK := r.users[requesterID]
 	target, targetOK := r.users[targetID]
 	if !requesterOK || !targetOK {
@@ -59,7 +59,7 @@ func (r *followRequestMemoryRepo) FollowOrRequest(ctx context.Context, requestID
 		if _, ok := r.requests[key]; ok {
 			return true, false, nil
 		}
-		request, err := domain.NewFollowRequest(requestID, requesterID, targetID)
+		request, err := domain.NewFollowRequest(requestID, requesterID, targetID, withReplies)
 		if err != nil {
 			return false, false, err
 		}
@@ -92,7 +92,7 @@ func (r *followRequestMemoryRepo) DeleteFollowRequest(_ context.Context, request
 	return nil
 }
 
-func (r *followRequestMemoryRepo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error) {
+func (r *followRequestMemoryRepo) AcceptFollowRequest(ctx context.Context, _ int64, requesterID, targetID int64) (bool, error) {
 	if err := r.DeleteFollowRequest(ctx, requesterID, targetID); err != nil {
 		return false, err
 	}

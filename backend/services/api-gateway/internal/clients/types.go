@@ -52,6 +52,14 @@ type UserClient interface {
 	SetFollowApprovalRequired(context.Context, *userpb.SetFollowApprovalRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 }
 
+type UserFollowingClient interface {
+	GetFollowing(context.Context, *userpb.GetFollowingRequest, ...grpc.CallOption) (*userpb.FollowingResponse, error)
+	UpdateFollowing(context.Context, *userpb.UpdateFollowingRequest, ...grpc.CallOption) (*userpb.FollowingResponse, error)
+	UpdateAllFollowings(context.Context, *userpb.UpdateAllFollowingsRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
+	ListFollowingEdges(context.Context, *userpb.ListFollowingEdgesRequest, ...grpc.CallOption) (*userpb.FollowingListResponse, error)
+	ListFollowerEdges(context.Context, *userpb.ListFollowingEdgesRequest, ...grpc.CallOption) (*userpb.FollowingListResponse, error)
+}
+
 type UserMemoClient interface {
 	UpdateUserMemo(context.Context, *userpb.UpdateUserMemoRequest, ...grpc.CallOption) (*userpb.SimpleResponse, error)
 	GetUserMemo(context.Context, *userpb.GetUserMemoRequest, ...grpc.CallOption) (*userpb.UserMemoResponse, error)

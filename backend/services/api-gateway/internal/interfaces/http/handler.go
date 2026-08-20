@@ -498,6 +498,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		for _, prefix := range []string{"/api", ""} {
 			r.POST(prefix+"/following/invalidate", h.requireAuthScope("write"), h.invalidateFollowingCompat)
 		}
+		h.registerFollowingCompatRoutes(r)
 		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		for _, prefix := range []string{"/api", ""} {
@@ -2054,9 +2055,14 @@ func (h *Handler) follow(c *gin.Context) {
 	if !ok {
 		return
 	}
+	var body canonicalFollowRequest
+	if _, valid := decodeOptionalJSONBody(c, &body); !valid {
+		writeError(c, http.StatusBadRequest, "invalid request body", "bad_request")
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	resp, err := h.clients.User.Follow(ctx, &userpb.FollowRequest{FollowerId: currentUserID(c), FolloweeId: followeeID})
+	resp, err := h.clients.User.Follow(ctx, &userpb.FollowRequest{FollowerId: currentUserID(c), FolloweeId: followeeID, WithReplies: body.WithReplies})
 	if err != nil {
 		writeRPCError(c, err)
 		return

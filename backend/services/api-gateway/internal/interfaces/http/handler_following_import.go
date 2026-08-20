@@ -59,16 +59,14 @@ func (h *Handler) importFollowing(c *gin.Context) {
 		writeRPCError(c, err)
 		return
 	}
-	// BBS has no per-follow withReplies setting. The documented field is
-	// accepted for wire compatibility and intentionally has no effect here.
-	if err := h.applyFollowingImport(ctx, ownerID, targetIDs); err != nil {
+	if err := h.applyFollowingImport(ctx, ownerID, targetIDs, request.WithReplies); err != nil {
 		writeRPCError(c, err)
 		return
 	}
 	c.Status(stdhttp.StatusNoContent)
 }
 
-func (h *Handler) applyFollowingImport(ctx context.Context, ownerID int64, targetIDs []int64) error {
+func (h *Handler) applyFollowingImport(ctx context.Context, ownerID int64, targetIDs []int64, withReplies ...bool) error {
 	if len(targetIDs) == 0 {
 		return nil
 	}
@@ -77,15 +75,16 @@ func (h *Handler) applyFollowingImport(ctx context.Context, ownerID int64, targe
 	jobs := make(chan int64)
 	errorsFound := make(chan error, 1)
 	workers := min(safetyImportWorkerCount, len(targetIDs))
+	includeReplies := len(withReplies) > 0 && withReplies[0]
 	var wait sync.WaitGroup
 	wait.Add(workers)
 	for range workers {
 		go func() {
 			defer wait.Done()
 			for targetID := range jobs {
+				preference := includeReplies
 				_, err := h.clients.User.Follow(workerCtx, &userpb.FollowRequest{
-					FollowerId: ownerID,
-					FolloweeId: targetID,
+					FollowerId: ownerID, FolloweeId: targetID, WithReplies: &preference,
 				})
 				if err == nil || ignorableSafetyImportError(err) {
 					continue

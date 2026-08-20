@@ -55,6 +55,11 @@ const (
 	UserService_GetAccountLifecycle_FullMethodName              = "/bbs.user.v1.UserService/GetAccountLifecycle"
 	UserService_RequestAccountDeletion_FullMethodName           = "/bbs.user.v1.UserService/RequestAccountDeletion"
 	UserService_Follow_FullMethodName                           = "/bbs.user.v1.UserService/Follow"
+	UserService_GetFollowing_FullMethodName                     = "/bbs.user.v1.UserService/GetFollowing"
+	UserService_UpdateFollowing_FullMethodName                  = "/bbs.user.v1.UserService/UpdateFollowing"
+	UserService_UpdateAllFollowings_FullMethodName              = "/bbs.user.v1.UserService/UpdateAllFollowings"
+	UserService_ListFollowingEdges_FullMethodName               = "/bbs.user.v1.UserService/ListFollowingEdges"
+	UserService_ListFollowerEdges_FullMethodName                = "/bbs.user.v1.UserService/ListFollowerEdges"
 	UserService_ListReceivedFollowRequests_FullMethodName       = "/bbs.user.v1.UserService/ListReceivedFollowRequests"
 	UserService_ListSentFollowRequests_FullMethodName           = "/bbs.user.v1.UserService/ListSentFollowRequests"
 	UserService_AcceptFollowRequest_FullMethodName              = "/bbs.user.v1.UserService/AcceptFollowRequest"
@@ -151,6 +156,11 @@ type UserServiceClient interface {
 	GetAccountLifecycle(ctx context.Context, in *UserIDRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
 	RequestAccountDeletion(ctx context.Context, in *RequestAccountDeletionRequest, opts ...grpc.CallOption) (*AccountLifecycleResponse, error)
 	Follow(ctx context.Context, in *FollowRequest, opts ...grpc.CallOption) (*FollowResponse, error)
+	GetFollowing(ctx context.Context, in *GetFollowingRequest, opts ...grpc.CallOption) (*FollowingResponse, error)
+	UpdateFollowing(ctx context.Context, in *UpdateFollowingRequest, opts ...grpc.CallOption) (*FollowingResponse, error)
+	UpdateAllFollowings(ctx context.Context, in *UpdateAllFollowingsRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
+	ListFollowingEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error)
+	ListFollowerEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error)
 	ListReceivedFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
 	ListSentFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
 	AcceptFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
@@ -567,6 +577,56 @@ func (c *userServiceClient) Follow(ctx context.Context, in *FollowRequest, opts 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(FollowResponse)
 	err := c.cc.Invoke(ctx, UserService_Follow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) GetFollowing(ctx context.Context, in *GetFollowingRequest, opts ...grpc.CallOption) (*FollowingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowingResponse)
+	err := c.cc.Invoke(ctx, UserService_GetFollowing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateFollowing(ctx context.Context, in *UpdateFollowingRequest, opts ...grpc.CallOption) (*FollowingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowingResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateFollowing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateAllFollowings(ctx context.Context, in *UpdateAllFollowingsRequest, opts ...grpc.CallOption) (*SimpleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SimpleResponse)
+	err := c.cc.Invoke(ctx, UserService_UpdateAllFollowings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListFollowingEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowingListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListFollowingEdges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListFollowerEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FollowingListResponse)
+	err := c.cc.Invoke(ctx, UserService_ListFollowerEdges_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1135,6 +1195,11 @@ type UserServiceServer interface {
 	GetAccountLifecycle(context.Context, *UserIDRequest) (*AccountLifecycleResponse, error)
 	RequestAccountDeletion(context.Context, *RequestAccountDeletionRequest) (*AccountLifecycleResponse, error)
 	Follow(context.Context, *FollowRequest) (*FollowResponse, error)
+	GetFollowing(context.Context, *GetFollowingRequest) (*FollowingResponse, error)
+	UpdateFollowing(context.Context, *UpdateFollowingRequest) (*FollowingResponse, error)
+	UpdateAllFollowings(context.Context, *UpdateAllFollowingsRequest) (*SimpleResponse, error)
+	ListFollowingEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error)
+	ListFollowerEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error)
 	ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
 	ListSentFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
 	AcceptFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error)
@@ -1304,6 +1369,21 @@ func (UnimplementedUserServiceServer) RequestAccountDeletion(context.Context, *R
 }
 func (UnimplementedUserServiceServer) Follow(context.Context, *FollowRequest) (*FollowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Follow not implemented")
+}
+func (UnimplementedUserServiceServer) GetFollowing(context.Context, *GetFollowingRequest) (*FollowingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFollowing not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateFollowing(context.Context, *UpdateFollowingRequest) (*FollowingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateFollowing not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateAllFollowings(context.Context, *UpdateAllFollowingsRequest) (*SimpleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateAllFollowings not implemented")
+}
+func (UnimplementedUserServiceServer) ListFollowingEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFollowingEdges not implemented")
+}
+func (UnimplementedUserServiceServer) ListFollowerEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFollowerEdges not implemented")
 }
 func (UnimplementedUserServiceServer) ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReceivedFollowRequests not implemented")
@@ -2126,6 +2206,96 @@ func _UserService_Follow_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).Follow(ctx, req.(*FollowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_GetFollowing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFollowingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetFollowing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_GetFollowing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetFollowing(ctx, req.(*GetFollowingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateFollowing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateFollowingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateFollowing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateFollowing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateFollowing(ctx, req.(*UpdateFollowingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateAllFollowings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAllFollowingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateAllFollowings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateAllFollowings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateAllFollowings(ctx, req.(*UpdateAllFollowingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListFollowingEdges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowingEdgesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListFollowingEdges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListFollowingEdges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListFollowingEdges(ctx, req.(*ListFollowingEdgesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListFollowerEdges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFollowingEdgesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListFollowerEdges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListFollowerEdges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListFollowerEdges(ctx, req.(*ListFollowingEdgesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3216,6 +3386,26 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Follow",
 			Handler:    _UserService_Follow_Handler,
+		},
+		{
+			MethodName: "GetFollowing",
+			Handler:    _UserService_GetFollowing_Handler,
+		},
+		{
+			MethodName: "UpdateFollowing",
+			Handler:    _UserService_UpdateFollowing_Handler,
+		},
+		{
+			MethodName: "UpdateAllFollowings",
+			Handler:    _UserService_UpdateAllFollowings_Handler,
+		},
+		{
+			MethodName: "ListFollowingEdges",
+			Handler:    _UserService_ListFollowingEdges_Handler,
+		},
+		{
+			MethodName: "ListFollowerEdges",
+			Handler:    _UserService_ListFollowerEdges_Handler,
 		},
 		{
 			MethodName: "ListReceivedFollowRequests",

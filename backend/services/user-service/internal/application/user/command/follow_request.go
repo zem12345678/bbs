@@ -29,7 +29,7 @@ func (s *Service) AcceptFollowRequest(ctx context.Context, targetID, requesterID
 	if relation.Blocked || relation.BlockedBy {
 		return domain.ErrFollowBlocked
 	}
-	followCreated, err := repo.AcceptFollowRequest(ctx, requesterID, targetID)
+	followCreated, err := repo.AcceptFollowRequest(ctx, s.idgen.Generate(), requesterID, targetID)
 	if err != nil {
 		return err
 	}

@@ -50,6 +50,8 @@ func TestImportFollowingReadsLocalAccountsAndAppliesFollow(t *testing.T) {
 	require.ElementsMatch(t, []int64{71, 72}, users.followedIDs())
 	for _, request := range users.followRequests() {
 		require.Equal(t, int64(42), request.GetFollowerId())
+		require.NotNil(t, request.WithReplies)
+		require.True(t, request.GetWithReplies())
 	}
 }
 

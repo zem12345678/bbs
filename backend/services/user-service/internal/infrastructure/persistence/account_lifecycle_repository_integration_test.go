@@ -177,7 +177,10 @@ func TestAccountDeletionJobRepoPostgresIntegration(t *testing.T) {
 	if err := db.Create(&users).Error; err != nil {
 		t.Fatalf("create worker test users: %v", err)
 	}
-	if err := db.Create(&[]followPO{{FollowerID: userID, FolloweeID: followeeID, CreatedAt: now}, {FollowerID: followerID, FolloweeID: userID, CreatedAt: now}}).Error; err != nil {
+	if err := db.Create(&[]followPO{
+		{ID: base + 100, FollowerID: userID, FolloweeID: followeeID, Notify: string(domain.FollowNotifyNone), CreatedAt: now},
+		{ID: base + 101, FollowerID: followerID, FolloweeID: userID, Notify: string(domain.FollowNotifyNone), CreatedAt: now},
+	}).Error; err != nil {
 		t.Fatalf("create follows: %v", err)
 	}
 	if err := db.Create(&[]followLifecyclePO{{FollowerID: userID, FolloweeID: followeeID, FollowedAt: now}, {FollowerID: followerID, FolloweeID: userID, FollowedAt: now}}).Error; err != nil {

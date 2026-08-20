@@ -15,14 +15,15 @@ type followRequestPO struct {
 	ID          int64     `gorm:"primaryKey"`
 	RequesterID int64     `gorm:"not null;index"`
 	TargetID    int64     `gorm:"not null;index"`
+	WithReplies bool      `gorm:"not null"`
 	CreatedAt   time.Time `gorm:"index"`
 }
 
 // FollowOrRequest resolves the current privacy setting and relationship state
 // under the pair lock, preventing a concurrent block or settings change from
 // selecting the wrong durable outcome.
-func (r *Repo) FollowOrRequest(ctx context.Context, requestID, requesterID, targetID int64) (bool, bool, error) {
-	if requesterID <= 0 || targetID <= 0 || requesterID == targetID {
+func (r *Repo) FollowOrRequest(ctx context.Context, candidateID, requesterID, targetID int64, withReplies bool) (bool, bool, error) {
+	if candidateID <= 0 || requesterID <= 0 || targetID <= 0 || requesterID == targetID {
 		return false, false, domain.ErrInvalidID
 	}
 	now := time.Now()
@@ -49,7 +50,10 @@ func (r *Repo) FollowOrRequest(ctx context.Context, requestID, requesterID, targ
 			if err := tx.Where("requester_id = ? AND target_id = ?", requesterID, targetID).Delete(&followRequestPO{}).Error; err != nil {
 				return err
 			}
-			res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followPO{FollowerID: requesterID, FolloweeID: targetID, CreatedAt: now})
+			res := tx.Clauses(followPairConflict).Create(&followPO{
+				ID: candidateID, FollowerID: requesterID, FolloweeID: targetID,
+				WithReplies: withReplies, Notify: string(domain.FollowNotifyNone), CreatedAt: now,
+			})
 			if res.Error != nil {
 				return res.Error
 			}
@@ -69,7 +73,10 @@ func (r *Repo) FollowOrRequest(ctx context.Context, requestID, requesterID, targ
 			return nil
 		}
 		pending = true
-		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followRequestPO{ID: requestID, RequesterID: requesterID, TargetID: targetID, CreatedAt: now})
+		res := tx.Clauses(followRequestPairConflict).Create(&followRequestPO{
+			ID: candidateID, RequesterID: requesterID, TargetID: targetID,
+			WithReplies: withReplies, CreatedAt: now,
+		})
 		if res.Error != nil {
 			return mapWriteError(res.Error)
 		}
@@ -88,6 +95,7 @@ func toFollowRequestEntity(p followRequestPO) *domain.FollowRequest {
 		ID:          p.ID,
 		RequesterID: p.RequesterID,
 		TargetID:    p.TargetID,
+		WithReplies: p.WithReplies,
 		CreatedAt:   p.CreatedAt,
 	}
 }
@@ -103,10 +111,11 @@ func (r *Repo) CreateFollowRequest(ctx context.Context, req *domain.FollowReques
 		if err := ensureUserPairNotBlocked(tx, req.RequesterID, req.TargetID); err != nil {
 			return err
 		}
-		res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followRequestPO{
+		res := tx.Clauses(followRequestPairConflict).Create(&followRequestPO{
 			ID:          req.ID,
 			RequesterID: req.RequesterID,
 			TargetID:    req.TargetID,
+			WithReplies: req.WithReplies,
 			CreatedAt:   req.CreatedAt,
 		})
 		if res.Error != nil {
@@ -134,7 +143,10 @@ func (r *Repo) DeleteFollowRequest(ctx context.Context, requesterID, targetID in
 
 // AcceptFollowRequest consumes the pending row and materialises the follow in a
 // single transaction, mirroring the counter bookkeeping Repo.Follow performs.
-func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID int64) (bool, error) {
+func (r *Repo) AcceptFollowRequest(ctx context.Context, followingID, requesterID, targetID int64) (bool, error) {
+	if followingID <= 0 {
+		return false, domain.ErrInvalidID
+	}
 	now := time.Now()
 	var followCreated bool
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -144,17 +156,23 @@ func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID in
 		if err := ensureUserPairNotBlocked(tx, requesterID, targetID); err != nil {
 			return err
 		}
-		res := tx.Where("requester_id = ? AND target_id = ?", requesterID, targetID).Delete(&followRequestPO{})
+		var request followRequestPO
+		if err := tx.Where("requester_id = ? AND target_id = ?", requesterID, targetID).First(&request).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrFollowRequestNotFound
+			}
+			return err
+		}
+		res := tx.Where("id = ?", request.ID).Delete(&followRequestPO{})
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
 			return domain.ErrFollowRequestNotFound
 		}
-		created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&followPO{
-			FollowerID: requesterID,
-			FolloweeID: targetID,
-			CreatedAt:  now,
+		created := tx.Clauses(followPairConflict).Create(&followPO{
+			ID: followingID, FollowerID: requesterID, FolloweeID: targetID,
+			WithReplies: request.WithReplies, Notify: string(domain.FollowNotifyNone), CreatedAt: now,
 		})
 		if created.Error != nil {
 			return created.Error
@@ -174,6 +192,11 @@ func (r *Repo) AcceptFollowRequest(ctx context.Context, requesterID, targetID in
 		return tx.Model(&userPO{}).Where("id = ?", requesterID).UpdateColumn("following_count", gorm.Expr("following_count + 1")).Error
 	})
 	return followCreated, err
+}
+
+var followRequestPairConflict = clause.OnConflict{
+	Columns:   []clause.Column{{Name: "requester_id"}, {Name: "target_id"}},
+	DoNothing: true,
 }
 
 func (r *Repo) GetFollowRequest(ctx context.Context, requesterID, targetID int64) (*domain.FollowRequest, error) {
@@ -201,18 +224,39 @@ func (r *Repo) ListSentFollowRequests(ctx context.Context, q domain.FollowReques
 // listFollowRequests pages one side of the pending requests and hydrates the
 // counterpart user so callers can render a list without an N+1 lookup.
 func (r *Repo) listFollowRequests(ctx context.Context, q domain.FollowRequestQuery, ownerColumn, otherColumn string) ([]*domain.FollowRequest, int64, error) {
-	normalizeList(&q.Page, &q.PageSize)
+	keyset := q.Limit > 0 || q.SinceID > 0 || q.UntilID > 0
+	if keyset {
+		if q.Limit == 0 {
+			q.Limit = domain.DefaultFollowingLimit
+		}
+		if q.SinceID < 0 || q.UntilID < 0 || q.Limit < 1 || q.Limit > domain.MaxFollowingLimit {
+			return nil, 0, domain.ErrFollowingLimitInvalid
+		}
+	} else {
+		normalizeList(&q.Page, &q.PageSize)
+	}
 	var total int64
 	if err := r.db.WithContext(ctx).Model(&followRequestPO{}).Where(ownerColumn+" = ?", q.ActorID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []followRequestPO
-	err := r.db.WithContext(ctx).
-		Where(ownerColumn+" = ?", q.ActorID).
-		Order("created_at DESC, id DESC").
-		Limit(q.PageSize).
-		Offset((q.Page - 1) * q.PageSize).
-		Find(&rows).Error
+	query := r.db.WithContext(ctx).Where(ownerColumn+" = ?", q.ActorID)
+	if keyset {
+		if q.SinceID > 0 {
+			query = query.Where("id > ?", q.SinceID)
+		}
+		if q.UntilID > 0 {
+			query = query.Where("id < ?", q.UntilID)
+		}
+		order := "id DESC"
+		if q.SinceID > 0 && q.UntilID == 0 {
+			order = "id ASC"
+		}
+		query = query.Order(order).Limit(q.Limit)
+	} else {
+		query = query.Order("created_at DESC, id DESC").Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize)
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, 0, err
 	}

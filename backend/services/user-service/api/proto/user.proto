@@ -43,6 +43,11 @@ service UserService {
   rpc GetAccountLifecycle(UserIDRequest) returns (AccountLifecycleResponse);
   rpc RequestAccountDeletion(RequestAccountDeletionRequest) returns (AccountLifecycleResponse);
   rpc Follow(FollowRequest) returns (FollowResponse);
+  rpc GetFollowing(GetFollowingRequest) returns (FollowingResponse);
+  rpc UpdateFollowing(UpdateFollowingRequest) returns (FollowingResponse);
+  rpc UpdateAllFollowings(UpdateAllFollowingsRequest) returns (SimpleResponse);
+  rpc ListFollowingEdges(ListFollowingEdgesRequest) returns (FollowingListResponse);
+  rpc ListFollowerEdges(ListFollowingEdgesRequest) returns (FollowingListResponse);
   rpc ListReceivedFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
   rpc ListSentFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
   rpc AcceptFollowRequest(FollowRequestActionRequest) returns (SimpleResponse);
@@ -421,6 +426,7 @@ message UsernameRequest {
 message FollowRequest {
   int64 follower_id = 1;
   int64 followee_id = 2;
+  optional bool with_replies = 3;
 }
 
 message ListFollowsRequest {
@@ -450,6 +456,9 @@ message ListFollowRequestsRequest {
   int64 actor_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  int64 since_id = 4;
+  int64 until_id = 5;
+  int32 limit = 6;
 }
 
 message FollowRequestInfo {
@@ -460,6 +469,7 @@ message FollowRequestInfo {
   // Counterpart is the other side of the request: the requester when listing
   // received requests, the target when listing sent ones.
   UserInfo counterpart = 5;
+  bool with_replies = 6;
 }
 
 message FollowRequestListResponse {
@@ -904,4 +914,48 @@ message ActiveUsersChartBucket {
 
 message ActiveUsersChartResponse {
   repeated ActiveUsersChartBucket buckets = 1;
+}
+
+message GetFollowingRequest {
+  int64 follower_id = 1;
+  int64 followee_id = 2;
+}
+
+message UpdateFollowingRequest {
+  int64 follower_id = 1;
+  int64 followee_id = 2;
+  optional bool with_replies = 3;
+  optional string notify = 4;
+}
+
+message UpdateAllFollowingsRequest {
+  int64 follower_id = 1;
+  optional bool with_replies = 2;
+  optional string notify = 3;
+}
+
+message ListFollowingEdgesRequest {
+  int64 user_id = 1;
+  int64 since_id = 2;
+  int64 until_id = 3;
+  int32 limit = 4;
+}
+
+message FollowingInfo {
+  int64 id = 1;
+  int64 follower_id = 2;
+  int64 followee_id = 3;
+  bool with_replies = 4;
+  string notify = 5;
+  int64 created_at = 6;
+  UserInfo follower = 7;
+  UserInfo followee = 8;
+}
+
+message FollowingResponse {
+  FollowingInfo following = 1;
+}
+
+message FollowingListResponse {
+  repeated FollowingInfo items = 1;
 }
