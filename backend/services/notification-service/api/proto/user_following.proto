@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package bbs.user.v1;
+
+option go_package = "notification-service/api/proto/userpb;userpb";
+
+// This intentionally mirrors the one internal method consumed by the
+// notification projector. The wire service name stays bbs.user.v1.UserService
+// so the client can call the existing user-service without a second endpoint.
+service UserService {
+  rpc ListNoteNotificationSubscribers(ListNoteNotificationSubscribersRequest) returns (NoteNotificationSubscribersResponse);
+}
+
+message ListNoteNotificationSubscribersRequest {
+  int64 followee_id = 1;
+  int64 since_id = 2;
+  int32 limit = 3;
+}
+
+message NoteNotificationSubscriber {
+  int64 edge_id = 1;
+  int64 user_id = 2;
+}
+
+message NoteNotificationSubscribersResponse {
+  repeated NoteNotificationSubscriber items = 1;
+}

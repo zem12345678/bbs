@@ -4,6 +4,7 @@ import (
 	"context"
 
 	notificationapp "notification-service/internal/app"
+	userclient "notification-service/internal/clients/user"
 	interfacesgrpc "notification-service/internal/interfaces/grpc"
 	iocapplication "notification-service/internal/ioc/application"
 	"notification-service/internal/ioc/config"
@@ -55,17 +56,36 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	webPushConfig := notificationapp.ProvideWebPushConfig(v)
 	webhookConfig := notificationapp.ProvideWebhookConfig(v)
 	service := notificationapp.ProvideNotificationService(repo, webPushConfig, webhookConfig)
-	projector := notificationapp.ProvideProjector(service)
+	grpcClientOptions, err := iocgrpc.NewClientOptions(v, log, tracer)
+	if err != nil {
+		return nil, err
+	}
+	grpcClient, err := iocgrpc.NewClient(grpcClientOptions)
+	if err != nil {
+		return nil, err
+	}
+	userClient, err := userclient.NewClient(grpcClient, v)
+	if err != nil {
+		return nil, err
+	}
+	projector := notificationapp.ProvideProjector(service, userClient)
 	webPushDispatcher := notificationapp.ProvideWebPushDispatcher(repo, webPushConfig, log)
 	webhookDispatcher := notificationapp.ProvideWebhookDispatcher(repo, webhookConfig, log)
 	kafkaOptions, err := iockafka.NewConsumerOptions(v, log)
 	if err != nil {
+		_ = userClient.Close()
 		return nil, err
 	}
-	runner, err := notificationapp.ProvideConsumerRunner(v, kafkaOptions, projector, log)
+	runner, err := notificationapp.ProvideConsumerRunner(v, kafkaOptions, projector, userClient, log)
 	if err != nil {
 		return nil, err
 	}
+	cleanupRunner := true
+	defer func() {
+		if cleanupRunner {
+			_ = runner.Stop()
+		}
+	}()
 	handler := interfacesgrpc.NewHandler(service)
 	initServers := interfacesgrpc.NewInitServers(handler)
 
@@ -82,5 +102,10 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return notificationapp.NewApp(appOptions, zapLogger, transportServer, runner, webPushDispatcher, webhookDispatcher)
+	app, err := notificationapp.NewApp(appOptions, zapLogger, transportServer, runner, webPushDispatcher, webhookDispatcher)
+	if err != nil {
+		return nil, err
+	}
+	cleanupRunner = false
+	return app, nil
 }

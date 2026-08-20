@@ -537,6 +537,26 @@ func (s *Service) NotifyFollowRequestAccepted(ctx context.Context, eventID strin
 	}, eventID, occurredAt)
 }
 
+func (s *Service) NotifyPublishedNote(ctx context.Context, eventID, entityType string, entityID, authorID, recipientID int64, title string, occurredAt time.Time) error {
+	if eventID == "" || !supportedContentType(entityType) || entityID <= 0 || authorID <= 0 || recipientID <= 0 || authorID == recipientID {
+		return nil
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = fmt.Sprintf("%s #%d", contentLabel(entityType), entityID)
+	}
+	return s.createNotification(ctx, domain.Notification{
+		UserID:     recipientID,
+		Type:       domain.NotificationTypeNote,
+		Title:      "关注的人发布了新内容",
+		Content:    fmt.Sprintf("用户 #%d 发布了《%s》", authorID, title),
+		ActorID:    authorID,
+		EntityType: entityType,
+		EntityID:   entityID,
+		SourceID:   entityID,
+	}, eventID, occurredAt, domain.WebhookEventNote)
+}
+
 func (s *Service) NotifyComment(ctx context.Context, eventID string, commentID, parentID int64, entityType string, entityID, actorID int64, occurredAt time.Time) error {
 	if commentID <= 0 || entityID <= 0 || actorID <= 0 || !supportedContentType(entityType) {
 		return nil

@@ -799,6 +799,20 @@ func (h *Handler) ListFollowerEdges(ctx context.Context, req *pb.ListFollowingEd
 	return &pb.FollowingListResponse{Items: toPbFollowings(edges)}, nil
 }
 
+func (h *Handler) ListNoteNotificationSubscribers(ctx context.Context, req *pb.ListNoteNotificationSubscribersRequest) (*pb.NoteNotificationSubscribersResponse, error) {
+	items, err := h.qry.ListNoteNotificationSubscribers(ctx, domain.NoteNotificationSubscribersQuery{
+		FolloweeID: req.GetFolloweeId(), SinceID: req.GetSinceId(), Limit: int(req.GetLimit()),
+	})
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	result := make([]*pb.NoteNotificationSubscriber, 0, len(items))
+	for _, item := range items {
+		result = append(result, &pb.NoteNotificationSubscriber{EdgeId: item.EdgeID, UserId: item.UserID})
+	}
+	return &pb.NoteNotificationSubscribersResponse{Items: result}, nil
+}
+
 func (h *Handler) Unfollow(ctx context.Context, req *pb.FollowRequest) (*pb.SimpleResponse, error) {
 	if err := h.cmd.Unfollow(ctx, req.GetFollowerId(), req.GetFolloweeId()); err != nil {
 		return nil, toStatus(err)

@@ -39,6 +39,7 @@ const (
 	NotificationTypeFollow                        = "follow"
 	NotificationTypeFollowRequestReceived         = "follow_request_received"
 	NotificationTypeFollowRequestAccepted         = "follow_request_accepted"
+	NotificationTypeNote                          = "note"
 	NotificationTypeComment                       = "comment"
 	NotificationTypeReply                         = "reply"
 	NotificationTypeLike                          = "like"
@@ -151,6 +152,7 @@ func DefaultNotificationPreferences() []NotificationPreference {
 		NotificationTypeFollow,
 		NotificationTypeFollowRequestReceived,
 		NotificationTypeFollowRequestAccepted,
+		NotificationTypeNote,
 		NotificationTypeComment,
 		NotificationTypeReply,
 		NotificationTypeLike,

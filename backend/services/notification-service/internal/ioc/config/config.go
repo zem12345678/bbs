@@ -22,6 +22,7 @@ import (
 
 const (
 	localDevInternalAuthToken           = "bbs-local-notification-internal-token"
+	localDevUserInternalAuthToken       = "bbs-local-user-internal-token"
 	minProductionInternalAuthTokenBytes = 32
 )
 
@@ -113,6 +114,7 @@ func New(path string) (*viper.Viper, error) {
 		return nil, err
 	}
 	setInternalAuthDefault(v)
+	setUserUpstreamDefaults(v)
 	if err := validate(v); err != nil {
 		return nil, err
 	}
@@ -142,6 +144,8 @@ func configureEnv(v *viper.Viper) {
 	bindEnv(v, "webhook.enabled", "BBS_NOTIFICATION_WEBHOOK_ENABLED")
 	bindEnv(v, "webhook.serverURL", "BBS_NOTIFICATION_WEBHOOK_SERVER_URL")
 	bindEnv(v, "webhook.allowPrivateEndpoints", "BBS_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ENDPOINTS")
+	bindEnv(v, "upstreams.user", "BBS_NOTIFICATION_UPSTREAMS_USER", "BBS_NOTIFICATION_USER_SERVICE")
+	bindEnv(v, "upstreams.userInternalAuthToken", "BBS_NOTIFICATION_UPSTREAMS_USER_INTERNAL_AUTH_TOKEN", "BBS_NOTIFICATION_USER_INTERNAL_AUTH_TOKEN")
 	bindEnv(v, "kafka.brokers", "BBS_NOTIFICATION_KAFKA_BROKERS")
 	bindEnv(v, "kafka.username", "BBS_NOTIFICATION_KAFKA_USERNAME")
 	bindEnv(v, "kafka.password", "BBS_NOTIFICATION_KAFKA_PASSWORD")
@@ -184,6 +188,12 @@ func applyEnvOverrides(v *viper.Viper) {
 	setStringEnv(v, "webhook.serverURL", "BBS_NOTIFICATION_WEBHOOK_SERVER_URL")
 	setBoolEnv(v, "webhook.enabled", "BBS_NOTIFICATION_WEBHOOK_ENABLED")
 	setBoolEnv(v, "webhook.allowPrivateEndpoints", "BBS_NOTIFICATION_WEBHOOK_ALLOW_PRIVATE_ENDPOINTS")
+	if value := firstNonEmptyEnv("BBS_NOTIFICATION_UPSTREAMS_USER", "BBS_NOTIFICATION_USER_SERVICE"); value != "" {
+		setNestedConfigValue(v, "upstreams.user", value)
+	}
+	if value := firstNonEmptyEnv("BBS_NOTIFICATION_UPSTREAMS_USER_INTERNAL_AUTH_TOKEN", "BBS_NOTIFICATION_USER_INTERNAL_AUTH_TOKEN"); value != "" {
+		setNestedConfigValue(v, "upstreams.userInternalAuthToken", value)
+	}
 	if value := strings.TrimSpace(os.Getenv("BBS_NOTIFICATION_KAFKA_BROKERS")); value != "" {
 		setNestedConfigValue(v, "kafka.brokers", splitCommaSeparated(value))
 	}
@@ -261,6 +271,15 @@ func setInternalAuthDefault(v *viper.Viper) {
 	}
 }
 
+func setUserUpstreamDefaults(v *viper.Viper) {
+	if strings.TrimSpace(v.GetString("upstreams.user")) == "" {
+		setNestedConfigValue(v, "upstreams.user", "bbs-user-service")
+	}
+	if strings.TrimSpace(v.GetString("upstreams.userInternalAuthToken")) == "" {
+		setNestedConfigValue(v, "upstreams.userInternalAuthToken", localDevUserInternalAuthToken)
+	}
+}
+
 func validate(v *viper.Viper) error {
 	if err := validateWebPush(v); err != nil {
 		return err
@@ -273,7 +292,10 @@ func validate(v *viper.Viper) error {
 	if !production {
 		return nil
 	}
-	return validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken"))
+	if err := validateProductionInternalAuthToken(v.GetString("grpc.server.internalAuthToken")); err != nil {
+		return err
+	}
+	return validateProductionToken(v.GetString("upstreams.userInternalAuthToken"), "upstreams.userInternalAuthToken", localDevUserInternalAuthToken)
 }
 
 func validateWebhook(v *viper.Viper, production bool) error {
@@ -349,12 +371,16 @@ func decodeWebPushKey(value string) ([]byte, error) {
 }
 
 func validateProductionInternalAuthToken(value string) error {
+	return validateProductionToken(value, "grpc.server.internalAuthToken", localDevInternalAuthToken)
+}
+
+func validateProductionToken(value, field, defaultToken string) error {
 	token := strings.TrimSpace(value)
-	if token == "" || token == localDevInternalAuthToken {
-		return errors.New("grpc.server.internalAuthToken must be set to a non-default value in production")
+	if token == "" || token == defaultToken {
+		return fmt.Errorf("%s must be set to a non-default value in production", field)
 	}
 	if len([]byte(token)) < minProductionInternalAuthTokenBytes {
-		return fmt.Errorf("grpc.server.internalAuthToken must be at least %d bytes in production", minProductionInternalAuthTokenBytes)
+		return fmt.Errorf("%s must be at least %d bytes in production", field, minProductionInternalAuthTokenBytes)
 	}
 	return nil
 }

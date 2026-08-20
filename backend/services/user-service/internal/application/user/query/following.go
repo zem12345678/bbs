@@ -57,6 +57,17 @@ func (s *Service) ListFollowerEdges(ctx context.Context, input domain.FollowingQ
 	return edges, nil
 }
 
+func (s *Service) ListNoteNotificationSubscribers(ctx context.Context, input domain.NoteNotificationSubscribersQuery) ([]domain.NoteNotificationSubscriber, error) {
+	if err := input.Normalize(); err != nil {
+		return nil, err
+	}
+	repo, ok := s.repo.(domain.NoteNotificationSubscriberRepository)
+	if !ok {
+		return nil, domain.ErrFollowingRepositoryUnavailable
+	}
+	return repo.ListNoteNotificationSubscribers(ctx, input)
+}
+
 func (s *Service) followingRepository() (domain.FollowingRepository, error) {
 	repo, ok := s.repo.(domain.FollowingRepository)
 	if !ok {

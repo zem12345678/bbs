@@ -48,6 +48,7 @@ service UserService {
   rpc UpdateAllFollowings(UpdateAllFollowingsRequest) returns (SimpleResponse);
   rpc ListFollowingEdges(ListFollowingEdgesRequest) returns (FollowingListResponse);
   rpc ListFollowerEdges(ListFollowingEdgesRequest) returns (FollowingListResponse);
+  rpc ListNoteNotificationSubscribers(ListNoteNotificationSubscribersRequest) returns (NoteNotificationSubscribersResponse);
   rpc ListReceivedFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
   rpc ListSentFollowRequests(ListFollowRequestsRequest) returns (FollowRequestListResponse);
   rpc AcceptFollowRequest(FollowRequestActionRequest) returns (SimpleResponse);
@@ -958,4 +959,19 @@ message FollowingResponse {
 
 message FollowingListResponse {
   repeated FollowingInfo items = 1;
+}
+
+message ListNoteNotificationSubscribersRequest {
+  int64 followee_id = 1;
+  int64 since_id = 2;
+  int32 limit = 3;
+}
+
+message NoteNotificationSubscriber {
+  int64 edge_id = 1;
+  int64 user_id = 2;
+}
+
+message NoteNotificationSubscribersResponse {
+  repeated NoteNotificationSubscriber items = 1;
 }

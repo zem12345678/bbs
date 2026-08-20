@@ -39,6 +39,11 @@ webhook:
   # Keep false in production. Enable only for a controlled local receiver.
   allowPrivateEndpoints: false
 
+upstreams:
+  user: bbs-user-service
+  # Must match user-service grpc.server.internalAuthToken.
+  userInternalAuthToken: ""
+
 kafka:
   # Override in production with comma-separated BBS_NOTIFICATION_KAFKA_BROKERS.
   brokers:

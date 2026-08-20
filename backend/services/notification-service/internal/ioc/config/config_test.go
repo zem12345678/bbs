@@ -131,6 +131,7 @@ func TestApplyEnvOverridesSetsRuntimeConfig(t *testing.T) {
 	t.Setenv("BBS_NOTIFICATION_KAFKA_MALL_GROUP_ID", "env-mall-group")
 	t.Setenv("BBS_NOTIFICATION_GRPC_SERVER_ETCD_ADDR", "etcd-a:2379, etcd-b:2379")
 	t.Setenv("BBS_NOTIFICATION_GRPC_SERVER_INTERNAL_AUTH_TOKEN", "env-notification-internal-token")
+	t.Setenv("BBS_NOTIFICATION_USER_INTERNAL_AUTH_TOKEN", "env-user-internal-token")
 	t.Setenv("BBS_NOTIFICATION_TRACE_ENV", "production")
 
 	v := viper.New()
@@ -159,6 +160,9 @@ func TestApplyEnvOverridesSetsRuntimeConfig(t *testing.T) {
 	}
 	if got := v.GetString("grpc.server.internalAuthToken"); got != "env-notification-internal-token" {
 		t.Fatalf("grpc.server.internalAuthToken = %q", got)
+	}
+	if got := v.GetString("upstreams.userInternalAuthToken"); got != "env-user-internal-token" {
+		t.Fatalf("upstreams.userInternalAuthToken = %q", got)
 	}
 	if got := v.GetString("trace.env"); got != "production" {
 		t.Fatalf("trace.env = %q", got)
@@ -197,6 +201,7 @@ func TestInternalAuthDefaultAndProductionValidation(t *testing.T) {
 	production := viper.New()
 	production.Set("trace.env", "prod")
 	production.Set("grpc.server.internalAuthToken", "production-notification-token-with-at-least-32-bytes")
+	production.Set("upstreams.userInternalAuthToken", "production-user-token-with-at-least-32-bytes")
 	if err := validate(production); err != nil {
 		t.Fatalf("validate production config: %v", err)
 	}

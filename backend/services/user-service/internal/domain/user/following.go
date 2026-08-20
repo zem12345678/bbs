@@ -59,6 +59,30 @@ type FollowingQuery struct {
 	Limit   int
 }
 
+type NoteNotificationSubscriber struct {
+	EdgeID int64
+	UserID int64
+}
+
+type NoteNotificationSubscribersQuery struct {
+	FolloweeID int64
+	SinceID    int64
+	Limit      int
+}
+
+func (query *NoteNotificationSubscribersQuery) Normalize() error {
+	if query.FolloweeID <= 0 || query.SinceID < 0 {
+		return ErrInvalidID
+	}
+	if query.Limit == 0 {
+		query.Limit = MaxFollowingLimit
+	}
+	if query.Limit < 1 || query.Limit > MaxFollowingLimit {
+		return ErrFollowingLimitInvalid
+	}
+	return nil
+}
+
 func (query *FollowingQuery) Normalize() error {
 	if query.UserID <= 0 || query.SinceID < 0 || query.UntilID < 0 {
 		return ErrInvalidID

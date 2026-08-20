@@ -60,6 +60,7 @@ const (
 	UserService_UpdateAllFollowings_FullMethodName              = "/bbs.user.v1.UserService/UpdateAllFollowings"
 	UserService_ListFollowingEdges_FullMethodName               = "/bbs.user.v1.UserService/ListFollowingEdges"
 	UserService_ListFollowerEdges_FullMethodName                = "/bbs.user.v1.UserService/ListFollowerEdges"
+	UserService_ListNoteNotificationSubscribers_FullMethodName  = "/bbs.user.v1.UserService/ListNoteNotificationSubscribers"
 	UserService_ListReceivedFollowRequests_FullMethodName       = "/bbs.user.v1.UserService/ListReceivedFollowRequests"
 	UserService_ListSentFollowRequests_FullMethodName           = "/bbs.user.v1.UserService/ListSentFollowRequests"
 	UserService_AcceptFollowRequest_FullMethodName              = "/bbs.user.v1.UserService/AcceptFollowRequest"
@@ -161,6 +162,7 @@ type UserServiceClient interface {
 	UpdateAllFollowings(ctx context.Context, in *UpdateAllFollowingsRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
 	ListFollowingEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error)
 	ListFollowerEdges(ctx context.Context, in *ListFollowingEdgesRequest, opts ...grpc.CallOption) (*FollowingListResponse, error)
+	ListNoteNotificationSubscribers(ctx context.Context, in *ListNoteNotificationSubscribersRequest, opts ...grpc.CallOption) (*NoteNotificationSubscribersResponse, error)
 	ListReceivedFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
 	ListSentFollowRequests(ctx context.Context, in *ListFollowRequestsRequest, opts ...grpc.CallOption) (*FollowRequestListResponse, error)
 	AcceptFollowRequest(ctx context.Context, in *FollowRequestActionRequest, opts ...grpc.CallOption) (*SimpleResponse, error)
@@ -627,6 +629,16 @@ func (c *userServiceClient) ListFollowerEdges(ctx context.Context, in *ListFollo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(FollowingListResponse)
 	err := c.cc.Invoke(ctx, UserService_ListFollowerEdges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListNoteNotificationSubscribers(ctx context.Context, in *ListNoteNotificationSubscribersRequest, opts ...grpc.CallOption) (*NoteNotificationSubscribersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NoteNotificationSubscribersResponse)
+	err := c.cc.Invoke(ctx, UserService_ListNoteNotificationSubscribers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1200,6 +1212,7 @@ type UserServiceServer interface {
 	UpdateAllFollowings(context.Context, *UpdateAllFollowingsRequest) (*SimpleResponse, error)
 	ListFollowingEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error)
 	ListFollowerEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error)
+	ListNoteNotificationSubscribers(context.Context, *ListNoteNotificationSubscribersRequest) (*NoteNotificationSubscribersResponse, error)
 	ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
 	ListSentFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error)
 	AcceptFollowRequest(context.Context, *FollowRequestActionRequest) (*SimpleResponse, error)
@@ -1384,6 +1397,9 @@ func (UnimplementedUserServiceServer) ListFollowingEdges(context.Context, *ListF
 }
 func (UnimplementedUserServiceServer) ListFollowerEdges(context.Context, *ListFollowingEdgesRequest) (*FollowingListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFollowerEdges not implemented")
+}
+func (UnimplementedUserServiceServer) ListNoteNotificationSubscribers(context.Context, *ListNoteNotificationSubscribersRequest) (*NoteNotificationSubscribersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListNoteNotificationSubscribers not implemented")
 }
 func (UnimplementedUserServiceServer) ListReceivedFollowRequests(context.Context, *ListFollowRequestsRequest) (*FollowRequestListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListReceivedFollowRequests not implemented")
@@ -2296,6 +2312,24 @@ func _UserService_ListFollowerEdges_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(UserServiceServer).ListFollowerEdges(ctx, req.(*ListFollowingEdgesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListNoteNotificationSubscribers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNoteNotificationSubscribersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListNoteNotificationSubscribers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListNoteNotificationSubscribers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListNoteNotificationSubscribers(ctx, req.(*ListNoteNotificationSubscribersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3406,6 +3440,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFollowerEdges",
 			Handler:    _UserService_ListFollowerEdges_Handler,
+		},
+		{
+			MethodName: "ListNoteNotificationSubscribers",
+			Handler:    _UserService_ListNoteNotificationSubscribers_Handler,
 		},
 		{
 			MethodName: "ListReceivedFollowRequests",

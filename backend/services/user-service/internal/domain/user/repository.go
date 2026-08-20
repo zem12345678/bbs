@@ -56,6 +56,10 @@ type FollowingRepository interface {
 	ListFollowerEdges(ctx context.Context, query FollowingQuery) ([]*Following, error)
 	ListFollowingEdges(ctx context.Context, query FollowingQuery) ([]*Following, error)
 }
+
+type NoteNotificationSubscriberRepository interface {
+	ListNoteNotificationSubscribers(ctx context.Context, query NoteNotificationSubscribersQuery) ([]NoteNotificationSubscriber, error)
+}
 type InviteRepository interface {
 	CreateWithInvite(ctx context.Context, u *User, code string, requireInvite bool) error
 	CreateInviteCodes(ctx context.Context, codes []InviteCode) error

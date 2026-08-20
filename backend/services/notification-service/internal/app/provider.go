@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	notificationservice "notification-service/internal/application/notification"
+	userclient "notification-service/internal/clients/user"
 	domain "notification-service/internal/domain/notification"
 	"notification-service/internal/infrastructure/messaging"
 	"notification-service/internal/infrastructure/persistence"
@@ -30,6 +31,7 @@ type ConsumerRunner struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	consumers []eventConsumer
+	user      *userclient.Client
 	log       logger.Logger
 }
 
@@ -65,8 +67,8 @@ func ProvideNotificationService(repo domain.Repository, webPushConfig domain.Web
 	return notificationservice.NewService(repo, webPushConfig).SetWebhookConfig(webhookConfig)
 }
 
-func ProvideProjector(service *notificationservice.Service) *messaging.Projector {
-	return messaging.NewProjector(service)
+func ProvideProjector(service *notificationservice.Service, user *userclient.Client) *messaging.Projector {
+	return messaging.NewProjector(service, user)
 }
 
 func ProvideWebPushDispatcher(repo *persistence.PostgresRepository, config domain.WebPushConfig, log logger.Logger) *webpush.Dispatcher {
@@ -83,12 +85,13 @@ func ProvideWebhookDispatcher(repo *persistence.PostgresRepository, config domai
 	return webhook.NewDispatcher(repo, webhook.NewSender(config), log)
 }
 
-func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOptions, projector *messaging.Projector, log logger.Logger) (*ConsumerRunner, error) {
+func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOptions, projector *messaging.Projector, user *userclient.Client, log logger.Logger) (*ConsumerRunner, error) {
 	articleReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
 		StringDefault(v.GetString("kafka.articleTopic"), "article.events"),
 		StringDefault(v.GetString("kafka.articleGroupId"), "bbs-notification-article-consumer"),
 	))
 	if err != nil {
+		_ = user.Close()
 		return nil, err
 	}
 	userReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
@@ -97,6 +100,7 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 	))
 	if err != nil {
 		_ = articleReader.Close()
+		_ = user.Close()
 		return nil, err
 	}
 	commentReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
@@ -106,6 +110,7 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 	if err != nil {
 		_ = articleReader.Close()
 		_ = userReader.Close()
+		_ = user.Close()
 		return nil, err
 	}
 	reactionReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
@@ -116,6 +121,7 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 		_ = articleReader.Close()
 		_ = userReader.Close()
 		_ = commentReader.Close()
+		_ = user.Close()
 		return nil, err
 	}
 	mallReader, err := iockafka.NewConsumer(kafkaOptions.WithTopic(
@@ -127,6 +133,7 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 		_ = userReader.Close()
 		_ = commentReader.Close()
 		_ = reactionReader.Close()
+		_ = user.Close()
 		return nil, err
 	}
 	consumers := []eventConsumer{
@@ -137,7 +144,7 @@ func ProvideConsumerRunner(v *viper.Viper, kafkaOptions *iockafka.ConsumerOption
 		messaging.NewConsumer(mallReader, "mall", projector.HandleMall, log),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ConsumerRunner{ctx: ctx, cancel: cancel, consumers: consumers, log: log}, nil
+	return &ConsumerRunner{ctx: ctx, cancel: cancel, consumers: consumers, user: user, log: log}, nil
 }
 
 func (r *ConsumerRunner) Start() error {
@@ -160,6 +167,11 @@ func (r *ConsumerRunner) Stop() error {
 			firstErr = err
 		}
 	}
+	if r.user != nil {
+		if err := r.user.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	if firstErr != nil {
 		return fmt.Errorf("close notification consumer: %w", firstErr)
 	}
@@ -173,6 +185,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideWebPushConfig,
 	ProvideWebhookConfig,
 	ProvideNotificationService,
+	userclient.NewClient,
 	ProvideProjector,
 	ProvideWebPushDispatcher,
 	ProvideWebhookDispatcher,

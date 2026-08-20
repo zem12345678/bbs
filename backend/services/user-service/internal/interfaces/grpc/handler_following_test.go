@@ -55,6 +55,25 @@ func TestFollowingRPCPreservesOptionalPreferencesAndEdgeCursor(t *testing.T) {
 	}
 }
 
+func TestFollowingRPCListsNoteNotificationSubscribers(t *testing.T) {
+	repo := &followingHandlerRepo{
+		users:       map[int64]*domain.User{42: {ID: 42, Username: "alice", Status: domain.StatusActive}},
+		edges:       make(map[[2]int64]*domain.Following),
+		subscribers: []domain.NoteNotificationSubscriber{{EdgeID: 901, UserID: 42}},
+	}
+	handler := NewHandler(
+		command.NewService(repo, &followingHandlerIDGenerator{next: 900}, nil, nil, "test-secret", time.Hour, 8, nil, nil, nil),
+		query.NewService(repo, nil),
+	)
+	response, err := handler.ListNoteNotificationSubscribers(context.Background(), &pb.ListNoteNotificationSubscribersRequest{FolloweeId: 77, SinceId: 800, Limit: 10})
+	if err != nil || len(response.GetItems()) != 1 || response.GetItems()[0].GetEdgeId() != 901 || response.GetItems()[0].GetUserId() != 42 {
+		t.Fatalf("subscriber response=%+v error=%v", response, err)
+	}
+	if repo.lastSubscriberQuery != (domain.NoteNotificationSubscribersQuery{FolloweeID: 77, SinceID: 800, Limit: 10}) {
+		t.Fatalf("forwarded subscriber query=%+v", repo.lastSubscriberQuery)
+	}
+}
+
 type followingHandlerIDGenerator struct{ next int64 }
 
 func (generator *followingHandlerIDGenerator) Generate() int64 {
@@ -65,11 +84,13 @@ func (generator *followingHandlerIDGenerator) Generate() int64 {
 type followingHandlerRepo struct {
 	domain.Repository
 	domain.SafetyRepository
-	users     map[int64]*domain.User
-	edges     map[[2]int64]*domain.Following
-	created   *domain.Following
-	lastPatch domain.FollowingPatch
-	lastQuery domain.FollowingQuery
+	users               map[int64]*domain.User
+	edges               map[[2]int64]*domain.Following
+	created             *domain.Following
+	lastPatch           domain.FollowingPatch
+	lastQuery           domain.FollowingQuery
+	subscribers         []domain.NoteNotificationSubscriber
+	lastSubscriberQuery domain.NoteNotificationSubscribersQuery
 }
 
 func (repo *followingHandlerRepo) FindByID(_ context.Context, id int64) (*domain.User, error) {
@@ -139,4 +160,9 @@ func (repo *followingHandlerRepo) ListFollowingEdges(_ context.Context, input do
 	edge.Follower = repo.users[42]
 	edge.Followee = repo.users[77]
 	return []*domain.Following{edge}, nil
+}
+
+func (repo *followingHandlerRepo) ListNoteNotificationSubscribers(_ context.Context, input domain.NoteNotificationSubscribersQuery) ([]domain.NoteNotificationSubscriber, error) {
+	repo.lastSubscriberQuery = input
+	return repo.subscribers, nil
 }

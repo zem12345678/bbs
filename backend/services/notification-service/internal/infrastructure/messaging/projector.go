@@ -3,18 +3,31 @@ package messaging
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"notification-service/api/proto/userpb"
 	app "notification-service/internal/application/notification"
 	domain "notification-service/internal/domain/notification"
+
+	"google.golang.org/grpc"
 )
 
 type Projector struct {
-	service *app.Service
+	service     *app.Service
+	subscribers noteNotificationSubscriberClient
 }
 
-func NewProjector(service *app.Service) *Projector {
-	return &Projector{service: service}
+type noteNotificationSubscriberClient interface {
+	ListNoteNotificationSubscribers(context.Context, *userpb.ListNoteNotificationSubscribersRequest, ...grpc.CallOption) (*userpb.NoteNotificationSubscribersResponse, error)
+}
+
+func NewProjector(service *app.Service, subscribers ...noteNotificationSubscriberClient) *Projector {
+	var subscriber noteNotificationSubscriberClient
+	if len(subscribers) > 0 {
+		subscriber = subscribers[0]
+	}
+	return &Projector{service: service, subscribers: subscriber}
 }
 
 func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error {
@@ -25,6 +38,9 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 			return err
 		}
 		if err := p.service.UpsertArticle(ctx, payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
+			return err
+		}
+		if err := p.notifyPublishedFollowers(ctx, env.EventID, "article", payload.ArticleID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
 			return err
 		}
 		if env.EventID == "" {
@@ -39,6 +55,9 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 			return err
 		}
 		if err := p.service.UpsertTopic(ctx, payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
+			return err
+		}
+		if err := p.notifyPublishedFollowers(ctx, env.EventID, "topic", payload.TopicID, payload.AuthorID, payload.Title, env.OccurredAt); err != nil {
 			return err
 		}
 		if env.EventID == "" {
@@ -59,6 +78,49 @@ func (p *Projector) HandleArticle(ctx context.Context, env eventEnvelope) error 
 		return p.service.NotifyQAAccepted(ctx, eventID, payload.TopicID, payload.Title, payload.QuestionAuthorID, payload.AcceptedCommentID, payload.AcceptedCommentAuthorID, payload.RewardCredits, env.OccurredAt)
 	default:
 		return nil
+	}
+}
+
+const noteNotificationSubscriberPageSize int32 = 100
+
+func (p *Projector) notifyPublishedFollowers(ctx context.Context, eventID, entityType string, entityID, authorID int64, title string, occurredAt time.Time) error {
+	if p == nil || p.subscribers == nil || eventID == "" || entityID <= 0 || authorID <= 0 {
+		return nil
+	}
+	sinceID := int64(0)
+	for {
+		response, err := p.subscribers.ListNoteNotificationSubscribers(ctx, &userpb.ListNoteNotificationSubscribersRequest{
+			FolloweeId: authorID, SinceId: sinceID, Limit: noteNotificationSubscriberPageSize,
+		})
+		if err != nil {
+			return err
+		}
+		if response == nil {
+			return fmt.Errorf("user service returned empty notification subscriber response")
+		}
+		items := response.GetItems()
+		if len(items) == 0 {
+			return nil
+		}
+		lastEdgeID := sinceID
+		for _, item := range items {
+			if item == nil {
+				continue
+			}
+			if item.GetEdgeId() > lastEdgeID {
+				lastEdgeID = item.GetEdgeId()
+			}
+			if err := p.service.NotifyPublishedNote(ctx, eventID, entityType, entityID, authorID, item.GetUserId(), title, occurredAt); err != nil {
+				return err
+			}
+		}
+		if lastEdgeID <= sinceID {
+			return fmt.Errorf("user service returned non-advancing notification subscriber cursor")
+		}
+		if int32(len(items)) < noteNotificationSubscriberPageSize {
+			return nil
+		}
+		sinceID = lastEdgeID
 	}
 }
 

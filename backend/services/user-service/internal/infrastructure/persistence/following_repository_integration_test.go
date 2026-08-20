@@ -53,6 +53,8 @@ func TestFollowingRepositoryPostgresIntegration(t *testing.T) {
 		_ = db.Exec("DELETE FROM user_follow_requests WHERE requester_id IN ? OR target_id IN ?", userIDs, userIDs).Error
 		_ = db.Exec("DELETE FROM user_follows WHERE follower_id IN ? OR followee_id IN ?", userIDs, userIDs).Error
 		_ = db.Exec("DELETE FROM user_follow_lifecycles WHERE follower_id IN ? OR followee_id IN ?", userIDs, userIDs).Error
+		_ = db.Exec("DELETE FROM user_blocks WHERE actor_id IN ? OR target_id IN ?", userIDs, userIDs).Error
+		_ = db.Exec("DELETE FROM user_mutes WHERE actor_id IN ? OR target_id IN ?", userIDs, userIDs).Error
 		_ = db.Exec("DELETE FROM users WHERE id IN ?", userIDs).Error
 	}()
 	for _, user := range append([]*domain.User{follower}, targets...) {
@@ -69,6 +71,10 @@ func TestFollowingRepositoryPostgresIntegration(t *testing.T) {
 	edge, err := repo.GetFollowing(ctx, follower.ID, targets[0].ID)
 	if err != nil || edge.ID != publicID || !edge.WithReplies || edge.Notify != domain.FollowNotifyNone || edge.Follower == nil || edge.Followee == nil {
 		t.Fatalf("public edge = %+v, error = %v", edge, err)
+	}
+	defaultSubscribers, err := repo.ListNoteNotificationSubscribers(ctx, domain.NoteNotificationSubscribersQuery{FolloweeID: targets[0].ID, Limit: 10})
+	if err != nil || len(defaultSubscribers) != 0 {
+		t.Fatalf("default notification subscribers = %+v, error = %v", defaultSubscribers, err)
 	}
 
 	requestID := base + 101
@@ -95,6 +101,24 @@ func TestFollowingRepositoryPostgresIntegration(t *testing.T) {
 	edge, err = repo.UpdateFollowing(ctx, follower.ID, targets[0].ID, domain.FollowingPatch{WithReplies: &withoutReplies, Notify: &normal})
 	if err != nil || edge.WithReplies || edge.Notify != normal {
 		t.Fatalf("updated edge = %+v, error = %v", edge, err)
+	}
+	subscribers, err := repo.ListNoteNotificationSubscribers(ctx, domain.NoteNotificationSubscribersQuery{FolloweeID: targets[0].ID, Limit: 10})
+	if err != nil || len(subscribers) != 1 || subscribers[0].EdgeID != publicID || subscribers[0].UserID != follower.ID {
+		t.Fatalf("notification subscribers = %+v, error = %v", subscribers, err)
+	}
+	cutoffSubscribers, err := repo.ListNoteNotificationSubscribers(ctx, domain.NoteNotificationSubscribersQuery{FolloweeID: targets[0].ID, SinceID: publicID, Limit: 10})
+	if err != nil || len(cutoffSubscribers) != 0 {
+		t.Fatalf("notification subscribers after cursor = %+v, error = %v", cutoffSubscribers, err)
+	}
+	if err := repo.Mute(ctx, follower.ID, targets[0].ID); err != nil {
+		t.Fatalf("mute follower preference: %v", err)
+	}
+	mutedSubscribers, err := repo.ListNoteNotificationSubscribers(ctx, domain.NoteNotificationSubscribersQuery{FolloweeID: targets[0].ID, Limit: 10})
+	if err != nil || len(mutedSubscribers) != 0 {
+		t.Fatalf("muted notification subscribers = %+v, error = %v", mutedSubscribers, err)
+	}
+	if err := repo.Unmute(ctx, follower.ID, targets[0].ID); err != nil {
+		t.Fatalf("unmute follower preference: %v", err)
 	}
 	for index, target := range targets[2:] {
 		id := base + 103 + int64(index)

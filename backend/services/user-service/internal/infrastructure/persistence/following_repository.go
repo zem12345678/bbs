@@ -90,6 +90,36 @@ func (r *Repo) ListFollowingEdges(ctx context.Context, query domain.FollowingQue
 	return r.listFollowingEdges(ctx, query, "follower_id")
 }
 
+func (r *Repo) ListNoteNotificationSubscribers(ctx context.Context, query domain.NoteNotificationSubscribersQuery) ([]domain.NoteNotificationSubscriber, error) {
+	if err := query.Normalize(); err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		EdgeID int64 `gorm:"column:edge_id"`
+		UserID int64 `gorm:"column:user_id"`
+	}
+	db := r.db.WithContext(ctx).Table("user_follows AS follows").
+		Select("follows.id AS edge_id, follows.follower_id AS user_id").
+		Joins("JOIN users AS followers ON followers.id = follows.follower_id").
+		Where("follows.followee_id = ?", query.FolloweeID).
+		Where("follows.notify = ?", string(domain.FollowNotifyNormal)).
+		Where("follows.id > ?", query.SinceID).
+		Where("followers.status = ?", int32(domain.StatusActive)).
+		Where("followers.account_state = ?", string(domain.AccountStateActive)).
+		Where("NOT EXISTS (SELECT 1 FROM user_blocks AS blocked_by_follower WHERE blocked_by_follower.actor_id = follows.follower_id AND blocked_by_follower.target_id = follows.followee_id)").
+		Where("NOT EXISTS (SELECT 1 FROM user_blocks AS blocked_by_followee WHERE blocked_by_followee.actor_id = follows.followee_id AND blocked_by_followee.target_id = follows.follower_id)").
+		Where("NOT EXISTS (SELECT 1 FROM user_mutes AS muted_by_follower WHERE muted_by_follower.actor_id = follows.follower_id AND muted_by_follower.target_id = follows.followee_id)").
+		Order("follows.id ASC").Limit(query.Limit)
+	if err := db.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]domain.NoteNotificationSubscriber, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domain.NoteNotificationSubscriber{EdgeID: row.EdgeID, UserID: row.UserID})
+	}
+	return items, nil
+}
+
 func (r *Repo) listFollowingEdges(ctx context.Context, query domain.FollowingQuery, ownerColumn string) ([]*domain.Following, error) {
 	if err := query.Normalize(); err != nil {
 		return nil, err
