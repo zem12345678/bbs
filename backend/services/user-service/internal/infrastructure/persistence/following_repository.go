@@ -124,12 +124,42 @@ func (r *Repo) listFollowingEdges(ctx context.Context, query domain.FollowingQue
 	if err := query.Normalize(); err != nil {
 		return nil, err
 	}
+	var owner userPO
+	if err := r.db.WithContext(ctx).Where("id = ?", query.UserID).First(&owner).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	viewerID := query.ViewerID
+	visibility := owner.FollowingVisibility
+	if ownerColumn == "followee_id" {
+		visibility = owner.FollowersVisibility
+	}
+	if visibility == string(domain.UserVisibilityPrivate) && viewerID != query.UserID {
+		return nil, domain.ErrFollowingListForbidden
+	}
+	if visibility == string(domain.UserVisibilityFollowers) && viewerID != query.UserID {
+		if viewerID <= 0 {
+			return nil, domain.ErrFollowingListForbidden
+		}
+		var exists int64
+		if err := r.db.WithContext(ctx).Table("user_follows").Where("follower_id = ? AND followee_id = ?", viewerID, query.UserID).Count(&exists).Error; err != nil {
+			return nil, err
+		}
+		if exists == 0 {
+			return nil, domain.ErrFollowingListForbidden
+		}
+	}
 	db := r.db.WithContext(ctx).Where(ownerColumn+" = ?", query.UserID)
 	if query.SinceID > 0 {
 		db = db.Where("id > ?", query.SinceID)
 	}
 	if query.UntilID > 0 {
 		db = db.Where("id < ?", query.UntilID)
+	}
+	if query.BirthdayMMDD != "" && ownerColumn == "follower_id" {
+		db = db.Where("followee_id IN (SELECT id FROM users WHERE substring(birthday, 6, 5) = ?)", query.BirthdayMMDD)
 	}
 	order := "id DESC"
 	if query.SinceID > 0 && query.UntilID == 0 {

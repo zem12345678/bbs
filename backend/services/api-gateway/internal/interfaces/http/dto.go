@@ -84,14 +84,17 @@ type adminRefreshRequest struct {
 }
 
 type updateProfileRequest struct {
-	Nickname      string  `json:"nickname"`
-	AvatarURL     string  `json:"avatar_url"`
-	BackgroundURL string  `json:"background_url"`
-	ProfileTheme  *string `json:"profile_theme"`
-	Email         string  `json:"email"`
-	Phone         string  `json:"phone"`
-	Bio           string  `json:"bio"`
-	Description   string  `json:"description"`
+	Nickname            string          `json:"nickname"`
+	AvatarURL           string          `json:"avatar_url"`
+	BackgroundURL       string          `json:"background_url"`
+	ProfileTheme        *string         `json:"profile_theme"`
+	Email               string          `json:"email"`
+	Phone               string          `json:"phone"`
+	Bio                 string          `json:"bio"`
+	Description         string          `json:"description"`
+	Birthday            json.RawMessage `json:"birthday"`
+	FollowingVisibility json.RawMessage `json:"following_visibility"`
+	FollowersVisibility json.RawMessage `json:"followers_visibility"`
 }
 
 type updateUserMemoRequest struct {

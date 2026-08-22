@@ -41,6 +41,9 @@ type UserInfo struct {
 	ProfileTheme           string                 `protobuf:"bytes,16,opt,name=profile_theme,json=profileTheme,proto3" json:"profile_theme,omitempty"`
 	AccountState           string                 `protobuf:"bytes,17,opt,name=account_state,json=accountState,proto3" json:"account_state,omitempty"`
 	FollowApprovalRequired bool                   `protobuf:"varint,18,opt,name=follow_approval_required,json=followApprovalRequired,proto3" json:"follow_approval_required,omitempty"`
+	Birthday               string                 `protobuf:"bytes,19,opt,name=birthday,proto3" json:"birthday,omitempty"`
+	FollowingVisibility    string                 `protobuf:"bytes,20,opt,name=following_visibility,json=followingVisibility,proto3" json:"following_visibility,omitempty"`
+	FollowersVisibility    string                 `protobuf:"bytes,21,opt,name=followers_visibility,json=followersVisibility,proto3" json:"followers_visibility,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -199,6 +202,27 @@ func (x *UserInfo) GetFollowApprovalRequired() bool {
 		return x.FollowApprovalRequired
 	}
 	return false
+}
+
+func (x *UserInfo) GetBirthday() string {
+	if x != nil {
+		return x.Birthday
+	}
+	return ""
+}
+
+func (x *UserInfo) GetFollowingVisibility() string {
+	if x != nil {
+		return x.FollowingVisibility
+	}
+	return ""
+}
+
+func (x *UserInfo) GetFollowersVisibility() string {
+	if x != nil {
+		return x.FollowersVisibility
+	}
+	return ""
 }
 
 type RegisterRequest struct {
@@ -2538,15 +2562,18 @@ func (x *WebmasterLoginRequest) GetClient() *SessionClientInfo {
 }
 
 type UpdateProfileRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Nickname      string                 `protobuf:"bytes,2,opt,name=nickname,proto3" json:"nickname,omitempty"`
-	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
-	Bio           string                 `protobuf:"bytes,4,opt,name=bio,proto3" json:"bio,omitempty"`
-	BackgroundUrl string                 `protobuf:"bytes,5,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
-	ProfileTheme  string                 `protobuf:"bytes,6,opt,name=profile_theme,json=profileTheme,proto3" json:"profile_theme,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Nickname            string                 `protobuf:"bytes,2,opt,name=nickname,proto3" json:"nickname,omitempty"`
+	AvatarUrl           string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	Bio                 string                 `protobuf:"bytes,4,opt,name=bio,proto3" json:"bio,omitempty"`
+	BackgroundUrl       string                 `protobuf:"bytes,5,opt,name=background_url,json=backgroundUrl,proto3" json:"background_url,omitempty"`
+	ProfileTheme        string                 `protobuf:"bytes,6,opt,name=profile_theme,json=profileTheme,proto3" json:"profile_theme,omitempty"`
+	Birthday            *string                `protobuf:"bytes,7,opt,name=birthday,proto3,oneof" json:"birthday,omitempty"`
+	FollowingVisibility *string                `protobuf:"bytes,8,opt,name=following_visibility,json=followingVisibility,proto3,oneof" json:"following_visibility,omitempty"`
+	FollowersVisibility *string                `protobuf:"bytes,9,opt,name=followers_visibility,json=followersVisibility,proto3,oneof" json:"followers_visibility,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateProfileRequest) Reset() {
@@ -2617,6 +2644,27 @@ func (x *UpdateProfileRequest) GetBackgroundUrl() string {
 func (x *UpdateProfileRequest) GetProfileTheme() string {
 	if x != nil {
 		return x.ProfileTheme
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetBirthday() string {
+	if x != nil && x.Birthday != nil {
+		return *x.Birthday
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetFollowingVisibility() string {
+	if x != nil && x.FollowingVisibility != nil {
+		return *x.FollowingVisibility
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetFollowersVisibility() string {
+	if x != nil && x.FollowersVisibility != nil {
+		return *x.FollowersVisibility
 	}
 	return ""
 }
@@ -8149,6 +8197,8 @@ type ListFollowingEdgesRequest struct {
 	SinceId       int64                  `protobuf:"varint,2,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
 	UntilId       int64                  `protobuf:"varint,3,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	ViewerId      int64                  `protobuf:"varint,5,opt,name=viewer_id,json=viewerId,proto3" json:"viewer_id,omitempty"`
+	BirthdayMmdd  string                 `protobuf:"bytes,6,opt,name=birthday_mmdd,json=birthdayMmdd,proto3" json:"birthday_mmdd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8209,6 +8259,20 @@ func (x *ListFollowingEdgesRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListFollowingEdgesRequest) GetViewerId() int64 {
+	if x != nil {
+		return x.ViewerId
+	}
+	return 0
+}
+
+func (x *ListFollowingEdgesRequest) GetBirthdayMmdd() string {
+	if x != nil {
+		return x.BirthdayMmdd
+	}
+	return ""
 }
 
 type FollowingInfo struct {
@@ -8560,7 +8624,7 @@ var File_user_proto protoreflect.FileDescriptor
 const file_user_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"user.proto\x12\vbbs.user.v1\"\xe1\x04\n" +
+	"user.proto\x12\vbbs.user.v1\"\xe3\x05\n" +
 	"\bUserInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -8583,7 +8647,10 @@ const file_user_proto_rawDesc = "" +
 	"\x0ebackground_url\x18\x0f \x01(\tR\rbackgroundUrl\x12#\n" +
 	"\rprofile_theme\x18\x10 \x01(\tR\fprofileTheme\x12#\n" +
 	"\raccount_state\x18\x11 \x01(\tR\faccountState\x128\n" +
-	"\x18follow_approval_required\x18\x12 \x01(\bR\x16followApprovalRequired\"\xfb\x01\n" +
+	"\x18follow_approval_required\x18\x12 \x01(\bR\x16followApprovalRequired\x12\x1a\n" +
+	"\bbirthday\x18\x13 \x01(\tR\bbirthday\x121\n" +
+	"\x14following_visibility\x18\x14 \x01(\tR\x13followingVisibility\x121\n" +
+	"\x14followers_visibility\x18\x15 \x01(\tR\x13followersVisibility\"\xfb\x01\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -8761,7 +8828,7 @@ const file_user_proto_rawDesc = "" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1a\n" +
 	"\bnickname\x18\x04 \x01(\tR\bnickname\x126\n" +
-	"\x06client\x18\x05 \x01(\v2\x1e.bbs.user.v1.SessionClientInfoR\x06client\"\xbf\x01\n" +
+	"\x06client\x18\x05 \x01(\v2\x1e.bbs.user.v1.SessionClientInfoR\x06client\"\x8f\x03\n" +
 	"\x14UpdateProfileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\bnickname\x18\x02 \x01(\tR\bnickname\x12\x1d\n" +
@@ -8769,7 +8836,13 @@ const file_user_proto_rawDesc = "" +
 	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x10\n" +
 	"\x03bio\x18\x04 \x01(\tR\x03bio\x12%\n" +
 	"\x0ebackground_url\x18\x05 \x01(\tR\rbackgroundUrl\x12#\n" +
-	"\rprofile_theme\x18\x06 \x01(\tR\fprofileTheme\"j\n" +
+	"\rprofile_theme\x18\x06 \x01(\tR\fprofileTheme\x12\x1f\n" +
+	"\bbirthday\x18\a \x01(\tH\x00R\bbirthday\x88\x01\x01\x126\n" +
+	"\x14following_visibility\x18\b \x01(\tH\x01R\x13followingVisibility\x88\x01\x01\x126\n" +
+	"\x14followers_visibility\x18\t \x01(\tH\x02R\x13followersVisibility\x88\x01\x01B\v\n" +
+	"\t_birthdayB\x17\n" +
+	"\x15_following_visibilityB\x17\n" +
+	"\x15_followers_visibility\"j\n" +
 	"\x15UpdateUserMemoRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12$\n" +
 	"\x0etarget_user_id\x18\x02 \x01(\x03R\ftargetUserId\x12\x12\n" +
@@ -9220,12 +9293,14 @@ const file_user_proto_rawDesc = "" +
 	"\fwith_replies\x18\x02 \x01(\bH\x00R\vwithReplies\x88\x01\x01\x12\x1b\n" +
 	"\x06notify\x18\x03 \x01(\tH\x01R\x06notify\x88\x01\x01B\x0f\n" +
 	"\r_with_repliesB\t\n" +
-	"\a_notify\"\x80\x01\n" +
+	"\a_notify\"\xc2\x01\n" +
 	"\x19ListFollowingEdgesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x19\n" +
 	"\bsince_id\x18\x02 \x01(\x03R\asinceId\x12\x19\n" +
 	"\buntil_id\x18\x03 \x01(\x03R\auntilId\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\"\xa1\x02\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\tviewer_id\x18\x05 \x01(\x03R\bviewerId\x12#\n" +
+	"\rbirthday_mmdd\x18\x06 \x01(\tR\fbirthdayMmdd\"\xa1\x02\n" +
 	"\rFollowingInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1f\n" +
 	"\vfollower_id\x18\x02 \x01(\x03R\n" +
@@ -9752,6 +9827,7 @@ func file_user_proto_init() {
 	if File_user_proto != nil {
 		return
 	}
+	file_user_proto_msgTypes[37].OneofWrappers = []any{}
 	file_user_proto_msgTypes[49].OneofWrappers = []any{}
 	file_user_proto_msgTypes[113].OneofWrappers = []any{}
 	file_user_proto_msgTypes[116].OneofWrappers = []any{}

@@ -53,10 +53,12 @@ func (patch FollowingPatch) Validate() error {
 }
 
 type FollowingQuery struct {
-	UserID  int64
-	SinceID int64
-	UntilID int64
-	Limit   int
+	UserID       int64
+	ViewerID     int64
+	SinceID      int64
+	UntilID      int64
+	Limit        int
+	BirthdayMMDD string
 }
 
 type NoteNotificationSubscriber struct {
@@ -84,7 +86,7 @@ func (query *NoteNotificationSubscribersQuery) Normalize() error {
 }
 
 func (query *FollowingQuery) Normalize() error {
-	if query.UserID <= 0 || query.SinceID < 0 || query.UntilID < 0 {
+	if query.UserID <= 0 || query.ViewerID < 0 || query.SinceID < 0 || query.UntilID < 0 {
 		return ErrInvalidID
 	}
 	if query.Limit == 0 {
@@ -92,6 +94,14 @@ func (query *FollowingQuery) Normalize() error {
 	}
 	if query.Limit < 1 || query.Limit > MaxFollowingLimit {
 		return ErrFollowingLimitInvalid
+	}
+	if query.BirthdayMMDD != "" {
+		if len(query.BirthdayMMDD) != 5 || query.BirthdayMMDD[2] != '-' {
+			return ErrInvalidBirthday
+		}
+		if _, err := time.Parse("2006-01-02", "2000-"+query.BirthdayMMDD); err != nil {
+			return ErrInvalidBirthday
+		}
 	}
 	return nil
 }

@@ -24,6 +24,9 @@ type userPO struct {
 	BackgroundURL          string     `gorm:"type:text;not null;default:''"`
 	ProfileTheme           string     `gorm:"type:text;not null;default:'default'"`
 	Bio                    string     `gorm:"type:text;not null;default:''"`
+	Birthday               *string    `gorm:"size:10"`
+	FollowingVisibility    string     `gorm:"size:16;not null;default:'public'"`
+	FollowersVisibility    string     `gorm:"size:16;not null;default:'public'"`
 	Status                 int32      `gorm:"not null;default:1;index"`
 	AccountState           string     `gorm:"size:24;not null;default:'active';index"`
 	AccountStateVersion    int64      `gorm:"not null;default:1"`
@@ -168,6 +171,9 @@ func toPO(u *domain.User) userPO {
 		BackgroundURL:          u.BackgroundURL,
 		ProfileTheme:           domain.NormalizeProfileTheme(u.ProfileTheme),
 		Bio:                    u.Bio,
+		Birthday:               u.Birthday,
+		FollowingVisibility:    string(domain.NormalizeUserVisibility(u.FollowingVisibility)),
+		FollowersVisibility:    string(domain.NormalizeUserVisibility(u.FollowersVisibility)),
 		Status:                 int32(u.Status),
 		AccountState:           string(domain.NormalizeAccountState(u.AccountState)),
 		AccountStateVersion:    u.AccountStateVersion,
@@ -196,6 +202,9 @@ func toEntity(p *userPO) *domain.User {
 		BackgroundURL:          p.BackgroundURL,
 		ProfileTheme:           domain.NormalizeProfileTheme(p.ProfileTheme),
 		Bio:                    p.Bio,
+		Birthday:               p.Birthday,
+		FollowingVisibility:    domain.NormalizeUserVisibility(domain.UserVisibility(p.FollowingVisibility)),
+		FollowersVisibility:    domain.NormalizeUserVisibility(domain.UserVisibility(p.FollowersVisibility)),
 		Status:                 domain.Status(p.Status),
 		AccountState:           domain.NormalizeAccountState(domain.AccountState(p.AccountState)),
 		AccountStateVersion:    p.AccountStateVersion,
@@ -255,12 +264,15 @@ func (r *Repo) Create(ctx context.Context, u *domain.User) error {
 
 func (r *Repo) UpdateProfile(ctx context.Context, u *domain.User) error {
 	res := r.db.WithContext(ctx).Model(&userPO{}).Where("id = ?", u.ID).Updates(map[string]any{
-		"nickname":       u.Nickname,
-		"avatar_url":     u.AvatarURL,
-		"background_url": u.BackgroundURL,
-		"profile_theme":  domain.NormalizeProfileTheme(u.ProfileTheme),
-		"bio":            u.Bio,
-		"updated_at":     u.UpdatedAt,
+		"nickname":             u.Nickname,
+		"avatar_url":           u.AvatarURL,
+		"background_url":       u.BackgroundURL,
+		"profile_theme":        domain.NormalizeProfileTheme(u.ProfileTheme),
+		"bio":                  u.Bio,
+		"birthday":             u.Birthday,
+		"following_visibility": string(domain.NormalizeUserVisibility(u.FollowingVisibility)),
+		"followers_visibility": string(domain.NormalizeUserVisibility(u.FollowersVisibility)),
+		"updated_at":           u.UpdatedAt,
 	})
 	if res.Error != nil {
 		return res.Error

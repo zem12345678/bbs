@@ -62,6 +62,11 @@ func TestFollowingRepositoryPostgresIntegration(t *testing.T) {
 			t.Fatalf("create %s: %v", user.Username, err)
 		}
 	}
+	birthday := "1985-08-19"
+	targets[0].Birthday = &birthday
+	if err := repo.UpdateProfile(ctx, targets[0]); err != nil {
+		t.Fatalf("set target birthday: %v", err)
+	}
 
 	publicID := base + 100
 	pending, created, err := repo.FollowOrRequest(ctx, publicID, follower.ID, targets[0].ID, true)
@@ -131,6 +136,21 @@ func TestFollowingRepositoryPostgresIntegration(t *testing.T) {
 	none := domain.FollowNotifyNone
 	if err := repo.UpdateAllFollowings(ctx, follower.ID, domain.FollowingPatch{WithReplies: &withReplies, Notify: &none}); err != nil {
 		t.Fatalf("update all: %v", err)
+	}
+	filtered, err := repo.ListFollowingEdges(ctx, domain.FollowingQuery{UserID: follower.ID, ViewerID: follower.ID, BirthdayMMDD: "08-19", Limit: 10})
+	if err != nil || len(filtered) != 1 || filtered[0].FolloweeID != targets[0].ID {
+		t.Fatalf("birthday-filtered following = %+v, error = %v", filtered, err)
+	}
+	follower.FollowingVisibility = domain.UserVisibilityPrivate
+	if err := repo.UpdateProfile(ctx, follower); err != nil {
+		t.Fatalf("set following visibility: %v", err)
+	}
+	if _, err := repo.ListFollowingEdges(ctx, domain.FollowingQuery{UserID: follower.ID, ViewerID: 0, Limit: 10}); err != domain.ErrFollowingListForbidden {
+		t.Fatalf("anonymous private following error = %v", err)
+	}
+	follower.FollowingVisibility = domain.UserVisibilityPublic
+	if err := repo.UpdateProfile(ctx, follower); err != nil {
+		t.Fatalf("restore following visibility: %v", err)
 	}
 
 	latest, err := repo.ListFollowingEdges(ctx, domain.FollowingQuery{UserID: follower.ID, Limit: 2})

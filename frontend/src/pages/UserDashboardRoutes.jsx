@@ -3908,6 +3908,26 @@ function ProfilePanel({ auth, onAuthUserUpdate }) {
           <input value={form.nickname} onChange={(event) => updateField("nickname", event.target.value)} />
         </label>
         <label>
+          生日
+          <input type="date" value={form.birthday} onChange={(event) => updateField("birthday", event.target.value)} />
+        </label>
+        <label>
+          关注列表可见性
+          <select value={form.following_visibility} onChange={(event) => updateField("following_visibility", event.target.value)}>
+            <option value="public">公开</option>
+            <option value="followers">仅关注者</option>
+            <option value="private">仅自己</option>
+          </select>
+        </label>
+        <label>
+          粉丝列表可见性
+          <select value={form.followers_visibility} onChange={(event) => updateField("followers_visibility", event.target.value)}>
+            <option value="public">公开</option>
+            <option value="followers">仅关注者</option>
+            <option value="private">仅自己</option>
+          </select>
+        </label>
+        <label>
           主题
           <select value={form.profile_theme} onChange={(event) => updateField("profile_theme", normalizeProfileTheme(event.target.value))}>
             <option value="default">默认主题</option>

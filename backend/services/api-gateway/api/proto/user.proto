@@ -122,6 +122,9 @@ message UserInfo {
   string profile_theme = 16;
   string account_state = 17;
   bool follow_approval_required = 18;
+  string birthday = 19;
+  string following_visibility = 20;
+  string followers_visibility = 21;
 }
 
 message RegisterRequest {
@@ -368,6 +371,9 @@ message UpdateProfileRequest {
   string bio = 4;
   string background_url = 5;
   string profile_theme = 6;
+  optional string birthday = 7;
+  optional string following_visibility = 8;
+  optional string followers_visibility = 9;
 }
 
 message UpdateUserMemoRequest {
@@ -940,6 +946,8 @@ message ListFollowingEdgesRequest {
   int64 since_id = 2;
   int64 until_id = 3;
   int32 limit = 4;
+  int64 viewer_id = 5;
+  string birthday_mmdd = 6;
 }
 
 message FollowingInfo {

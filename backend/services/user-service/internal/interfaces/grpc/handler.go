@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	pb "user-service/api/proto/userpb"
@@ -42,7 +43,7 @@ func toStatus(err error) error {
 		code = codes.Unauthenticated
 	case errors.Is(err, domain.ErrInviteCodeNotFound):
 		code = codes.NotFound
-	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired), errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired), errors.Is(err, domain.ErrAccountProtected):
+	case errors.Is(err, domain.ErrProfileThemeEntitlementRequired), errors.Is(err, domain.ErrProfileBackgroundEntitlementRequired), errors.Is(err, domain.ErrAccountProtected), errors.Is(err, domain.ErrFollowingListForbidden):
 		code = codes.PermissionDenied
 	case errors.Is(err, domain.ErrOAuthSignupDisabled):
 		code = codes.PermissionDenied
@@ -63,6 +64,9 @@ func toStatus(err error) error {
 		errors.Is(err, domain.ErrInvalidStatus),
 		errors.Is(err, domain.ErrInvalidAccountState),
 		errors.Is(err, domain.ErrInvalidProfileTheme),
+		errors.Is(err, domain.ErrInvalidBirthday),
+		errors.Is(err, domain.ErrInvalidFollowingVisibility),
+		errors.Is(err, domain.ErrInvalidFollowersVisibility),
 		errors.Is(err, domain.ErrFollowNotifyInvalid),
 		errors.Is(err, domain.ErrFollowingLimitInvalid),
 		errors.Is(err, domain.ErrCannotFollowSelf),
@@ -123,6 +127,10 @@ func toPb(u *domain.User) *pb.UserInfo {
 	if u.EmailVerifiedAt != nil {
 		emailVerifiedAt = u.EmailVerifiedAt.UnixMilli()
 	}
+	birthday := ""
+	if u.Birthday != nil {
+		birthday = *u.Birthday
+	}
 	return &pb.UserInfo{
 		Id:              u.ID,
 		Username:        u.Username,
@@ -143,6 +151,9 @@ func toPb(u *domain.User) *pb.UserInfo {
 		AccountState:    string(domain.NormalizeAccountState(u.AccountState)),
 
 		FollowApprovalRequired: u.FollowApprovalRequired,
+		Birthday:               birthday,
+		FollowingVisibility:    string(domain.NormalizeUserVisibility(u.FollowingVisibility)),
+		FollowersVisibility:    string(domain.NormalizeUserVisibility(u.FollowersVisibility)),
 	}
 }
 
@@ -422,12 +433,32 @@ func toPbUserFollowingChartScope(scope domain.UserFollowingChartScope) *pb.UserF
 }
 
 func (h *Handler) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserResponse, error) {
+	var birthday *string
+	if req.Birthday != nil {
+		if value := strings.TrimSpace(req.GetBirthday()); value != "" {
+			birthday = &value
+		}
+	}
+	var followingVisibility *domain.UserVisibility
+	if req.FollowingVisibility != nil {
+		value := domain.UserVisibility(req.GetFollowingVisibility())
+		followingVisibility = &value
+	}
+	var followersVisibility *domain.UserVisibility
+	if req.FollowersVisibility != nil {
+		value := domain.UserVisibility(req.GetFollowersVisibility())
+		followersVisibility = &value
+	}
 	u, err := h.cmd.UpdateProfile(ctx, req.GetId(), domain.UpdateProfileCmd{
-		Nickname:      req.GetNickname(),
-		AvatarURL:     req.GetAvatarUrl(),
-		BackgroundURL: req.GetBackgroundUrl(),
-		ProfileTheme:  req.GetProfileTheme(),
-		Bio:           req.GetBio(),
+		Nickname:            req.GetNickname(),
+		AvatarURL:           req.GetAvatarUrl(),
+		BackgroundURL:       req.GetBackgroundUrl(),
+		ProfileTheme:        req.GetProfileTheme(),
+		Bio:                 req.GetBio(),
+		BirthdaySet:         req.Birthday != nil,
+		Birthday:            birthday,
+		FollowingVisibility: followingVisibility,
+		FollowersVisibility: followersVisibility,
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -781,7 +812,7 @@ func (h *Handler) UpdateAllFollowings(ctx context.Context, req *pb.UpdateAllFoll
 
 func (h *Handler) ListFollowingEdges(ctx context.Context, req *pb.ListFollowingEdgesRequest) (*pb.FollowingListResponse, error) {
 	edges, err := h.qry.ListFollowingEdges(ctx, domain.FollowingQuery{
-		UserID: req.GetUserId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+		UserID: req.GetUserId(), ViewerID: req.GetViewerId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()), BirthdayMMDD: req.GetBirthdayMmdd(),
 	})
 	if err != nil {
 		return nil, toStatus(err)
@@ -791,7 +822,7 @@ func (h *Handler) ListFollowingEdges(ctx context.Context, req *pb.ListFollowingE
 
 func (h *Handler) ListFollowerEdges(ctx context.Context, req *pb.ListFollowingEdgesRequest) (*pb.FollowingListResponse, error) {
 	edges, err := h.qry.ListFollowerEdges(ctx, domain.FollowingQuery{
-		UserID: req.GetUserId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()),
+		UserID: req.GetUserId(), ViewerID: req.GetViewerId(), SinceID: req.GetSinceId(), UntilID: req.GetUntilId(), Limit: int(req.GetLimit()), BirthdayMMDD: req.GetBirthdayMmdd(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

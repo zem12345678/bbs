@@ -160,16 +160,19 @@ type creditLeaderboardView struct {
 // Keep account, authentication, and moderation fields in the authenticated
 // user-service response only.
 type publicUserView struct {
-	ID                     int64  `json:"id,omitempty"`
-	Username               string `json:"username,omitempty"`
-	Nickname               string `json:"nickname,omitempty"`
-	AvatarURL              string `json:"avatar_url,omitempty"`
-	Bio                    string `json:"bio,omitempty"`
-	FollowerCount          int64  `json:"follower_count,omitempty"`
-	FollowingCount         int64  `json:"following_count,omitempty"`
-	BackgroundURL          string `json:"background_url,omitempty"`
-	ProfileTheme           string `json:"profile_theme,omitempty"`
-	FollowApprovalRequired bool   `json:"follow_approval_required,omitempty"`
+	ID                     int64   `json:"id,omitempty"`
+	Username               string  `json:"username,omitempty"`
+	Nickname               string  `json:"nickname,omitempty"`
+	AvatarURL              string  `json:"avatar_url,omitempty"`
+	Bio                    string  `json:"bio,omitempty"`
+	FollowerCount          int64   `json:"follower_count,omitempty"`
+	FollowingCount         int64   `json:"following_count,omitempty"`
+	BackgroundURL          string  `json:"background_url,omitempty"`
+	ProfileTheme           string  `json:"profile_theme,omitempty"`
+	FollowApprovalRequired bool    `json:"follow_approval_required,omitempty"`
+	Birthday               *string `json:"birthday"`
+	FollowingVisibility    string  `json:"following_visibility"`
+	FollowersVisibility    string  `json:"followers_visibility"`
 }
 
 type publicUserResponse struct {
@@ -206,6 +209,18 @@ func toPublicUserView(user *userpb.UserInfo) *publicUserView {
 		BackgroundURL:          user.GetBackgroundUrl(),
 		ProfileTheme:           user.GetProfileTheme(),
 		FollowApprovalRequired: user.GetFollowApprovalRequired(),
+		Birthday:               optionalMisskeyText(user.GetBirthday()),
+		FollowingVisibility:    profileVisibilityOrPublic(user.GetFollowingVisibility()),
+		FollowersVisibility:    profileVisibilityOrPublic(user.GetFollowersVisibility()),
+	}
+}
+
+func profileVisibilityOrPublic(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "followers", "private":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return "public"
 	}
 }
 
@@ -502,6 +517,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		for _, prefix := range []string{"/api", ""} {
+			r.POST(prefix+"/i/update", h.requireAuthScope("write"), h.updateProfileCompat)
 			r.POST(prefix+"/i/change-password", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.changePasswordCompat)
 			r.POST(prefix+"/i/delete-account", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.deleteAccountCompat)
 			r.POST(prefix+"/notes/conversation", h.notesConversationCompat)
@@ -585,6 +601,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		api.POST("/notes/clips", h.optionalAuth(), h.listNoteClips)
 		api.POST("/i/export-antennas", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportAntennas)
 		api.POST("/i/change-password", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.changePasswordCompat)
+		api.POST("/i/update", h.requireAuthScope("write"), h.updateProfileCompat)
 		api.POST("/i/delete-account", h.requireAuthScope("write"), h.requireInteractiveAuth(), h.deleteAccountCompat)
 		api.POST("/i/export-blocking", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportBlocking)
 		api.POST("/i/export-clips", h.requireAuthScope("read"), h.requireInteractiveAuth(), h.exportClips)
@@ -1923,6 +1940,26 @@ func (h *Handler) updateMe(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	birthday, birthdaySet, birthdayValid := nullableJSONText(req.Birthday)
+	if !birthdayValid {
+		writeError(c, http.StatusBadRequest, "birthday must be a string or null", "invalid_argument")
+		return
+	}
+	var birthdayArg *string
+	if birthdaySet {
+		if birthday == nil {
+			cleared := ""
+			birthdayArg = &cleared
+		} else {
+			birthdayArg = birthday
+		}
+	}
+	followingVisibility, followingSet, followingValid := nullableJSONText(req.FollowingVisibility)
+	followersVisibility, followersSet, followersValid := nullableJSONText(req.FollowersVisibility)
+	if !followingValid || !followersValid || (followingSet && followingVisibility == nil) || (followersSet && followersVisibility == nil) {
+		writeError(c, http.StatusBadRequest, "visibility must be a string", "invalid_argument")
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	if profileBackgroundRequiresEntitlement(req.BackgroundURL) {
@@ -1962,6 +1999,19 @@ func (h *Handler) updateMe(c *gin.Context) {
 		BackgroundUrl: req.BackgroundURL,
 		ProfileTheme:  profileTheme,
 		Bio:           req.Bio,
+		Birthday:      birthdayArg,
+		FollowingVisibility: func() *string {
+			if followingSet {
+				return followingVisibility
+			}
+			return nil
+		}(),
+		FollowersVisibility: func() *string {
+			if followersSet {
+				return followersVisibility
+			}
+			return nil
+		}(),
 	})
 	if err != nil {
 		writeRPCError(c, err)

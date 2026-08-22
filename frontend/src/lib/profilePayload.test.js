@@ -19,16 +19,22 @@ test("profileFormFromAuth hides cached protected appearance until it is revalida
   assert.deepEqual(profileFormFromAuth(auth), {
     nickname: "Alice",
     avatar_url: "https://example.com/avatar.png",
-    background_url: "",
-    profile_theme: "default",
-    bio: "Building"
+      background_url: "",
+      profile_theme: "default",
+      bio: "Building",
+      birthday: "",
+      following_visibility: "public",
+      followers_visibility: "public"
   });
   assert.deepEqual(profileFormFromUser(auth.user), {
     nickname: "Alice",
     avatar_url: "https://example.com/avatar.png",
-    background_url: "https://example.com/revoked-background.webp",
-    profile_theme: "theme-pro",
-    bio: "Building"
+      background_url: "https://example.com/revoked-background.webp",
+      profile_theme: "theme-pro",
+      bio: "Building",
+      birthday: "",
+      following_visibility: "public",
+      followers_visibility: "public"
   });
 });
 
@@ -48,7 +54,10 @@ test("buildProfileUpdatePayload omits unchanged profile theme", () => {
       nickname: "Alice Dev",
       avatar_url: "https://example.com/avatar.png",
       background_url: "https://example.com/bg.webp",
-      bio: "Building"
+      bio: "Building",
+      birthday: null,
+      following_visibility: "public",
+      followers_visibility: "public"
     }
   );
 });

@@ -7,13 +7,34 @@ import (
 )
 
 const (
-	ProfileThemeDefault = "default"
-	ProfileThemePro     = "theme-pro"
+	ProfileThemeDefault                    = "default"
+	ProfileThemePro                        = "theme-pro"
+	UserVisibilityPublic    UserVisibility = "public"
+	UserVisibilityFollowers UserVisibility = "followers"
+	UserVisibilityPrivate   UserVisibility = "private"
 	// InitialCredentialVersion is retained for users whose password credentials
 	// have never been rotated. It is also the migration default for existing
 	// users, so legacy JWTs remain distinguishable from rotated credentials.
 	InitialCredentialVersion = "0"
 )
+
+type UserVisibility string
+
+func (visibility UserVisibility) IsValid() bool {
+	switch visibility {
+	case UserVisibilityPublic, UserVisibilityFollowers, UserVisibilityPrivate:
+		return true
+	default:
+		return false
+	}
+}
+
+func NormalizeUserVisibility(value UserVisibility) UserVisibility {
+	if value == "" {
+		return UserVisibilityPublic
+	}
+	return value
+}
 
 type User struct {
 	ID                  int64
@@ -26,6 +47,9 @@ type User struct {
 	BackgroundURL       string
 	ProfileTheme        string
 	Bio                 string
+	Birthday            *string
+	FollowingVisibility UserVisibility
+	FollowersVisibility UserVisibility
 	Status              Status
 	AccountState        AccountState
 	AccountStateVersion int64
@@ -72,11 +96,15 @@ type WebmasterLoginCmd struct {
 }
 
 type UpdateProfileCmd struct {
-	Nickname      string
-	AvatarURL     string
-	BackgroundURL string
-	ProfileTheme  string
-	Bio           string
+	Nickname            string
+	AvatarURL           string
+	BackgroundURL       string
+	ProfileTheme        string
+	Bio                 string
+	BirthdaySet         bool
+	Birthday            *string
+	FollowingVisibility *UserVisibility
+	FollowersVisibility *UserVisibility
 }
 
 type OAuthAccount struct {
@@ -106,6 +134,8 @@ func New(id int64, cmd RegisterCmd, passwordHash string) (*User, error) {
 		CredentialVersion:   InitialCredentialVersion,
 		Nickname:            nickname,
 		ProfileTheme:        ProfileThemeDefault,
+		FollowingVisibility: UserVisibilityPublic,
+		FollowersVisibility: UserVisibilityPublic,
 		Status:              StatusActive,
 		AccountState:        AccountStateActive,
 		AccountStateVersion: 1,
@@ -162,6 +192,21 @@ func (u *User) Validate() error {
 	if len([]rune(u.Bio)) > MaxBioRunes {
 		u.Bio = string([]rune(u.Bio)[:MaxBioRunes])
 	}
+	u.FollowingVisibility = NormalizeUserVisibility(u.FollowingVisibility)
+	if !u.FollowingVisibility.IsValid() {
+		return ErrInvalidFollowingVisibility
+	}
+	u.FollowersVisibility = NormalizeUserVisibility(u.FollowersVisibility)
+	if !u.FollowersVisibility.IsValid() {
+		return ErrInvalidFollowersVisibility
+	}
+	if u.Birthday != nil {
+		birthday := strings.TrimSpace(*u.Birthday)
+		if !ValidBirthday(birthday) {
+			return ErrInvalidBirthday
+		}
+		u.Birthday = &birthday
+	}
 	u.ProfileTheme = NormalizeProfileTheme(u.ProfileTheme)
 	if !ValidProfileTheme(u.ProfileTheme) {
 		return ErrInvalidProfileTheme
@@ -204,12 +249,34 @@ func (u *User) UpdateProfile(cmd UpdateProfileCmd) error {
 		u.ProfileTheme = NormalizeProfileTheme(cmd.ProfileTheme)
 	}
 	u.Bio = strings.TrimSpace(cmd.Bio)
+	if cmd.BirthdaySet {
+		if cmd.Birthday == nil {
+			u.Birthday = nil
+		} else {
+			birthday := strings.TrimSpace(*cmd.Birthday)
+			u.Birthday = &birthday
+		}
+	}
+	if cmd.FollowingVisibility != nil {
+		u.FollowingVisibility = NormalizeUserVisibility(*cmd.FollowingVisibility)
+	}
+	if cmd.FollowersVisibility != nil {
+		u.FollowersVisibility = NormalizeUserVisibility(*cmd.FollowersVisibility)
+	}
 	u.UpdatedAt = time.Now()
 	if err := u.Validate(); err != nil {
 		return err
 	}
 	u.AddEvent(NewUpdatedEvent(u))
 	return nil
+}
+
+func ValidBirthday(value string) bool {
+	if len(value) != 10 || value[4] != '-' || value[7] != '-' {
+		return false
+	}
+	_, err := time.Parse("2006-01-02", value)
+	return err == nil
 }
 
 func (u *User) ChangePasswordHash(passwordHash string) error {

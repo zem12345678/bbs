@@ -124,6 +124,20 @@ func TestFollowingListCompatResolvesLocalUsernameAndValidatesBirthday(t *testing
 	validBirthday := performFollowingCompatRequest(router, "/users/following", `{"userId":"42","birthday":"2000-08-19"}`, "")
 	require.Equal(t, stdhttp.StatusOK, validBirthday.Code, validBirthday.Body.String())
 	require.JSONEq(t, `[]`, validBirthday.Body.String())
+	require.NotNil(t, preferenceClient.listFollowingRequest)
+	require.EqualValues(t, 0, preferenceClient.listFollowingRequest.GetViewerId())
+	require.Equal(t, "08-19", preferenceClient.listFollowingRequest.GetBirthdayMmdd())
+}
+
+func TestFollowingListCompatMapsVisibilityForbidden(t *testing.T) {
+	userClient := newFollowingCompatUserClient()
+	preferenceClient := &followingCompatPreferenceClient{listErr: status.Error(codes.PermissionDenied, "following list forbidden")}
+	router := followingCompatRouter(userClient, preferenceClient)
+
+	response := performFollowingCompatRequest(router, "/users/following", `{"userId":"42"}`, "")
+	require.Equal(t, stdhttp.StatusBadRequest, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), "FORBIDDEN")
+	require.Contains(t, response.Body.String(), followingListForbiddenID)
 }
 
 func TestFollowingCompatRejectsUnknownFieldsAndMapsNotFollowing(t *testing.T) {
@@ -231,6 +245,7 @@ type followingCompatPreferenceClient struct {
 	listFollowingRequest *userpb.ListFollowingEdgesRequest
 	listFollowerRequest  *userpb.ListFollowingEdgesRequest
 	updateErr            error
+	listErr              error
 }
 
 func (client *followingCompatPreferenceClient) UpdateFollowing(_ context.Context, request *userpb.UpdateFollowingRequest, _ ...grpc.CallOption) (*userpb.FollowingResponse, error) {
@@ -245,12 +260,12 @@ func (client *followingCompatPreferenceClient) UpdateAllFollowings(_ context.Con
 
 func (client *followingCompatPreferenceClient) ListFollowingEdges(_ context.Context, request *userpb.ListFollowingEdgesRequest, _ ...grpc.CallOption) (*userpb.FollowingListResponse, error) {
 	client.listFollowingRequest = request
-	return &userpb.FollowingListResponse{Items: client.items}, nil
+	return &userpb.FollowingListResponse{Items: client.items}, client.listErr
 }
 
 func (client *followingCompatPreferenceClient) ListFollowerEdges(_ context.Context, request *userpb.ListFollowingEdgesRequest, _ ...grpc.CallOption) (*userpb.FollowingListResponse, error) {
 	client.listFollowerRequest = request
-	return &userpb.FollowingListResponse{Items: client.items}, nil
+	return &userpb.FollowingListResponse{Items: client.items}, client.listErr
 }
 
 var _ clients.UserClient = (*followingCompatUserClient)(nil)

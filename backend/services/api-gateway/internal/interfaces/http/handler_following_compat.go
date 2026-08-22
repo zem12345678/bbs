@@ -33,6 +33,8 @@ const (
 	followingUpdateNotFollowingID  = "b8dc75cf-1cb5-46c9-b14b-5f1ffbd782c9"
 	followersListNoSuchUserID      = "27fa5435-88ab-43de-9360-387de88727cd"
 	followingListNoSuchUserID      = "63e4aba4-4156-4e53-be25-c9559e42d71b"
+	followersListForbiddenID       = "3c6a84db-d619-26af-ca14-06232a21df8a"
+	followingListForbiddenID       = "f6cdb0df-c19f-ec5c-7dbb-0ba84a1f92ba"
 	followingListBirthdayInvalidID = "a2b007b9-4782-4eba-abd3-93b05ed4130d"
 )
 
@@ -259,6 +261,10 @@ func (h *Handler) listFollowingCompat(c *gin.Context, followers bool) {
 		writeFollowingCompatError(c, "Birthday date format is invalid.", "BIRTHDAY_DATE_FORMAT_INVALID", followingListBirthdayInvalidID)
 		return
 	}
+	if followers && birthdaySet {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
 	ctx, cancel := rpcContext(c)
 	defer cancel()
 	followingClient, ok := h.followingCompatClient(c)
@@ -269,14 +275,11 @@ func (h *Handler) listFollowingCompat(c *gin.Context, followers bool) {
 	if !ok {
 		return
 	}
-	// BBS users currently have no birthday value. A concrete birthday filter
-	// therefore truthfully has no matches; null means no filter.
-	if birthdaySet && birthday != "" {
-		c.JSON(stdhttp.StatusOK, []misskeyFollowing{})
-		return
-	}
 	rpcRequest := &userpb.ListFollowingEdgesRequest{
-		UserId: user.GetId(), SinceId: jsonIDValue(request.SinceID), UntilId: jsonIDValue(request.UntilID), Limit: limit,
+		UserId: user.GetId(), ViewerId: currentUserID(c), SinceId: jsonIDValue(request.SinceID), UntilId: jsonIDValue(request.UntilID), Limit: limit,
+	}
+	if birthdaySet && birthday != "" {
+		rpcRequest.BirthdayMmdd = birthday[5:]
 	}
 	var responseEdges *userpb.FollowingListResponse
 	var err error
@@ -288,6 +291,14 @@ func (h *Handler) listFollowingCompat(c *gin.Context, followers bool) {
 	if err != nil {
 		if status.Code(err) == codes.InvalidArgument {
 			writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+			return
+		}
+		if status.Code(err) == codes.PermissionDenied {
+			errorID := followingListForbiddenID
+			if followers {
+				errorID = followersListForbiddenID
+			}
+			writeFollowingCompatError(c, "Forbidden.", "FORBIDDEN", errorID)
 			return
 		}
 		writeRPCError(c, err)
