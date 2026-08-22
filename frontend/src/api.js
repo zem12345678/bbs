@@ -929,6 +929,9 @@ export const bbsApi = {
   searchNotesByTag(payload) {
     return request("/notes/search-by-tag", { method: "POST", body: payload, rawResponse: true });
   },
+  searchNotes(payload, token) {
+    return request("/notes/search", { method: "POST", body: payload, token, rawResponse: true });
+  },
   hashtags(params = {}) {
     return request(`/hashtags/list${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

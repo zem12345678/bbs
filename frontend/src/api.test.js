@@ -779,6 +779,21 @@ test("searches mixed public content by tag with a lossless cursor", async () => 
   assert.equal(items[0].topic.id, "9223372036854775807");
 });
 
+test("searches public notes with optional bearer authentication", async () => {
+  let captured;
+  globalThis.fetch = async (url, options) => {
+    captured = { url, options };
+    return textResponse(200, "[]");
+  };
+
+  const items = await bbsApi.searchNotes({ query: "database", sinceId: "10", limit: 5 }, "read-token");
+  assert.deepEqual(items, []);
+  assert.equal(new URL(captured.url).pathname, "/api/v1/notes/search");
+  assert.equal(captured.options.method, "POST");
+  assert.equal(captured.options.headers.Authorization, "Bearer read-token");
+  assert.deepEqual(JSON.parse(captured.options.body), { query: "database", sinceId: "10", limit: 5 });
+});
+
 test("loads trending hashtags without authentication", async () => {
   let requestedUrl = "";
   globalThis.fetch = async (url) => {
