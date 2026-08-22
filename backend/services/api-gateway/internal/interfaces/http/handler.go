@@ -514,6 +514,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 			r.POST(prefix+"/following/invalidate", h.requireAuthScope("write"), h.invalidateFollowingCompat)
 		}
 		h.registerFollowingCompatRoutes(r)
+		h.registerUsersCompatRoutes(r)
 		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		for _, prefix := range []string{"/api", ""} {

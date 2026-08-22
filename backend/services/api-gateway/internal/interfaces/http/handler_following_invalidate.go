@@ -16,36 +16,40 @@ type followingInvalidateRequest struct {
 }
 
 type misskeyUserLite struct {
-	ID                 string            `json:"id"`
-	Name               *string           `json:"name"`
-	Username           string            `json:"username"`
-	Host               *string           `json:"host"`
-	CreatedAt          string            `json:"createdAt"`
-	UpdatedAt          *string           `json:"updatedAt"`
-	LastFetchedAt      *string           `json:"lastFetchedAt"`
-	Approved           bool              `json:"approved"`
-	Description        *string           `json:"description"`
-	AvatarURL          *string           `json:"avatarUrl"`
-	AvatarBlurhash     *string           `json:"avatarBlurhash"`
-	AvatarDecorations  []any             `json:"avatarDecorations"`
-	NoIndex            bool              `json:"noindex"`
-	EnableRSS          bool              `json:"enableRss"`
-	MandatoryCW        *string           `json:"mandatoryCW"`
-	IsSilenced         bool              `json:"isSilenced"`
-	BypassSilence      bool              `json:"bypassSilence"`
-	FollowersCount     int64             `json:"followersCount"`
-	FollowingCount     int64             `json:"followingCount"`
-	NotesCount         int64             `json:"notesCount"`
-	LevelScore         int64             `json:"levelScore"`
-	Level              int64             `json:"level"`
-	LevelProgress      int64             `json:"levelProgress"`
-	LevelProgressRate  int64             `json:"levelProgressRate"`
-	LevelTotalScore    int64             `json:"levelTotalScore"`
-	LevelTitle         string            `json:"levelTitle"`
-	LevelColor         string            `json:"levelColor"`
-	Emojis             map[string]string `json:"emojis"`
-	OnlineStatus       string            `json:"onlineStatus"`
-	AttributionDomains []string          `json:"attributionDomains"`
+	ID                  string            `json:"id"`
+	Name                *string           `json:"name"`
+	Username            string            `json:"username"`
+	Host                *string           `json:"host"`
+	CreatedAt           string            `json:"createdAt"`
+	UpdatedAt           *string           `json:"updatedAt"`
+	LastFetchedAt       *string           `json:"lastFetchedAt"`
+	Approved            bool              `json:"approved"`
+	Description         *string           `json:"description"`
+	AvatarURL           *string           `json:"avatarUrl"`
+	AvatarBlurhash      *string           `json:"avatarBlurhash"`
+	AvatarDecorations   []any             `json:"avatarDecorations"`
+	NoIndex             bool              `json:"noindex"`
+	EnableRSS           bool              `json:"enableRss"`
+	MandatoryCW         *string           `json:"mandatoryCW"`
+	IsSilenced          bool              `json:"isSilenced"`
+	BypassSilence       bool              `json:"bypassSilence"`
+	FollowersCount      int64             `json:"followersCount"`
+	FollowingCount      int64             `json:"followingCount"`
+	NotesCount          int64             `json:"notesCount"`
+	LevelScore          int64             `json:"levelScore"`
+	Level               int64             `json:"level"`
+	LevelProgress       int64             `json:"levelProgress"`
+	LevelProgressRate   int64             `json:"levelProgressRate"`
+	LevelTotalScore     int64             `json:"levelTotalScore"`
+	LevelTitle          string            `json:"levelTitle"`
+	LevelColor          string            `json:"levelColor"`
+	Emojis              map[string]string `json:"emojis"`
+	OnlineStatus        string            `json:"onlineStatus"`
+	AttributionDomains  []string          `json:"attributionDomains"`
+	Birthday            *string           `json:"birthday"`
+	FollowingVisibility string            `json:"followingVisibility"`
+	FollowersVisibility string            `json:"followersVisibility"`
+	IsLocked            bool              `json:"isLocked"`
 }
 
 func (h *Handler) removeFollower(c *gin.Context) {
@@ -107,6 +111,10 @@ func toMisskeyUserLite(user *userpb.UserInfo) misskeyUserLite {
 		AvatarDecorations: []any{}, EnableRSS: true, IsSilenced: user.GetStatus() == userStatusMuted,
 		FollowersCount: user.GetFollowerCount(), FollowingCount: user.GetFollowingCount(), Level: 1, LevelTotalScore: 10000,
 		LevelTitle: "Community member", LevelColor: "gray", Emojis: map[string]string{}, OnlineStatus: "unknown", AttributionDomains: []string{},
+		Birthday:            optionalMisskeyText(user.GetBirthday()),
+		FollowingVisibility: profileVisibilityOrPublic(user.GetFollowingVisibility()),
+		FollowersVisibility: profileVisibilityOrPublic(user.GetFollowersVisibility()),
+		IsLocked:            user.GetFollowApprovalRequired(),
 	}
 }
 
