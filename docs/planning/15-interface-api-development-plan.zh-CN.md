@@ -17,6 +17,8 @@
 4. Note、可见性、回复/转发、任意 reaction 和联邦等缺失能力，先补领域模型，再提供接口，不能在 HTTP 层伪造成功响应。
 5. 每批接口都必须有契约测试、服务测试和真实网关联调，并在清单中记录实现状态。
 
+错误响应必须继续采用现有 `exception.ApiException` JSON 格式：顶层包含 `service`、`trace_id`、`request_id`、`http_code`、数字 `code`、`reason`、`message`、`meta` 和 `data`；兼容接口的字符串错误码放在 `meta.legacy_code`，文档错误 ID 放在 `meta.error_id`。新接口不得引入另一套错误包装格式。
+
 当前建议的第一批接口为：
 
 `notes/create`、`notes/delete`、`notes/timeline`、`users/notes`、`notes/reactions/create`、`notes/reactions/delete`、`users/reactions`、`users/report-abuse`。

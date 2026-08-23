@@ -104,29 +104,44 @@ For feed-style APIs, cursor pagination can be added later:
 
 ### Error Model
 
-HTTP response:
+HTTP response must keep the existing `api-gateway` `exception.ApiException` envelope:
 
 ```json
 {
-  "code": "AUTH_REQUIRED",
-  "message": "Login required",
-  "details": {},
-  "traceId": "..."
+  "service": "api-gateway",
+  "trace_id": "",
+  "request_id": "",
+  "http_code": 400,
+  "code": 400,
+  "reason": "请求不合法",
+  "message": "Invalid param.",
+  "meta": {
+    "legacy_code": "INVALID_PARAM",
+    "error_id": "optional-compat-error-id"
+  },
+  "data": null
 }
 ```
 
-Common codes:
+Rules:
 
-| Code | HTTP | Meaning |
+- `code` and `http_code` are the existing numeric API error values.
+- Misskey-compatible string codes are stored in `meta.legacy_code`.
+- A documented compatibility error ID is stored in optional `meta.error_id`.
+- `trace_id` and `request_id` continue to be filled by the existing response middleware.
+- New handlers must use `writeError`, `writeRPCError`, or an existing compatibility error helper; do not add a second error envelope.
+
+HTTP mapping:
+
+| HTTP status | Meaning |
 | --- | --- | --- |
-| `BAD_REQUEST` | 400 | Invalid input. |
-| `AUTH_REQUIRED` | 401 | Not logged in. |
-| `PERMISSION_DENIED` | 403 | Authenticated but not allowed. |
-| `NOT_FOUND` | 404 | Entity does not exist or is invisible. |
-| `CONFLICT` | 409 | Duplicate or state conflict. |
-| `RATE_LIMITED` | 429 | Too many requests. |
-| `VALIDATION_FAILED` | 422 | Field-level validation failed. |
-| `INTERNAL` | 500 | Unexpected server error. |
+| 400 | Invalid input or compatibility parameter error. |
+| 401 | Missing or invalid authentication. |
+| 403 | Authenticated but not allowed. |
+| 404 | Entity does not exist or is invisible. |
+| 409 | Duplicate or state conflict. |
+| 429 | Too many requests. |
+| 500 | Unexpected internal error. |
 
 gRPC should map domain errors to canonical gRPC status codes plus structured error details.
 

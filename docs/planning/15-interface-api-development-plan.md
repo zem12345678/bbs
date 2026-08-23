@@ -107,10 +107,31 @@
 
 ### 4.4 错误映射
 
-1. 文档的 `code/message/id` 映射到现有 `writeError`/`writeRPCError` 机制。
-2. 参数错误为 400，缺少凭证为 401，权限或所有权错误为 403，不存在或不可见内容按契约返回 400/404，冲突为 409，依赖不可用为 503，限流为 429。
-3. 每个新操作至少覆盖：缺字段、非法 ID、匿名访问、越权访问、上游 NotFound 和上游不可用。
-4. 不为了通过 happy path 而吞掉上游错误；错误必须能在 gateway 日志中关联 trace id。
+1. 新接口沿用当前 API Gateway 的错误响应格式，不引入新的 `code/message/details/traceId` 包装格式。
+2. 错误响应为现有 `exception.ApiException` JSON：
+
+   ```json
+   {
+     "service": "api-gateway",
+     "trace_id": "",
+     "request_id": "",
+     "http_code": 400,
+     "code": 400,
+     "reason": "请求不合法",
+     "message": "Invalid param.",
+     "meta": {
+       "legacy_code": "INVALID_PARAM",
+       "error_id": "optional-compat-error-id"
+     },
+     "data": null
+   }
+   ```
+
+3. `code` 和 `http_code` 使用现有数字错误码；兼容接口的字符串错误码放在 `meta.legacy_code`，文档中的错误 ID 放在可选的 `meta.error_id`。`trace_id` 和 `request_id` 继续由现有 response middleware 注入。
+4. 新 handler 必须复用 `writeError`、`writeRPCError` 或已有兼容错误 helper，禁止自行定义新的错误 envelope。
+5. 参数错误为 400，缺少凭证为 401，权限或所有权错误为 403，不存在或不可见内容按契约返回 400/404，冲突为 409，依赖不可用为 503，限流为 429。
+6. 每个新操作至少覆盖：缺字段、非法 ID、匿名访问、越权访问、上游 NotFound 和上游不可用。
+7. 不为了通过 happy path 而吞掉上游错误；错误必须能在 gateway 日志中关联 trace id。
 
 ## 5. 领域与服务归属
 
@@ -311,7 +332,7 @@ Note 与文章/普通主题的生命周期和字段并不相同。实现时不�
 
 每批接口交付前必须确认：
 
-1. 请求字段、响应字段和错误码可在 `api-1.json` 中逐项对照。
+1. 请求字段、响应字段和错误码可在 `api-1.json` 中逐项对照；错误响应继续使用现有 `ApiException` 格式，兼容码位于 `meta.legacy_code`。
 2. 匿名、正常用户、越权用户、管理员和上游不可用场景均有测试。
 3. 204 接口没有多余响应体，ID 和时间格式符合兼容约定。
 4. 现有 BBS 接口和前端页面回归通过，新增功能不改变现有布局。
