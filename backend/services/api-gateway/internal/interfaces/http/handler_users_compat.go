@@ -84,23 +84,38 @@ func (h *Handler) listUsersCompat(c *gin.Context) {
 	page := offset/limit + 1
 	ctx, cancel := rpcContext(c)
 	defer cancel()
-	result, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
-		Status:   userStatusActive,
-		Page:     int32(page),
-		PageSize: limit,
-		Sort:     request.Sort,
-	})
-	if err != nil {
-		writeRPCError(c, err)
-		return
-	}
-	items := make([]misskeyUserLite, 0, len(result.GetItems()))
-	for _, user := range result.GetItems() {
-		if user == nil || user.GetStatus() != userStatusActive || !publicAccountStateActive(user.GetAccountState()) {
-			continue
+	skip := int(offset % limit)
+	items := make([]misskeyUserLite, 0, limit)
+	for {
+		result, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
+			Status:   userStatusActive,
+			Page:     int32(page),
+			PageSize: limit,
+			Sort:     request.Sort,
+		})
+		if err != nil {
+			writeRPCError(c, err)
+			return
 		}
-		h.sanitizeUserProfileTheme(ctx, user)
-		items = append(items, toMisskeyUserLite(user))
+		rawItems := result.GetItems()
+		for _, user := range rawItems {
+			if user == nil || user.GetStatus() != userStatusActive || !publicAccountStateActive(user.GetAccountState()) {
+				continue
+			}
+			if skip > 0 {
+				skip--
+				continue
+			}
+			h.sanitizeUserProfileTheme(ctx, user)
+			items = append(items, toMisskeyUserLite(user))
+			if len(items) >= int(limit) {
+				break
+			}
+		}
+		if len(items) >= int(limit) || len(rawItems) == 0 || int64(page)*int64(limit) >= result.GetTotal() || len(rawItems) < int(limit) {
+			break
+		}
+		page++
 	}
 	c.JSON(stdhttp.StatusOK, items)
 }

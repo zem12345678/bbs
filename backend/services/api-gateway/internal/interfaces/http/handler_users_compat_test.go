@@ -78,6 +78,12 @@ func TestUsersListCompatReturnsActiveLocalUsers(t *testing.T) {
 	offset := performUsersShowRequest(router, "/users", `{"limit":5,"offset":10}`, "")
 	require.Equal(t, stdhttp.StatusOK, offset.Code, offset.Body.String())
 	require.Equal(t, int32(3), client.listRequest.GetPage())
+
+	pageOffset := performUsersShowRequest(router, "/users", `{"limit":2,"offset":1}`, "")
+	require.Equal(t, stdhttp.StatusOK, pageOffset.Code, pageOffset.Body.String())
+	var pageOffsetPayload []map[string]any
+	require.NoError(t, json.Unmarshal(pageOffset.Body.Bytes(), &pageOffsetPayload))
+	require.Empty(t, pageOffsetPayload)
 }
 
 func TestUsersListCompatRejectsRemoteAndUnknownSort(t *testing.T) {
