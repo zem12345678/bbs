@@ -88,7 +88,8 @@ Future pages should extend this style rather than switching to a generic admin t
 - [10-local-dev-topology.md](./10-local-dev-topology.md): local infrastructure, service ports, config, discovery, and startup topology.
 - [11-p0-implementation-backlog.md](./11-p0-implementation-backlog.md): executable P0 implementation backlog and acceptance criteria.
 - [12-local-infra-compose-draft.md](./12-local-infra-compose-draft.md): Docker Compose design draft for local infrastructure.
-- [15-interface-api-development-plan.md](./15-interface-api-development-plan.md): Misskey/Sharkey 610 操作的接口兼容、服务归属、分阶段交付和验收规划。
+- [15-interface-api-development-plan.md](./15-interface-api-development-plan.md): Misskey/Sharkey 610 操作的接口设计、兼容、服务归属、分阶段交付和验收规划（中文版）。
+- [15-interface-api-development-plan.zh-CN.md](./15-interface-api-development-plan.zh-CN.md): 接口规划中文版入口和中文摘要。
 
 ## Key Decisions
 

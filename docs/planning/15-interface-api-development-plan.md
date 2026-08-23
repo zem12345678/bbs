@@ -1,4 +1,6 @@
-# 接口开发规划
+# 接口设计与开发规划（中文版）
+
+> 本文为 `api-1.json` 对应的中文版接口设计与开发规划。接口路径、字段名和代码标识保留原文形式，便于直接对照网关实现和自动化测试。
 
 ## 1. 文档状态
 
@@ -243,7 +245,7 @@ Note 与文章/普通主题的生命周期和字段并不相同。实现时不�
 1. `git diff` 只包含本批接口和测试/文档。
 2. 相关 Go 包 `go test`、gateway 契约测试和 frontend test 通过。
 3. 至少一条真实 HTTP 联调记录请求、响应状态和关键字段。
-4. 清单状态从 `planned` 更新为 `implemented` only after tests pass；失败或未覆盖保留为 `partial`。
+4. 清单状态仅在测试通过后从 `planned` 更新为 `implemented`；失败或未覆盖保留为 `partial`。
 5. 提交说明包含本批覆盖的 operation 列表和未覆盖项。
 
 ## 9. 风险与决策
@@ -272,3 +274,46 @@ Note 与文章/普通主题的生命周期和字段并不相同。实现时不�
 8. 运行全套测试和 smoke，提交一版并更新本清单状态。
 
 完成以上第一批后，再进入 drive/poll/channel 和 federation 等后续域；不要在第一批中同时改动无关 UI 或重构已有服务。
+
+## 11. 中文接口设计速览
+
+### 11.1 对外接口分层
+
+| 层级 | 约定 | 说明 |
+| --- | --- | --- |
+| 现有业务接口 | `/api/v1/...` | 保持当前 BBS 前端正在使用的路径、响应和权限，不做破坏性改名 |
+| Misskey 兼容接口 | `/api/v1/<operation>` | 按 `api-1.json` 的请求字段、响应字段、状态码和错误码实现 |
+| 兼容别名 | `/<operation>`、`/api/<operation>` | 仅对已注册的兼容操作提供，别名必须共用同一个 handler |
+| 内部调用 | gRPC | 由 API Gateway 转换为服务请求，前端不直接访问内部服务 |
+
+### 11.2 首批接口设计
+
+| 接口 | 作用 | 认证 | 返回 |
+| --- | --- | --- | --- |
+| `notes/create` | 发布短内容、回复或转发 | `write:notes` | `{ "createdNote": Note }` |
+| `notes/delete` | 删除当前用户自己的 Note | `write:notes` | HTTP 204，无响应体 |
+| `notes/show` | 查看 Note；兼容已有主题和文章映射 | 可选 | `Note` |
+| `notes/timeline` | 按时间读取当前用户可见的 Note | `read:account` | `Note[]` |
+| `users/notes` | 读取公开用户的 Note | 可选 | `Note[]` |
+| `notes/reactions/create` | 对 Note 添加任意 reaction | 写权限 | HTTP 204 |
+| `notes/reactions/delete` | 删除当前用户对 Note 的 reaction | 写权限 | HTTP 204 |
+| `users/reactions` | 读取用户公开的 reaction | 可选 | `NoteReaction[]` |
+| `users/report-abuse` | 举报用户 | `write:report-abuse` | HTTP 204 |
+
+### 11.3 与现有功能的关系
+
+- 文章、主题、评论、点赞、收藏、用户关系、通知、搜索、Clips 和后台 RBAC 继续使用现有服务。
+- Note 使用 content-service 已有的 tweet 能力，并增加可见性、回复/转发、文件和 reaction 元数据；不强行填充文章的标题和 slug。
+- 兼容接口只负责字段转换、权限入口、错误翻译和 Note 打包；业务状态和数据一致性仍由拥有领域的服务负责。
+- 前端 API 地址继续从 `frontend/public/config.js` 或生产 runtime config 读取，页面不写死服务地址。
+
+### 11.4 中文验收标准
+
+每批接口交付前必须确认：
+
+1. 请求字段、响应字段和错误码可在 `api-1.json` 中逐项对照。
+2. 匿名、正常用户、越权用户、管理员和上游不可用场景均有测试。
+3. 204 接口没有多余响应体，ID 和时间格式符合兼容约定。
+4. 现有 BBS 接口和前端页面回归通过，新增功能不改变现有布局。
+5. Elasticsearch 已启动时完成搜索/时间线联调；单节点副本未分配造成的 `yellow` 状态按正常本地部署处理。
+6. 只有测试通过的操作才从 `planned` 更新为 `implemented`，未覆盖的操作保留 `partial`。
