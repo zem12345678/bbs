@@ -369,6 +369,7 @@ func (h *Handler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.
 		PageSize:  int(req.GetPageSize()),
 		IDs:       req.GetIds(),
 		Usernames: req.GetUsernames(),
+		Sort:      req.GetSort(),
 	})
 	if err != nil {
 		return nil, toStatus(err)

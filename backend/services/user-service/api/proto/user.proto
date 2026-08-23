@@ -509,6 +509,7 @@ message ListUsersRequest {
   int32 page_size = 4;
   repeated int64 ids = 5;
   repeated string usernames = 6;
+  string sort = 7;
 }
 
 message UserResponse {

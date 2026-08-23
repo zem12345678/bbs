@@ -97,6 +97,7 @@ type UserListQuery struct {
 	PageSize  int
 	IDs       []int64
 	Usernames []string
+	Sort      string
 }
 
 const (

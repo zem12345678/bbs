@@ -1048,8 +1048,29 @@ func (r *Repo) ListUsers(ctx context.Context, q domain.UserListQuery) ([]*domain
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
+	order := "created_at DESC, id DESC"
+	switch q.Sort {
+	case "+follower", "-follower":
+		if q.Sort == "+follower" {
+			order = "follower_count ASC, id ASC"
+		} else {
+			order = "follower_count DESC, id DESC"
+		}
+	case "-createdAt":
+		order = "created_at DESC, id DESC"
+	case "+createdAt":
+		order = "created_at ASC, id ASC"
+	case "-updatedAt":
+		order = "updated_at DESC, id DESC"
+	case "+updatedAt":
+		order = "updated_at ASC, id ASC"
+	default:
+		if strings.HasPrefix(q.Sort, "-") || strings.HasPrefix(q.Sort, "+") {
+			return nil, 0, domain.ErrInvalidID
+		}
+	}
 	var rows []userPO
-	err := db.Order("created_at DESC, id DESC").
+	err := db.Order(order).
 		Limit(q.PageSize).
 		Offset((q.Page - 1) * q.PageSize).
 		Find(&rows).Error

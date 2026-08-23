@@ -939,6 +939,31 @@ test("loads public users in one deduplicated batch request", async () => {
   assert.equal(url.searchParams.get("ids"), "42,7");
 });
 
+test("calls Misskey-compatible user directory and current-user endpoints", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (new URL(url).pathname.endsWith("/i")) return textResponse(200, '{"id":"42","username":"alice"}');
+    return textResponse(200, '[{"id":"42","username":"alice"}]');
+  };
+
+  const current = await bbsApi.currentUserCompat("access-token");
+  const users = await bbsApi.usersCompat({ limit: 20, offset: 10, sort: "-createdAt" });
+  const shown = await bbsApi.showUserCompat({ userIds: ["9223372036854775807"] });
+
+  assert.equal(new URL(requests[0].url).pathname, "/api/v1/i");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer access-token");
+  assert.equal(current.id, "42");
+
+  assert.equal(new URL(requests[1].url).pathname, "/api/v1/users");
+  assert.deepEqual(JSON.parse(requests[1].options.body), { limit: 20, offset: 10, sort: "-createdAt" });
+  assert.equal(requests[1].options.headers.Authorization, undefined);
+  assert.equal(users[0].id, "42");
+
+  assert.equal(new URL(requests[2].url).pathname, "/api/v1/users/show");
+  assert.equal(shown[0].id, "42");
+});
 test("maps following preference compatibility requests without breaking legacy follow calls", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

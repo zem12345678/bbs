@@ -53,6 +53,45 @@ func TestUsersShowCompatSupportsSingleBatchAndUsernameAliases(t *testing.T) {
 	require.Equal(t, stdhttp.StatusOK, usernameWithoutHost.Code, usernameWithoutHost.Body.String())
 }
 
+func TestUsersListCompatReturnsActiveLocalUsers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	client := newUsersShowCompatClient()
+	h := NewHandler(&clients.Clients{User: client}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+
+	for _, path := range []string{"/users", "/api/users", "/api/v1/users"} {
+		t.Run(path, func(t *testing.T) {
+			response := performUsersShowRequest(router, path, `{"limit":2,"offset":0,"sort":"-createdAt","state":"alive","origin":"local","hostname":null}`, "")
+			require.Equal(t, stdhttp.StatusOK, response.Code, response.Body.String())
+			var payload []map[string]any
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+			require.Len(t, payload, 1)
+			require.Equal(t, "42", payload[0]["id"])
+			require.Equal(t, int32(1), client.listRequest.GetPage())
+			require.Equal(t, int32(2), client.listRequest.GetPageSize())
+			require.Equal(t, "-createdAt", client.listRequest.GetSort())
+			require.Equal(t, userStatusActive, client.listRequest.GetStatus())
+		})
+	}
+
+	offset := performUsersShowRequest(router, "/users", `{"limit":5,"offset":10}`, "")
+	require.Equal(t, stdhttp.StatusOK, offset.Code, offset.Body.String())
+	require.Equal(t, int32(3), client.listRequest.GetPage())
+}
+
+func TestUsersListCompatRejectsRemoteAndUnknownSort(t *testing.T) {
+	client := newUsersShowCompatClient()
+	h := NewHandler(&clients.Clients{User: client}, "Authorization", "Bearer", testJWTSecret)
+	router := gin.New()
+	NewInitControllers(h)(router)
+	for _, body := range []string{`{"origin":"remote"}`, `{"hostname":"example.com"}`, `{"sort":"bad"}`} {
+		response := performUsersShowRequest(router, "/users", body, "")
+		require.Equal(t, stdhttp.StatusBadRequest, response.Code, response.Body.String())
+		require.Contains(t, response.Body.String(), "INVALID_PARAM")
+	}
+}
+
 func TestCurrentUserCompatRequiresReadScopeAndReturnsBareUser(t *testing.T) {
 	client := newUsersShowCompatClient()
 	h := NewHandler(&clients.Clients{User: client}, "Authorization", "Bearer", testJWTSecret)
@@ -99,13 +138,14 @@ func performUsersShowRequest(router stdhttp.Handler, path, body, token string) *
 
 type usersShowCompatClient struct {
 	userpb.UserServiceClient
+	listRequest     *userpb.ListUsersRequest
 	users           map[int64]*userpb.UserInfo
 	usernameRequest *userpb.UsernameRequest
 }
 
 func newUsersShowCompatClient() *usersShowCompatClient {
 	return &usersShowCompatClient{users: map[int64]*userpb.UserInfo{
-		42: {Id: 42, Username: "viewer", Nickname: "Viewer", CreatedAt: 1690000000000},
+		42: {Id: 42, Username: "viewer", Nickname: "Viewer", Status: userStatusActive, AccountState: "active", CreatedAt: 1690000000000},
 		77: {Id: 77, Username: "alice", Nickname: "Alice", CreatedAt: 1700000000000},
 		99: {Id: 99, Username: "bob", Nickname: "Bob", CreatedAt: 1710000000000},
 	}}
@@ -130,11 +170,17 @@ func (client *usersShowCompatClient) GetUserByUsername(_ context.Context, reques
 }
 
 func (client *usersShowCompatClient) ListUsers(_ context.Context, request *userpb.ListUsersRequest, _ ...grpc.CallOption) (*userpb.UserListResponse, error) {
+	client.listRequest = request
 	items := make([]*userpb.UserInfo, 0, len(request.GetIds()))
-	for _, id := range request.GetIds() {
-		if user := client.users[id]; user != nil {
-			items = append(items, user)
+	if len(request.GetIds()) > 0 {
+		for _, id := range request.GetIds() {
+			if user := client.users[id]; user != nil {
+				items = append(items, user)
+			}
 		}
+	}
+	if request.GetStatus() == userStatusActive && len(request.GetIds()) == 0 {
+		items = append(items, client.users[42])
 	}
 	return &userpb.UserListResponse{Items: items, Total: int64(len(items))}, nil
 }

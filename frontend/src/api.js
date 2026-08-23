@@ -285,6 +285,15 @@ export const bbsApi = {
   me(token) {
     return request("/users/me", { token });
   },
+  currentUserCompat(token) {
+    return request("/i", { method: "POST", body: {}, token, rawResponse: true });
+  },
+  usersCompat(payload = {}) {
+    return request("/users", { method: "POST", body: payload, rawResponse: true });
+  },
+  showUserCompat(payload = {}) {
+    return request("/users/show", { method: "POST", body: payload, rawResponse: true });
+  },
   currentPinnedContent(token) {
     return request("/users/me/pinned", { token });
   },

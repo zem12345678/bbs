@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	stdhttp "net/http"
 	"strings"
@@ -22,11 +23,86 @@ type usersShowCompatRequest struct {
 	Detail   *bool           `json:"detail"`
 }
 
+type usersListCompatRequest struct {
+	Limit    *int32          `json:"limit"`
+	Offset   *int32          `json:"offset"`
+	Sort     string          `json:"sort"`
+	State    string          `json:"state"`
+	Origin   string          `json:"origin"`
+	Hostname json.RawMessage `json:"hostname"`
+	Detail   *bool           `json:"detail"`
+}
+
 func (h *Handler) registerUsersCompatRoutes(router *gin.Engine) {
 	for _, prefix := range []string{"", "/api", "/api/v1"} {
 		router.POST(prefix+"/users/show", h.optionalAuth(), h.showUsersCompat)
+		router.POST(prefix+"/users", h.optionalAuth(), h.listUsersCompat)
 		router.POST(prefix+"/i", h.requireAuthScope("read"), h.showCurrentUserCompat)
 	}
+}
+
+func (h *Handler) listUsersCompat(c *gin.Context) {
+	var request usersListCompatRequest
+	if !decodeSensitiveAccountCompatRequest(c, &request) {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	limit := int32(10)
+	if request.Limit != nil {
+		limit = *request.Limit
+	}
+	offset := int32(0)
+	if request.Offset != nil {
+		offset = *request.Offset
+	}
+	if limit < 1 || limit > 100 || offset < 0 || offset > 10000 {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	switch request.Sort {
+	case "", "+follower", "-follower", "+createdAt", "-createdAt", "+updatedAt", "-updatedAt":
+	default:
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	switch request.State {
+	case "", "all", "alive":
+	default:
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	switch request.Origin {
+	case "", "local":
+	default:
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	if len(bytes.TrimSpace(request.Hostname)) > 0 && !bytes.Equal(bytes.TrimSpace(request.Hostname), []byte("null")) {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", "")
+		return
+	}
+	page := offset/limit + 1
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	result, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{
+		Status:   userStatusActive,
+		Page:     int32(page),
+		PageSize: limit,
+		Sort:     request.Sort,
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	items := make([]misskeyUserLite, 0, len(result.GetItems()))
+	for _, user := range result.GetItems() {
+		if user == nil || user.GetStatus() != userStatusActive || !publicAccountStateActive(user.GetAccountState()) {
+			continue
+		}
+		h.sanitizeUserProfileTheme(ctx, user)
+		items = append(items, toMisskeyUserLite(user))
+	}
+	c.JSON(stdhttp.StatusOK, items)
 }
 
 func (h *Handler) showCurrentUserCompat(c *gin.Context) {

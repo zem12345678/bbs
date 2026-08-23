@@ -3895,6 +3895,7 @@ type ListUsersRequest struct {
 	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	Ids           []int64                `protobuf:"varint,5,rep,packed,name=ids,proto3" json:"ids,omitempty"`
 	Usernames     []string               `protobuf:"bytes,6,rep,name=usernames,proto3" json:"usernames,omitempty"`
+	Sort          string                 `protobuf:"bytes,7,opt,name=sort,proto3" json:"sort,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3969,6 +3970,13 @@ func (x *ListUsersRequest) GetUsernames() []string {
 		return x.Usernames
 	}
 	return nil
+}
+
+func (x *ListUsersRequest) GetSort() string {
+	if x != nil {
+		return x.Sort
+	}
+	return ""
 }
 
 type UserResponse struct {
@@ -8924,14 +8932,15 @@ const file_user_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12&\n" +
 	"\x0fafter_target_id\x18\x04 \x01(\x03R\rafterTargetId\x123\n" +
-	"\x16ascending_by_target_id\x18\x05 \x01(\bR\x13ascendingByTargetId\"\xa1\x01\n" +
+	"\x16ascending_by_target_id\x18\x05 \x01(\bR\x13ascendingByTargetId\"\xb5\x01\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\x05R\x06status\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x10\n" +
 	"\x03ids\x18\x05 \x03(\x03R\x03ids\x12\x1c\n" +
-	"\tusernames\x18\x06 \x03(\tR\tusernames\"m\n" +
+	"\tusernames\x18\x06 \x03(\tR\tusernames\x12\x12\n" +
+	"\x04sort\x18\a \x01(\tR\x04sort\"m\n" +
 	"\fUserResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12)\n" +
