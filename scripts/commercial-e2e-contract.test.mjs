@@ -80,6 +80,27 @@ test("backend smoke verifies fuzzy user and content search", async () => {
   assert.match(source, /Fuzzy article search did not include created article/);
 });
 
+test("backend smoke extracts action tokens with a .NET-compatible URL pattern", async () => {
+  const source = await readScript("../backend/scripts/smoke-local.ps1");
+
+  assert.match(
+    source,
+    /\$pattern\s*=\s*'https\?:\/\/\\S\+'\s*\+\s*\[regex\]::Escape\(\$ActionPath\)/
+  );
+  assert.doesNotMatch(source, /\[\[:space:\]\]/);
+});
+
+test("backend smoke waits for notification read-all projection to settle", async () => {
+  const source = await readScript("../backend/scripts/smoke-local.ps1");
+
+  assert.match(
+    source,
+    /read-all[\s\S]*?for \(\$i = 0; \$i -lt \$ProjectionRetries; \$i\+\+\)[\s\S]*?unread-count/
+  );
+  assert.match(source, /PSObject\.Properties\.Name\).*contains "count"/);
+  assert.match(source, /function Get-ApiCount/);
+});
+
 test("backend smoke verifies the authenticated file library round trip", async () => {
   const source = await readScript("../backend/scripts/smoke-local.ps1");
 

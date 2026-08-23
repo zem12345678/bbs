@@ -470,6 +470,15 @@ function Invoke-Api {
   return $result
 }
 
+function Get-ApiCount {
+  param([object]$Value)
+
+  if ($null -eq $Value -or @($Value.PSObject.Properties.Name) -notcontains "count") {
+    return [int64]0
+  }
+  return [int64]$Value.count
+}
+
 function Get-MailpitActionToken {
   param(
     [string]$MessageId,
@@ -481,7 +490,7 @@ function Get-MailpitActionToken {
     -not [string]::IsNullOrWhiteSpace([string]$_)
   }
   $body = [string]::Join("`n", [string[]]@($parts))
-  $pattern = 'https?://[^[:space:]]+' + [regex]::Escape($ActionPath) + '\?token=(?<token>[0-9a-f]{64})'
+  $pattern = 'https?://\S+' + [regex]::Escape($ActionPath) + '\?token=(?<token>[0-9a-f]{64})'
   $match = [regex]::Match($body, $pattern)
   if (-not $match.Success) {
     return $null
@@ -1851,11 +1860,11 @@ try {
     throw "Owner comment delete did not hide permission comment"
   }
   $topicLike = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicId/like" -Method Post -Headers $headers -TimeoutSec 10
-  if ([int64]$topicLike.count -lt 1) {
+  if ((Get-ApiCount $topicLike) -lt 1) {
     throw "Topic like did not increment count"
   }
   $topicFavorite = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicId/favorite" -Method Post -Headers $headers -TimeoutSec 10
-  if ([int64]$topicFavorite.count -lt 1) {
+  if ((Get-ApiCount $topicFavorite) -lt 1) {
     throw "Topic favorite did not increment count"
   }
   $topicReactionCounts = Invoke-Api -Uri "$baseUrl/api/v1/topics/$topicId/reactions" -Method Get -TimeoutSec 10
@@ -2268,18 +2277,26 @@ try {
     throw "Author notifications were not projected from comment/reaction events"
   }
   $unread = Invoke-Api -Uri "$baseUrl/api/v1/notifications/unread-count" -Method Get -Headers $followeeHeaders -TimeoutSec 10
-  if ([int64]$unread.count -lt 3) {
+  if ((Get-ApiCount $unread) -lt 3) {
     throw "Unread notification count was lower than expected"
   }
   $firstNotification = @($notifications.items)[0]
   Invoke-Api -Uri "$baseUrl/api/v1/notifications/$($firstNotification.id)/read" -Method Post -Headers $followeeHeaders -TimeoutSec 10 | Out-Null
   $afterRead = Invoke-Api -Uri "$baseUrl/api/v1/notifications/unread-count" -Method Get -Headers $followeeHeaders -TimeoutSec 10
-  if ([int64]$afterRead.count -ge [int64]$unread.count) {
+  if ((Get-ApiCount $afterRead) -ge (Get-ApiCount $unread)) {
     throw "Unread notification count did not decrease after mark read"
   }
   Invoke-Api -Uri "$baseUrl/api/v1/notifications/read-all" -Method Post -Headers $followeeHeaders -TimeoutSec 10 | Out-Null
-  $afterReadAll = Invoke-Api -Uri "$baseUrl/api/v1/notifications/unread-count" -Method Get -Headers $followeeHeaders -TimeoutSec 10
-  $afterReadAllCount = [int64]$afterReadAll.count
+  $afterReadAll = $null
+  $afterReadAllCount = [int64]0
+  for ($i = 0; $i -lt $ProjectionRetries; $i++) {
+    $afterReadAll = Invoke-Api -Uri "$baseUrl/api/v1/notifications/unread-count" -Method Get -Headers $followeeHeaders -TimeoutSec 10
+    $afterReadAllCount = Get-ApiCount $afterReadAll
+    if ($afterReadAllCount -eq 0) {
+      break
+    }
+    Start-Sleep -Seconds 1
+  }
   if ($afterReadAllCount -ne 0) {
     throw "Unread notification count was not zero after mark all read"
   }
@@ -3743,7 +3760,7 @@ try {
   }
 
   $unfavoriteArticle = Invoke-Api -Uri "$baseUrl/api/v1/articles/$articleId/favorite" -Method Delete -Headers $headers -TimeoutSec 10
-  if ([int64]$unfavoriteArticle.count -ne 0) {
+  if ((Get-ApiCount $unfavoriteArticle) -ne 0) {
     throw "Article unfavorite did not decrement count"
   }
   $favoritesAfterUnfavorite = Invoke-Api -Uri "$baseUrl/api/v1/users/current/favorites?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
@@ -3761,7 +3778,7 @@ try {
     throw "Current user favorites did not reflect article unfavorite"
   }
   $unlikeArticle = Invoke-Api -Uri "$baseUrl/api/v1/articles/$articleId/like" -Method Delete -Headers $headers -TimeoutSec 10
-  if ([int64]$unlikeArticle.count -ne 0) {
+  if ((Get-ApiCount $unlikeArticle) -ne 0) {
     throw "Article unlike did not decrement count"
   }
   $likesAfterUnlike = Invoke-Api -Uri "$baseUrl/api/v1/users/current/likes?limit=20&offset=0" -Method Get -Headers $headers -TimeoutSec 10
@@ -3875,8 +3892,8 @@ try {
     mutedUserStatus = $mutedUser.user.status
     unmutedUserStatus = $unmutedUser.user.status
     commentId = $comment.comment.id
-    likeCount = $like.count
-    favoriteCount = $favorite.count
+    likeCount = Get-ApiCount $like
+    favoriteCount = Get-ApiCount $favorite
     currentUserLikes = @($likes.items).Count
     likeTopicListed = $likeTopicListed
     likeArticleListed = $likeArticleListed
@@ -3897,8 +3914,8 @@ try {
     searchIndexed = $searchIndexed
     articleFuzzySearchListed = $articleFuzzySearchListed
     notificationTypes = $notificationTypes
-    unreadBeforeRead = $unread.count
-    unreadAfterRead = $afterRead.count
+    unreadBeforeRead = Get-ApiCount $unread
+    unreadAfterRead = Get-ApiCount $afterRead
     unreadAfterReadAll = $afterReadAllCount
     actorCreditTotal = $actorCredit.balance.total
     authorCreditTotal = $authorCredit.balance.total
