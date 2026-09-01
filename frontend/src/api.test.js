@@ -964,6 +964,31 @@ test("calls Misskey-compatible user directory and current-user endpoints", async
   assert.equal(new URL(requests[2].url).pathname, "/api/v1/users/show");
   assert.equal(shown[0].id, "42");
 });
+
+test("calls Misskey-compatible note create, show, timeline, user notes, and delete endpoints", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return textResponse(200, options.body === "{}" ? "[]" : "{}", options.method === "POST" ? { "content-type": "application/json" } : undefined);
+  };
+
+  await bbsApi.createNote({ text: "hello" }, "access-token");
+  await bbsApi.showNote("9007199254740993", "access-token");
+  await bbsApi.noteTimeline({ limit: 10, untilId: "9007199254740994" }, "access-token");
+  await bbsApi.userNotes("9007199254740995", { withFiles: true });
+  await bbsApi.deleteNote("9007199254740996", "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [new URL(url).pathname, options.method, options.headers.Authorization, JSON.parse(options.body)]),
+    [
+      ["/api/v1/notes/create", "POST", "Bearer access-token", { text: "hello" }],
+      ["/api/v1/notes/show", "POST", "Bearer access-token", { noteId: "9007199254740993" }],
+      ["/api/v1/notes/timeline", "POST", "Bearer access-token", { limit: 10, untilId: "9007199254740994" }],
+      ["/api/v1/users/notes", "POST", undefined, { userId: "9007199254740995", withFiles: true }],
+      ["/api/v1/notes/delete", "POST", "Bearer access-token", { noteId: "9007199254740996" }]
+    ]
+  );
+});
 test("maps following preference compatibility requests without breaking legacy follow calls", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

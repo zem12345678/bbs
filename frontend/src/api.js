@@ -941,6 +941,21 @@ export const bbsApi = {
   searchNotes(payload, token) {
     return request("/notes/search", { method: "POST", body: payload, token, rawResponse: true });
   },
+  createNote(payload, token) {
+    return request("/notes/create", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  deleteNote(noteId, token) {
+    return request("/notes/delete", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  showNote(noteId, token) {
+    return request("/notes/show", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  noteTimeline(payload = {}, token) {
+    return request("/notes/timeline", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  userNotes(userId, payload = {}, token) {
+    return request("/users/notes", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
+  },
   hashtags(params = {}) {
     return request(`/hashtags/list${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

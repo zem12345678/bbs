@@ -33,6 +33,10 @@ const gatewayRouteFiles = [
   {
     path: "backend/services/api-gateway/internal/interfaces/http/handler_notes_search_compat.go",
     prefix: ""
+  },
+  {
+    path: "backend/services/api-gateway/internal/interfaces/http/handler_notes_compat.go",
+    prefix: ""
   }
 ];
 
@@ -130,6 +134,17 @@ function extractGatewayRoutes() {
     }
     if (item.path.endsWith("handler_notes_search_compat.go")) {
       routes.add(routeKey("post", "/api/v1/notes/search"));
+    }
+    if (item.path.endsWith("handler_notes_compat.go")) {
+      for (const raw of [
+        "/notes/create",
+        "/notes/delete",
+        "/notes/show",
+        "/notes/timeline",
+        "/users/notes"
+      ]) {
+        routes.add(routeKey("post", `/api/v1${raw}`));
+      }
     }
     const routePattern =
       /(?:api|chat)\.(GET|POST|PUT|PATCH|DELETE)\("([^"]+)"/g;
