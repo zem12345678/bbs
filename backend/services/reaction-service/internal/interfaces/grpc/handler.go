@@ -32,8 +32,14 @@ func toStatus(err error) error {
 	}
 	code := codes.Internal
 	switch {
-	case errors.Is(err, domain.ErrInvalidEntityType), errors.Is(err, domain.ErrInvalidEntityID), errors.Is(err, domain.ErrInvalidUserID):
+	case errors.Is(err, domain.ErrInvalidEntityType), errors.Is(err, domain.ErrInvalidEntityID), errors.Is(err, domain.ErrInvalidUserID), errors.Is(err, domain.ErrInvalidReaction), errors.Is(err, domain.ErrInvalidReactionCursor):
 		code = codes.InvalidArgument
+	case errors.Is(err, domain.ErrReactionAlreadyExists):
+		code = codes.AlreadyExists
+	case errors.Is(err, domain.ErrReactionNotFound):
+		code = codes.NotFound
+	case errors.Is(err, domain.ErrReactionRepositoryUnavailable):
+		code = codes.Unavailable
 	case errors.Is(err, domain.ErrInvalidReportID), errors.Is(err, domain.ErrInvalidReportReason), errors.Is(err, domain.ErrInvalidReportStatus), errors.Is(err, domain.ErrInvalidReportNote), errors.Is(err, domain.ErrInvalidReportAction):
 		code = codes.InvalidArgument
 	case errors.Is(err, domain.ErrInvalidCollectionID), errors.Is(err, domain.ErrInvalidCollectionName), errors.Is(err, domain.ErrInvalidCollectionDescription), errors.Is(err, domain.ErrInvalidCollectionEntityType), errors.Is(err, domain.ErrInvalidCollectionCursor), errors.Is(err, domain.ErrInvalidFavoriteCursor):
@@ -116,6 +122,20 @@ func toLikePb(like *domain.Like) *pb.LikeInfo {
 	}
 }
 
+func toReactionPb(reaction *domain.Reaction) *pb.ReactionInfo {
+	if reaction == nil {
+		return nil
+	}
+	return &pb.ReactionInfo{
+		Id:        reaction.ID,
+		Entity:    &pb.EntityRef{EntityType: string(reaction.Entity.Type), EntityId: reaction.Entity.ID},
+		UserId:    reaction.UserID,
+		Reaction:  reaction.Reaction,
+		CreatedAt: reaction.CreatedAt.UnixMilli(),
+		UpdatedAt: reaction.UpdatedAt.UnixMilli(),
+	}
+}
+
 func toFavoritePb(favorite *domain.Favorite) *pb.FavoriteInfo {
 	if favorite == nil {
 		return nil
@@ -189,6 +209,34 @@ func (h *Handler) Like(ctx context.Context, req *pb.ReactRequest) (*pb.ReactResp
 		return nil, toStatus(err)
 	}
 	return toResponse(result), nil
+}
+
+func (h *Handler) CreateReaction(ctx context.Context, req *pb.CreateReactionRequest) (*pb.ReactionResponse, error) {
+	result, err := h.cmd.CreateReaction(ctx, toRef(req.GetEntity()), req.GetUserId(), req.GetReaction())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ReactionResponse{Success: true, Message: "ok", Changed: result.Changed}, nil
+}
+
+func (h *Handler) DeleteReaction(ctx context.Context, req *pb.DeleteReactionRequest) (*pb.ReactionResponse, error) {
+	result, err := h.cmd.DeleteReaction(ctx, toRef(req.GetEntity()), req.GetUserId())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &pb.ReactionResponse{Success: true, Message: "ok", Changed: result.Changed}, nil
+}
+
+func (h *Handler) ListReactions(ctx context.Context, req *pb.ListReactionsRequest) (*pb.ReactionListResponse, error) {
+	rows, total, err := h.qry.ListReactions(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()), req.GetSinceId(), req.GetUntilId(), req.GetSinceDate(), req.GetUntilDate())
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	items := make([]*pb.ReactionInfo, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toReactionPb(row))
+	}
+	return &pb.ReactionListResponse{Items: items, Total: total}, nil
 }
 
 func (h *Handler) Unlike(ctx context.Context, req *pb.ReactRequest) (*pb.ReactResponse, error) {
@@ -477,6 +525,7 @@ func (h *Handler) EraseAccountReactions(ctx context.Context, req *pb.EraseAccoun
 	return &pb.EraseAccountReactionsResponse{
 		Completed:                true,
 		DeletedLikes:             result.DeletedLikes,
+		DeletedReactions:         result.DeletedReactions,
 		DeletedFavorites:         result.DeletedFavorites,
 		DeletedCollections:       result.DeletedCollections,
 		AnonymizedReports:        result.AnonymizedReports,

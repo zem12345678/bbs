@@ -8,6 +8,9 @@ service ReactionService {
   rpc Like(ReactRequest) returns (ReactResponse);
   rpc Unlike(ReactRequest) returns (ReactResponse);
   rpc ListLikes(ListLikesRequest) returns (LikeListResponse);
+  rpc CreateReaction(CreateReactionRequest) returns (ReactionResponse);
+  rpc DeleteReaction(DeleteReactionRequest) returns (ReactionResponse);
+  rpc ListReactions(ListReactionsRequest) returns (ReactionListResponse);
   rpc Favorite(ReactRequest) returns (ReactResponse);
   rpc Unfavorite(ReactRequest) returns (ReactResponse);
   rpc ListFavorites(ListFavoritesRequest) returns (FavoriteListResponse);
@@ -48,6 +51,48 @@ message ReactResponse {
   string message = 2;
   int64 count = 3;
   bool changed = 4;
+}
+
+message CreateReactionRequest {
+  EntityRef entity = 1;
+  int64 user_id = 2;
+  string reaction = 3;
+}
+
+message DeleteReactionRequest {
+  EntityRef entity = 1;
+  int64 user_id = 2;
+}
+
+message ReactionResponse {
+  bool success = 1;
+  string message = 2;
+  bool changed = 3;
+}
+
+message ReactionInfo {
+  int64 id = 1;
+  EntityRef entity = 2;
+  int64 user_id = 3;
+  string reaction = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message ListReactionsRequest {
+  int64 user_id = 1;
+  string entity_type = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  int64 since_id = 5;
+  int64 until_id = 6;
+  int64 since_date = 7;
+  int64 until_date = 8;
+}
+
+message ReactionListResponse {
+  repeated ReactionInfo items = 1;
+  int64 total = 2;
 }
 
 message EntityRequest {

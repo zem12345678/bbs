@@ -16,12 +16,17 @@ type Service struct {
 	reports     domain.ReportRepository
 	likes       domain.LikeRepository
 	favorites   domain.FavoriteRepository
+	reactions   domain.ReactionRepository
 	pins        domain.PinRepository
 	collections domain.CollectionRepository
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, pins: pins, collections: collections}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository, reactionRepositories ...domain.ReactionRepository) *Service {
+	var reactions domain.ReactionRepository
+	if len(reactionRepositories) > 0 {
+		reactions = reactionRepositories[0]
+	}
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, reactions: reactions, pins: pins, collections: collections}
 }
 
 func (s *Service) Count(ctx context.Context, ref domain.EntityRef) (CountView, error) {
@@ -89,6 +94,22 @@ func (s *Service) ListLikes(ctx context.Context, userID int64, entityType domain
 		return nil, 0, domain.ErrInvalidEntityType
 	}
 	return s.likes.ListLikes(ctx, userID, entityType, limit, offset)
+}
+
+func (s *Service) ListReactions(ctx context.Context, userID int64, entityType domain.EntityType, limit, offset int, sinceID, untilID, sinceDate, untilDate int64) ([]*domain.Reaction, int64, error) {
+	if s.reactions == nil {
+		return nil, 0, domain.ErrReactionRepositoryUnavailable
+	}
+	if userID <= 0 {
+		return nil, 0, domain.ErrInvalidUserID
+	}
+	if entityType != "" && !entityType.Valid() {
+		return nil, 0, domain.ErrInvalidEntityType
+	}
+	if sinceID < 0 || untilID < 0 || sinceDate < 0 || untilDate < 0 {
+		return nil, 0, domain.ErrInvalidReactionCursor
+	}
+	return s.reactions.ListReactions(ctx, userID, entityType, limit, offset, sinceID, untilID, sinceDate, untilDate)
 }
 
 func (s *Service) ListFavorites(ctx context.Context, userID int64, entityType domain.EntityType, limit, offset int) ([]*domain.Favorite, int64, error) {

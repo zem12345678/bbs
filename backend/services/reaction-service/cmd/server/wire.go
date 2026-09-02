@@ -77,6 +77,10 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 	if err != nil {
 		return nil, err
 	}
+	reactions, err := reactionapp.ProvideReactionRepository(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	favorites, err := reactionapp.ProvideFavoriteRepository(ctx, db)
 	if err != nil {
 		return nil, err
@@ -97,8 +101,8 @@ func CreateApp(configFile string) (*iocapplication.Application, error) {
 		return nil, err
 	}
 	publisher := reactionapp.ProvideEventPublisher(kafkaWriter, log)
-	commandService := reactionapp.ProvideCommandService(reactionStore, reports, likes, favorites, pins, collections, publisher, log)
-	queryService := reactionapp.ProvideQueryService(reactionStore, reports, likes, favorites, pins, collections)
+	commandService := reactionapp.ProvideCommandService(reactionStore, reports, likes, favorites, pins, collections, publisher, log, reactions)
+	queryService := reactionapp.ProvideQueryService(reactionStore, reports, likes, favorites, pins, collections, reactions)
 	erasureService := reactionapp.ProvideAccountErasureService(erasureRepo, reactionStore)
 	handler := interfacesgrpc.NewHandler(commandService, queryService, erasureService)
 	initServers := interfacesgrpc.NewInitServers(handler)

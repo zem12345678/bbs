@@ -37,6 +37,10 @@ func ProvideLikeRepository(ctx context.Context, db *gorm.DB) (*store.PostgresLik
 	return store.NewPostgresLikeRepository(db), nil
 }
 
+func ProvideReactionRepository(ctx context.Context, db *gorm.DB) (*store.PostgresReactionRepository, error) {
+	return store.NewPostgresReactionRepository(db), nil
+}
+
 func ProvideFavoriteRepository(ctx context.Context, db *gorm.DB) (*store.PostgresFavoriteRepository, error) {
 	return store.NewPostgresFavoriteRepository(db), nil
 }
@@ -77,12 +81,13 @@ func ProvideCommandService(
 	collections domain.CollectionRepository,
 	publisher messaging.EventPublisher,
 	log logger.Logger,
+	reactions domain.ReactionRepository,
 ) *command.Service {
-	return command.NewService(reactionStore, reports, likes, favorites, pins, collections, publisher, log)
+	return command.NewService(reactionStore, reports, likes, favorites, pins, collections, publisher, log, reactions)
 }
 
-func ProvideQueryService(reactionStore domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository) *query.Service {
-	return query.NewService(reactionStore, reports, likes, favorites, pins, collections)
+func ProvideQueryService(reactionStore domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository, reactions domain.ReactionRepository) *query.Service {
+	return query.NewService(reactionStore, reports, likes, favorites, pins, collections, reactions)
 }
 
 func ProvideAccountErasureService(repo accountDomain.ErasureRepository, cache accountDomain.ErasureCache) *accountcommand.Service {
@@ -94,6 +99,7 @@ var BusinessProviderSet = wire.NewSet(
 	ProvideReactionStore,
 	ProvideReportRepository,
 	ProvideLikeRepository,
+	ProvideReactionRepository,
 	ProvideFavoriteRepository,
 	ProvidePinRepository,
 	ProvideCollectionRepository,
@@ -108,6 +114,7 @@ var BusinessProviderSet = wire.NewSet(
 var _ domain.Store = (*store.RedisStore)(nil)
 var _ domain.ReportRepository = (*store.PostgresReportRepository)(nil)
 var _ domain.LikeRepository = (*store.PostgresLikeRepository)(nil)
+var _ domain.ReactionRepository = (*store.PostgresReactionRepository)(nil)
 var _ domain.FavoriteRepository = (*store.PostgresFavoriteRepository)(nil)
 var _ domain.PinRepository = (*store.PostgresPinRepository)(nil)
 var _ domain.CollectionRepository = (*store.PostgresCollectionRepository)(nil)

@@ -989,6 +989,29 @@ test("calls Misskey-compatible note create, show, timeline, user notes, and dele
     ]
   );
 });
+
+test("calls Misskey-compatible reaction and abuse-report endpoints", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return textResponse(204, "");
+  };
+
+  await bbsApi.createNoteReaction("9007199254740993", "👍", "access-token");
+  await bbsApi.deleteNoteReaction("9007199254740994", "access-token");
+  await bbsApi.userReactions("9007199254740995", { sinceId: "9007199254740996" });
+  await bbsApi.reportUserAbuse("9007199254740997", "spam", "access-token");
+
+  assert.deepEqual(
+    requests.map(({ url, options }) => [new URL(url).pathname, options.method, options.headers.Authorization, JSON.parse(options.body)]),
+    [
+      ["/api/v1/notes/reactions/create", "POST", "Bearer access-token", { noteId: "9007199254740993", reaction: "👍" }],
+      ["/api/v1/notes/reactions/delete", "POST", "Bearer access-token", { noteId: "9007199254740994" }],
+      ["/api/v1/users/reactions", "POST", undefined, { userId: "9007199254740995", sinceId: "9007199254740996" }],
+      ["/api/v1/users/report-abuse", "POST", "Bearer access-token", { userId: "9007199254740997", comment: "spam" }]
+    ]
+  );
+});
 test("maps following preference compatibility requests without breaking legacy follow calls", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

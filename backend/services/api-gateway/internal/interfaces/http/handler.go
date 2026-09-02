@@ -516,6 +516,7 @@ func NewInitControllers(h *Handler) iochttp.InitControllers {
 		h.registerFollowingCompatRoutes(r)
 		h.registerUsersCompatRoutes(r)
 		h.registerNotesCompatRoutes(r)
+		h.registerReactionsCompatRoutes(r)
 		h.registerNotesSearchCompatRoutes(r)
 		r.POST("/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)
 		r.POST("/api/notes/search-by-tag", h.optionalAuthScope("read"), h.searchNotesByTag)

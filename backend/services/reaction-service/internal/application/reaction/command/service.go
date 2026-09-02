@@ -15,14 +15,19 @@ type Service struct {
 	reports     domain.ReportRepository
 	likes       domain.LikeRepository
 	favorites   domain.FavoriteRepository
+	reactions   domain.ReactionRepository
 	pins        domain.PinRepository
 	collections domain.CollectionRepository
 	publisher   messaging.EventPublisher
 	log         logger.Logger
 }
 
-func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository, publisher messaging.EventPublisher, log logger.Logger) *Service {
-	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, pins: pins, collections: collections, publisher: publisher, log: log}
+func NewService(store domain.Store, reports domain.ReportRepository, likes domain.LikeRepository, favorites domain.FavoriteRepository, pins domain.PinRepository, collections domain.CollectionRepository, publisher messaging.EventPublisher, log logger.Logger, reactionRepositories ...domain.ReactionRepository) *Service {
+	var reactions domain.ReactionRepository
+	if len(reactionRepositories) > 0 {
+		reactions = reactionRepositories[0]
+	}
+	return &Service{store: store, reports: reports, likes: likes, favorites: favorites, reactions: reactions, pins: pins, collections: collections, publisher: publisher, log: log}
 }
 
 func (s *Service) publishEvents(ctx context.Context, events ...domain.DomainEvent) {
@@ -42,6 +47,32 @@ type Result struct {
 type ReportResult struct {
 	Report  *domain.Report
 	Created bool
+}
+
+func (s *Service) CreateReaction(ctx context.Context, ref domain.EntityRef, userID int64, reaction string) (Result, error) {
+	if s.reactions == nil {
+		return Result{}, domain.ErrReactionRepositoryUnavailable
+	}
+	normalized, err := domain.NormalizeReaction(reaction)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := validate(ref, userID); err != nil {
+		return Result{}, err
+	}
+	_, changed, err := s.reactions.CreateReaction(ctx, ref, userID, normalized)
+	return Result{Changed: changed}, err
+}
+
+func (s *Service) DeleteReaction(ctx context.Context, ref domain.EntityRef, userID int64) (Result, error) {
+	if s.reactions == nil {
+		return Result{}, domain.ErrReactionRepositoryUnavailable
+	}
+	if err := validate(ref, userID); err != nil {
+		return Result{}, err
+	}
+	changed, err := s.reactions.DeleteReaction(ctx, ref, userID)
+	return Result{Changed: changed}, err
 }
 
 func (s *Service) CreateCollection(ctx context.Context, userID int64, name, description string, isPublic bool) (*domain.Collection, error) {

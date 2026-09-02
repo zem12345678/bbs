@@ -12,6 +12,7 @@ var (
 
 type ErasureResult struct {
 	DeletedLikes             int64
+	DeletedReactions         int64
 	DeletedFavorites         int64
 	DeletedCollections       int64
 	AnonymizedReports        int64

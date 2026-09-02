@@ -22,6 +22,9 @@ const (
 	ReactionService_Like_FullMethodName                           = "/bbs.reaction.v1.ReactionService/Like"
 	ReactionService_Unlike_FullMethodName                         = "/bbs.reaction.v1.ReactionService/Unlike"
 	ReactionService_ListLikes_FullMethodName                      = "/bbs.reaction.v1.ReactionService/ListLikes"
+	ReactionService_CreateReaction_FullMethodName                 = "/bbs.reaction.v1.ReactionService/CreateReaction"
+	ReactionService_DeleteReaction_FullMethodName                 = "/bbs.reaction.v1.ReactionService/DeleteReaction"
+	ReactionService_ListReactions_FullMethodName                  = "/bbs.reaction.v1.ReactionService/ListReactions"
 	ReactionService_Favorite_FullMethodName                       = "/bbs.reaction.v1.ReactionService/Favorite"
 	ReactionService_Unfavorite_FullMethodName                     = "/bbs.reaction.v1.ReactionService/Unfavorite"
 	ReactionService_ListFavorites_FullMethodName                  = "/bbs.reaction.v1.ReactionService/ListFavorites"
@@ -55,6 +58,9 @@ type ReactionServiceClient interface {
 	Like(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
 	Unlike(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
 	ListLikes(ctx context.Context, in *ListLikesRequest, opts ...grpc.CallOption) (*LikeListResponse, error)
+	CreateReaction(ctx context.Context, in *CreateReactionRequest, opts ...grpc.CallOption) (*ReactionResponse, error)
+	DeleteReaction(ctx context.Context, in *DeleteReactionRequest, opts ...grpc.CallOption) (*ReactionResponse, error)
+	ListReactions(ctx context.Context, in *ListReactionsRequest, opts ...grpc.CallOption) (*ReactionListResponse, error)
 	Favorite(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
 	Unfavorite(ctx context.Context, in *ReactRequest, opts ...grpc.CallOption) (*ReactResponse, error)
 	ListFavorites(ctx context.Context, in *ListFavoritesRequest, opts ...grpc.CallOption) (*FavoriteListResponse, error)
@@ -113,6 +119,36 @@ func (c *reactionServiceClient) ListLikes(ctx context.Context, in *ListLikesRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LikeListResponse)
 	err := c.cc.Invoke(ctx, ReactionService_ListLikes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) CreateReaction(ctx context.Context, in *CreateReactionRequest, opts ...grpc.CallOption) (*ReactionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_CreateReaction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) DeleteReaction(ctx context.Context, in *DeleteReactionRequest, opts ...grpc.CallOption) (*ReactionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_DeleteReaction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) ListReactions(ctx context.Context, in *ListReactionsRequest, opts ...grpc.CallOption) (*ReactionListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReactionListResponse)
+	err := c.cc.Invoke(ctx, ReactionService_ListReactions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -366,6 +402,9 @@ type ReactionServiceServer interface {
 	Like(context.Context, *ReactRequest) (*ReactResponse, error)
 	Unlike(context.Context, *ReactRequest) (*ReactResponse, error)
 	ListLikes(context.Context, *ListLikesRequest) (*LikeListResponse, error)
+	CreateReaction(context.Context, *CreateReactionRequest) (*ReactionResponse, error)
+	DeleteReaction(context.Context, *DeleteReactionRequest) (*ReactionResponse, error)
+	ListReactions(context.Context, *ListReactionsRequest) (*ReactionListResponse, error)
 	Favorite(context.Context, *ReactRequest) (*ReactResponse, error)
 	Unfavorite(context.Context, *ReactRequest) (*ReactResponse, error)
 	ListFavorites(context.Context, *ListFavoritesRequest) (*FavoriteListResponse, error)
@@ -408,6 +447,15 @@ func (UnimplementedReactionServiceServer) Unlike(context.Context, *ReactRequest)
 }
 func (UnimplementedReactionServiceServer) ListLikes(context.Context, *ListLikesRequest) (*LikeListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListLikes not implemented")
+}
+func (UnimplementedReactionServiceServer) CreateReaction(context.Context, *CreateReactionRequest) (*ReactionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateReaction not implemented")
+}
+func (UnimplementedReactionServiceServer) DeleteReaction(context.Context, *DeleteReactionRequest) (*ReactionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteReaction not implemented")
+}
+func (UnimplementedReactionServiceServer) ListReactions(context.Context, *ListReactionsRequest) (*ReactionListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListReactions not implemented")
 }
 func (UnimplementedReactionServiceServer) Favorite(context.Context, *ReactRequest) (*ReactResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Favorite not implemented")
@@ -552,6 +600,60 @@ func _ReactionService_ListLikes_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ReactionServiceServer).ListLikes(ctx, req.(*ListLikesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_CreateReaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateReactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).CreateReaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_CreateReaction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).CreateReaction(ctx, req.(*CreateReactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_DeleteReaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteReactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).DeleteReaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_DeleteReaction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).DeleteReaction(ctx, req.(*DeleteReactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_ListReactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReactionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).ListReactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_ListReactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).ListReactions(ctx, req.(*ListReactionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1006,6 +1108,18 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLikes",
 			Handler:    _ReactionService_ListLikes_Handler,
+		},
+		{
+			MethodName: "CreateReaction",
+			Handler:    _ReactionService_CreateReaction_Handler,
+		},
+		{
+			MethodName: "DeleteReaction",
+			Handler:    _ReactionService_DeleteReaction_Handler,
+		},
+		{
+			MethodName: "ListReactions",
+			Handler:    _ReactionService_ListReactions_Handler,
 		},
 		{
 			MethodName: "Favorite",

@@ -52,6 +52,9 @@ func run(cmd *cobra.Command) error {
 	if err := store.NewPostgresLikeRepository(db).EnsureSchema(ctx); err != nil {
 		return fmt.Errorf("migrate reaction-service likes schema: %w", err)
 	}
+	if err := store.NewPostgresReactionRepository(db).EnsureSchema(ctx); err != nil {
+		return fmt.Errorf("migrate reaction-service reactions schema: %w", err)
+	}
 	if err := store.NewPostgresFavoriteRepository(db).EnsureSchema(ctx); err != nil {
 		return fmt.Errorf("migrate reaction-service favorites schema: %w", err)
 	}

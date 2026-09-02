@@ -956,6 +956,18 @@ export const bbsApi = {
   userNotes(userId, payload = {}, token) {
     return request("/users/notes", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
   },
+  createNoteReaction(noteId, reaction, token) {
+    return request("/notes/reactions/create", { method: "POST", body: { noteId: String(noteId), reaction }, token, rawResponse: true });
+  },
+  deleteNoteReaction(noteId, token) {
+    return request("/notes/reactions/delete", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  userReactions(userId, payload = {}, token) {
+    return request("/users/reactions", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
+  },
+  reportUserAbuse(userId, comment, token) {
+    return request("/users/report-abuse", { method: "POST", body: { userId: String(userId), comment }, token, rawResponse: true });
+  },
   hashtags(params = {}) {
     return request(`/hashtags/list${buildQuery({ limit: 20, offset: 0, ...params })}`);
   },

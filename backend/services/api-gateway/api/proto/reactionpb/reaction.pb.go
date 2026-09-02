@@ -193,6 +193,414 @@ func (x *ReactResponse) GetChanged() bool {
 	return false
 }
 
+type CreateReactionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entity        *EntityRef             `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Reaction      string                 `protobuf:"bytes,3,opt,name=reaction,proto3" json:"reaction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateReactionRequest) Reset() {
+	*x = CreateReactionRequest{}
+	mi := &file_reaction_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateReactionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateReactionRequest) ProtoMessage() {}
+
+func (x *CreateReactionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateReactionRequest.ProtoReflect.Descriptor instead.
+func (*CreateReactionRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreateReactionRequest) GetEntity() *EntityRef {
+	if x != nil {
+		return x.Entity
+	}
+	return nil
+}
+
+func (x *CreateReactionRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *CreateReactionRequest) GetReaction() string {
+	if x != nil {
+		return x.Reaction
+	}
+	return ""
+}
+
+type DeleteReactionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entity        *EntityRef             `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteReactionRequest) Reset() {
+	*x = DeleteReactionRequest{}
+	mi := &file_reaction_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteReactionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteReactionRequest) ProtoMessage() {}
+
+func (x *DeleteReactionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteReactionRequest.ProtoReflect.Descriptor instead.
+func (*DeleteReactionRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DeleteReactionRequest) GetEntity() *EntityRef {
+	if x != nil {
+		return x.Entity
+	}
+	return nil
+}
+
+func (x *DeleteReactionRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type ReactionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Changed       bool                   `protobuf:"varint,3,opt,name=changed,proto3" json:"changed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReactionResponse) Reset() {
+	*x = ReactionResponse{}
+	mi := &file_reaction_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReactionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReactionResponse) ProtoMessage() {}
+
+func (x *ReactionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReactionResponse.ProtoReflect.Descriptor instead.
+func (*ReactionResponse) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ReactionResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ReactionResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ReactionResponse) GetChanged() bool {
+	if x != nil {
+		return x.Changed
+	}
+	return false
+}
+
+type ReactionInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Entity        *EntityRef             `protobuf:"bytes,2,opt,name=entity,proto3" json:"entity,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Reaction      string                 `protobuf:"bytes,4,opt,name=reaction,proto3" json:"reaction,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     int64                  `protobuf:"varint,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReactionInfo) Reset() {
+	*x = ReactionInfo{}
+	mi := &file_reaction_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReactionInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReactionInfo) ProtoMessage() {}
+
+func (x *ReactionInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReactionInfo.ProtoReflect.Descriptor instead.
+func (*ReactionInfo) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ReactionInfo) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ReactionInfo) GetEntity() *EntityRef {
+	if x != nil {
+		return x.Entity
+	}
+	return nil
+}
+
+func (x *ReactionInfo) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ReactionInfo) GetReaction() string {
+	if x != nil {
+		return x.Reaction
+	}
+	return ""
+}
+
+func (x *ReactionInfo) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ReactionInfo) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+type ListReactionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	SinceId       int64                  `protobuf:"varint,5,opt,name=since_id,json=sinceId,proto3" json:"since_id,omitempty"`
+	UntilId       int64                  `protobuf:"varint,6,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
+	SinceDate     int64                  `protobuf:"varint,7,opt,name=since_date,json=sinceDate,proto3" json:"since_date,omitempty"`
+	UntilDate     int64                  `protobuf:"varint,8,opt,name=until_date,json=untilDate,proto3" json:"until_date,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListReactionsRequest) Reset() {
+	*x = ListReactionsRequest{}
+	mi := &file_reaction_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListReactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListReactionsRequest) ProtoMessage() {}
+
+func (x *ListReactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListReactionsRequest.ProtoReflect.Descriptor instead.
+func (*ListReactionsRequest) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListReactionsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *ListReactionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetSinceId() int64 {
+	if x != nil {
+		return x.SinceId
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetUntilId() int64 {
+	if x != nil {
+		return x.UntilId
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetSinceDate() int64 {
+	if x != nil {
+		return x.SinceDate
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetUntilDate() int64 {
+	if x != nil {
+		return x.UntilDate
+	}
+	return 0
+}
+
+type ReactionListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ReactionInfo        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int64                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReactionListResponse) Reset() {
+	*x = ReactionListResponse{}
+	mi := &file_reaction_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReactionListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReactionListResponse) ProtoMessage() {}
+
+func (x *ReactionListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_reaction_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReactionListResponse.ProtoReflect.Descriptor instead.
+func (*ReactionListResponse) Descriptor() ([]byte, []int) {
+	return file_reaction_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ReactionListResponse) GetItems() []*ReactionInfo {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ReactionListResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 type EntityRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Entity        *EntityRef             `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
@@ -202,7 +610,7 @@ type EntityRequest struct {
 
 func (x *EntityRequest) Reset() {
 	*x = EntityRequest{}
-	mi := &file_reaction_proto_msgTypes[3]
+	mi := &file_reaction_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -214,7 +622,7 @@ func (x *EntityRequest) String() string {
 func (*EntityRequest) ProtoMessage() {}
 
 func (x *EntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[3]
+	mi := &file_reaction_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -227,7 +635,7 @@ func (x *EntityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityRequest.ProtoReflect.Descriptor instead.
 func (*EntityRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{3}
+	return file_reaction_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EntityRequest) GetEntity() *EntityRef {
@@ -247,7 +655,7 @@ type CountsResponse struct {
 
 func (x *CountsResponse) Reset() {
 	*x = CountsResponse{}
-	mi := &file_reaction_proto_msgTypes[4]
+	mi := &file_reaction_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +667,7 @@ func (x *CountsResponse) String() string {
 func (*CountsResponse) ProtoMessage() {}
 
 func (x *CountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[4]
+	mi := &file_reaction_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +680,7 @@ func (x *CountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountsResponse.ProtoReflect.Descriptor instead.
 func (*CountsResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{4}
+	return file_reaction_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CountsResponse) GetLikeCount() int64 {
@@ -302,7 +710,7 @@ type LikeInfo struct {
 
 func (x *LikeInfo) Reset() {
 	*x = LikeInfo{}
-	mi := &file_reaction_proto_msgTypes[5]
+	mi := &file_reaction_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +722,7 @@ func (x *LikeInfo) String() string {
 func (*LikeInfo) ProtoMessage() {}
 
 func (x *LikeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[5]
+	mi := &file_reaction_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -327,7 +735,7 @@ func (x *LikeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeInfo.ProtoReflect.Descriptor instead.
 func (*LikeInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{5}
+	return file_reaction_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *LikeInfo) GetId() int64 {
@@ -377,7 +785,7 @@ type ListLikesRequest struct {
 
 func (x *ListLikesRequest) Reset() {
 	*x = ListLikesRequest{}
-	mi := &file_reaction_proto_msgTypes[6]
+	mi := &file_reaction_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -389,7 +797,7 @@ func (x *ListLikesRequest) String() string {
 func (*ListLikesRequest) ProtoMessage() {}
 
 func (x *ListLikesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[6]
+	mi := &file_reaction_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -402,7 +810,7 @@ func (x *ListLikesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLikesRequest.ProtoReflect.Descriptor instead.
 func (*ListLikesRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{6}
+	return file_reaction_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListLikesRequest) GetUserId() int64 {
@@ -443,7 +851,7 @@ type LikeListResponse struct {
 
 func (x *LikeListResponse) Reset() {
 	*x = LikeListResponse{}
-	mi := &file_reaction_proto_msgTypes[7]
+	mi := &file_reaction_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -455,7 +863,7 @@ func (x *LikeListResponse) String() string {
 func (*LikeListResponse) ProtoMessage() {}
 
 func (x *LikeListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[7]
+	mi := &file_reaction_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -468,7 +876,7 @@ func (x *LikeListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LikeListResponse.ProtoReflect.Descriptor instead.
 func (*LikeListResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{7}
+	return file_reaction_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *LikeListResponse) GetItems() []*LikeInfo {
@@ -498,7 +906,7 @@ type FavoriteInfo struct {
 
 func (x *FavoriteInfo) Reset() {
 	*x = FavoriteInfo{}
-	mi := &file_reaction_proto_msgTypes[8]
+	mi := &file_reaction_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -510,7 +918,7 @@ func (x *FavoriteInfo) String() string {
 func (*FavoriteInfo) ProtoMessage() {}
 
 func (x *FavoriteInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[8]
+	mi := &file_reaction_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,7 +931,7 @@ func (x *FavoriteInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FavoriteInfo.ProtoReflect.Descriptor instead.
 func (*FavoriteInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{8}
+	return file_reaction_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *FavoriteInfo) GetId() int64 {
@@ -575,7 +983,7 @@ type ListFavoritesRequest struct {
 
 func (x *ListFavoritesRequest) Reset() {
 	*x = ListFavoritesRequest{}
-	mi := &file_reaction_proto_msgTypes[9]
+	mi := &file_reaction_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +995,7 @@ func (x *ListFavoritesRequest) String() string {
 func (*ListFavoritesRequest) ProtoMessage() {}
 
 func (x *ListFavoritesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[9]
+	mi := &file_reaction_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -600,7 +1008,7 @@ func (x *ListFavoritesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFavoritesRequest.ProtoReflect.Descriptor instead.
 func (*ListFavoritesRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{9}
+	return file_reaction_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListFavoritesRequest) GetUserId() int64 {
@@ -655,7 +1063,7 @@ type FavoriteListResponse struct {
 
 func (x *FavoriteListResponse) Reset() {
 	*x = FavoriteListResponse{}
-	mi := &file_reaction_proto_msgTypes[10]
+	mi := &file_reaction_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -667,7 +1075,7 @@ func (x *FavoriteListResponse) String() string {
 func (*FavoriteListResponse) ProtoMessage() {}
 
 func (x *FavoriteListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[10]
+	mi := &file_reaction_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -680,7 +1088,7 @@ func (x *FavoriteListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FavoriteListResponse.ProtoReflect.Descriptor instead.
 func (*FavoriteListResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{10}
+	return file_reaction_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *FavoriteListResponse) GetItems() []*FavoriteInfo {
@@ -714,7 +1122,7 @@ type CollectionInfo struct {
 
 func (x *CollectionInfo) Reset() {
 	*x = CollectionInfo{}
-	mi := &file_reaction_proto_msgTypes[11]
+	mi := &file_reaction_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -726,7 +1134,7 @@ func (x *CollectionInfo) String() string {
 func (*CollectionInfo) ProtoMessage() {}
 
 func (x *CollectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[11]
+	mi := &file_reaction_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -739,7 +1147,7 @@ func (x *CollectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionInfo.ProtoReflect.Descriptor instead.
 func (*CollectionInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{11}
+	return file_reaction_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CollectionInfo) GetId() int64 {
@@ -817,7 +1225,7 @@ type CollectionItemInfo struct {
 
 func (x *CollectionItemInfo) Reset() {
 	*x = CollectionItemInfo{}
-	mi := &file_reaction_proto_msgTypes[12]
+	mi := &file_reaction_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -829,7 +1237,7 @@ func (x *CollectionItemInfo) String() string {
 func (*CollectionItemInfo) ProtoMessage() {}
 
 func (x *CollectionItemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[12]
+	mi := &file_reaction_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -842,7 +1250,7 @@ func (x *CollectionItemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionItemInfo.ProtoReflect.Descriptor instead.
 func (*CollectionItemInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{12}
+	return file_reaction_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CollectionItemInfo) GetId() int64 {
@@ -885,7 +1293,7 @@ type CreateCollectionRequest struct {
 
 func (x *CreateCollectionRequest) Reset() {
 	*x = CreateCollectionRequest{}
-	mi := &file_reaction_proto_msgTypes[13]
+	mi := &file_reaction_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -897,7 +1305,7 @@ func (x *CreateCollectionRequest) String() string {
 func (*CreateCollectionRequest) ProtoMessage() {}
 
 func (x *CreateCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[13]
+	mi := &file_reaction_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +1318,7 @@ func (x *CreateCollectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCollectionRequest.ProtoReflect.Descriptor instead.
 func (*CreateCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{13}
+	return file_reaction_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateCollectionRequest) GetUserId() int64 {
@@ -954,7 +1362,7 @@ type UpdateCollectionRequest struct {
 
 func (x *UpdateCollectionRequest) Reset() {
 	*x = UpdateCollectionRequest{}
-	mi := &file_reaction_proto_msgTypes[14]
+	mi := &file_reaction_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -966,7 +1374,7 @@ func (x *UpdateCollectionRequest) String() string {
 func (*UpdateCollectionRequest) ProtoMessage() {}
 
 func (x *UpdateCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[14]
+	mi := &file_reaction_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,7 +1387,7 @@ func (x *UpdateCollectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCollectionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{14}
+	return file_reaction_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UpdateCollectionRequest) GetUserId() int64 {
@@ -1027,7 +1435,7 @@ type DeleteCollectionRequest struct {
 
 func (x *DeleteCollectionRequest) Reset() {
 	*x = DeleteCollectionRequest{}
-	mi := &file_reaction_proto_msgTypes[15]
+	mi := &file_reaction_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1039,7 +1447,7 @@ func (x *DeleteCollectionRequest) String() string {
 func (*DeleteCollectionRequest) ProtoMessage() {}
 
 func (x *DeleteCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[15]
+	mi := &file_reaction_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1052,7 +1460,7 @@ func (x *DeleteCollectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCollectionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{15}
+	return file_reaction_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DeleteCollectionRequest) GetUserId() int64 {
@@ -1082,7 +1490,7 @@ type ListCollectionsRequest struct {
 
 func (x *ListCollectionsRequest) Reset() {
 	*x = ListCollectionsRequest{}
-	mi := &file_reaction_proto_msgTypes[16]
+	mi := &file_reaction_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1094,7 +1502,7 @@ func (x *ListCollectionsRequest) String() string {
 func (*ListCollectionsRequest) ProtoMessage() {}
 
 func (x *ListCollectionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[16]
+	mi := &file_reaction_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1107,7 +1515,7 @@ func (x *ListCollectionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCollectionsRequest.ProtoReflect.Descriptor instead.
 func (*ListCollectionsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{16}
+	return file_reaction_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListCollectionsRequest) GetUserId() int64 {
@@ -1156,7 +1564,7 @@ type CollectionItemRequest struct {
 
 func (x *CollectionItemRequest) Reset() {
 	*x = CollectionItemRequest{}
-	mi := &file_reaction_proto_msgTypes[17]
+	mi := &file_reaction_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1168,7 +1576,7 @@ func (x *CollectionItemRequest) String() string {
 func (*CollectionItemRequest) ProtoMessage() {}
 
 func (x *CollectionItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[17]
+	mi := &file_reaction_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1181,7 +1589,7 @@ func (x *CollectionItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionItemRequest.ProtoReflect.Descriptor instead.
 func (*CollectionItemRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{17}
+	return file_reaction_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CollectionItemRequest) GetUserId() int64 {
@@ -1220,7 +1628,7 @@ type ListCollectionItemsRequest struct {
 
 func (x *ListCollectionItemsRequest) Reset() {
 	*x = ListCollectionItemsRequest{}
-	mi := &file_reaction_proto_msgTypes[18]
+	mi := &file_reaction_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1232,7 +1640,7 @@ func (x *ListCollectionItemsRequest) String() string {
 func (*ListCollectionItemsRequest) ProtoMessage() {}
 
 func (x *ListCollectionItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[18]
+	mi := &file_reaction_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1245,7 +1653,7 @@ func (x *ListCollectionItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCollectionItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListCollectionItemsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{18}
+	return file_reaction_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListCollectionItemsRequest) GetUserId() int64 {
@@ -1307,7 +1715,7 @@ type GetCollectionRequest struct {
 
 func (x *GetCollectionRequest) Reset() {
 	*x = GetCollectionRequest{}
-	mi := &file_reaction_proto_msgTypes[19]
+	mi := &file_reaction_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1319,7 +1727,7 @@ func (x *GetCollectionRequest) String() string {
 func (*GetCollectionRequest) ProtoMessage() {}
 
 func (x *GetCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[19]
+	mi := &file_reaction_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1332,7 +1740,7 @@ func (x *GetCollectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCollectionRequest.ProtoReflect.Descriptor instead.
 func (*GetCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{19}
+	return file_reaction_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetCollectionRequest) GetId() int64 {
@@ -1363,7 +1771,7 @@ type ListPublicCollectionItemsRequest struct {
 
 func (x *ListPublicCollectionItemsRequest) Reset() {
 	*x = ListPublicCollectionItemsRequest{}
-	mi := &file_reaction_proto_msgTypes[20]
+	mi := &file_reaction_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1375,7 +1783,7 @@ func (x *ListPublicCollectionItemsRequest) String() string {
 func (*ListPublicCollectionItemsRequest) ProtoMessage() {}
 
 func (x *ListPublicCollectionItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[20]
+	mi := &file_reaction_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1388,7 +1796,7 @@ func (x *ListPublicCollectionItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPublicCollectionItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListPublicCollectionItemsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{20}
+	return file_reaction_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListPublicCollectionItemsRequest) GetCollectionId() int64 {
@@ -1446,7 +1854,7 @@ type ListPublicCollectionsRequest struct {
 
 func (x *ListPublicCollectionsRequest) Reset() {
 	*x = ListPublicCollectionsRequest{}
-	mi := &file_reaction_proto_msgTypes[21]
+	mi := &file_reaction_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1866,7 @@ func (x *ListPublicCollectionsRequest) String() string {
 func (*ListPublicCollectionsRequest) ProtoMessage() {}
 
 func (x *ListPublicCollectionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[21]
+	mi := &file_reaction_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1879,7 @@ func (x *ListPublicCollectionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPublicCollectionsRequest.ProtoReflect.Descriptor instead.
 func (*ListPublicCollectionsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{21}
+	return file_reaction_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListPublicCollectionsRequest) GetUserId() int64 {
@@ -1520,7 +1928,7 @@ type ListPublicCollectionsForEntityRequest struct {
 
 func (x *ListPublicCollectionsForEntityRequest) Reset() {
 	*x = ListPublicCollectionsForEntityRequest{}
-	mi := &file_reaction_proto_msgTypes[22]
+	mi := &file_reaction_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1532,7 +1940,7 @@ func (x *ListPublicCollectionsForEntityRequest) String() string {
 func (*ListPublicCollectionsForEntityRequest) ProtoMessage() {}
 
 func (x *ListPublicCollectionsForEntityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[22]
+	mi := &file_reaction_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1545,7 +1953,7 @@ func (x *ListPublicCollectionsForEntityRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use ListPublicCollectionsForEntityRequest.ProtoReflect.Descriptor instead.
 func (*ListPublicCollectionsForEntityRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{22}
+	return file_reaction_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ListPublicCollectionsForEntityRequest) GetEntity() *EntityRef {
@@ -1580,7 +1988,7 @@ type CollectionActionResponse struct {
 
 func (x *CollectionActionResponse) Reset() {
 	*x = CollectionActionResponse{}
-	mi := &file_reaction_proto_msgTypes[23]
+	mi := &file_reaction_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1592,7 +2000,7 @@ func (x *CollectionActionResponse) String() string {
 func (*CollectionActionResponse) ProtoMessage() {}
 
 func (x *CollectionActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[23]
+	mi := &file_reaction_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1605,7 +2013,7 @@ func (x *CollectionActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionActionResponse.ProtoReflect.Descriptor instead.
 func (*CollectionActionResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{23}
+	return file_reaction_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *CollectionActionResponse) GetSuccess() bool {
@@ -1640,7 +2048,7 @@ type CollectionResponse struct {
 
 func (x *CollectionResponse) Reset() {
 	*x = CollectionResponse{}
-	mi := &file_reaction_proto_msgTypes[24]
+	mi := &file_reaction_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1652,7 +2060,7 @@ func (x *CollectionResponse) String() string {
 func (*CollectionResponse) ProtoMessage() {}
 
 func (x *CollectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[24]
+	mi := &file_reaction_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1665,7 +2073,7 @@ func (x *CollectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionResponse.ProtoReflect.Descriptor instead.
 func (*CollectionResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{24}
+	return file_reaction_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CollectionResponse) GetSuccess() bool {
@@ -1699,7 +2107,7 @@ type ListCollectionsResponse struct {
 
 func (x *ListCollectionsResponse) Reset() {
 	*x = ListCollectionsResponse{}
-	mi := &file_reaction_proto_msgTypes[25]
+	mi := &file_reaction_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1711,7 +2119,7 @@ func (x *ListCollectionsResponse) String() string {
 func (*ListCollectionsResponse) ProtoMessage() {}
 
 func (x *ListCollectionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[25]
+	mi := &file_reaction_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1724,7 +2132,7 @@ func (x *ListCollectionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCollectionsResponse.ProtoReflect.Descriptor instead.
 func (*ListCollectionsResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{25}
+	return file_reaction_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ListCollectionsResponse) GetItems() []*CollectionInfo {
@@ -1751,7 +2159,7 @@ type CollectionItemsResponse struct {
 
 func (x *CollectionItemsResponse) Reset() {
 	*x = CollectionItemsResponse{}
-	mi := &file_reaction_proto_msgTypes[26]
+	mi := &file_reaction_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1763,7 +2171,7 @@ func (x *CollectionItemsResponse) String() string {
 func (*CollectionItemsResponse) ProtoMessage() {}
 
 func (x *CollectionItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[26]
+	mi := &file_reaction_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1776,7 +2184,7 @@ func (x *CollectionItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CollectionItemsResponse.ProtoReflect.Descriptor instead.
 func (*CollectionItemsResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{26}
+	return file_reaction_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CollectionItemsResponse) GetItems() []*CollectionItemInfo {
@@ -1803,7 +2211,7 @@ type HotIDsRequest struct {
 
 func (x *HotIDsRequest) Reset() {
 	*x = HotIDsRequest{}
-	mi := &file_reaction_proto_msgTypes[27]
+	mi := &file_reaction_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1815,7 +2223,7 @@ func (x *HotIDsRequest) String() string {
 func (*HotIDsRequest) ProtoMessage() {}
 
 func (x *HotIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[27]
+	mi := &file_reaction_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1828,7 +2236,7 @@ func (x *HotIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HotIDsRequest.ProtoReflect.Descriptor instead.
 func (*HotIDsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{27}
+	return file_reaction_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *HotIDsRequest) GetEntityType() string {
@@ -1854,7 +2262,7 @@ type HotIDsResponse struct {
 
 func (x *HotIDsResponse) Reset() {
 	*x = HotIDsResponse{}
-	mi := &file_reaction_proto_msgTypes[28]
+	mi := &file_reaction_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1866,7 +2274,7 @@ func (x *HotIDsResponse) String() string {
 func (*HotIDsResponse) ProtoMessage() {}
 
 func (x *HotIDsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[28]
+	mi := &file_reaction_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1879,7 +2287,7 @@ func (x *HotIDsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HotIDsResponse.ProtoReflect.Descriptor instead.
 func (*HotIDsResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{28}
+	return file_reaction_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *HotIDsResponse) GetIds() []int64 {
@@ -1901,7 +2309,7 @@ type SubmitReportRequest struct {
 
 func (x *SubmitReportRequest) Reset() {
 	*x = SubmitReportRequest{}
-	mi := &file_reaction_proto_msgTypes[29]
+	mi := &file_reaction_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1913,7 +2321,7 @@ func (x *SubmitReportRequest) String() string {
 func (*SubmitReportRequest) ProtoMessage() {}
 
 func (x *SubmitReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[29]
+	mi := &file_reaction_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1926,7 +2334,7 @@ func (x *SubmitReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitReportRequest.ProtoReflect.Descriptor instead.
 func (*SubmitReportRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{29}
+	return file_reaction_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *SubmitReportRequest) GetEntity() *EntityRef {
@@ -1977,7 +2385,7 @@ type ReportInfo struct {
 
 func (x *ReportInfo) Reset() {
 	*x = ReportInfo{}
-	mi := &file_reaction_proto_msgTypes[30]
+	mi := &file_reaction_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1989,7 +2397,7 @@ func (x *ReportInfo) String() string {
 func (*ReportInfo) ProtoMessage() {}
 
 func (x *ReportInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[30]
+	mi := &file_reaction_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2002,7 +2410,7 @@ func (x *ReportInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportInfo.ProtoReflect.Descriptor instead.
 func (*ReportInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{30}
+	return file_reaction_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReportInfo) GetId() int64 {
@@ -2101,7 +2509,7 @@ type ReportResponse struct {
 
 func (x *ReportResponse) Reset() {
 	*x = ReportResponse{}
-	mi := &file_reaction_proto_msgTypes[31]
+	mi := &file_reaction_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2113,7 +2521,7 @@ func (x *ReportResponse) String() string {
 func (*ReportResponse) ProtoMessage() {}
 
 func (x *ReportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[31]
+	mi := &file_reaction_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2126,7 +2534,7 @@ func (x *ReportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportResponse.ProtoReflect.Descriptor instead.
 func (*ReportResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{31}
+	return file_reaction_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ReportResponse) GetSuccess() bool {
@@ -2169,7 +2577,7 @@ type ListReportsRequest struct {
 
 func (x *ListReportsRequest) Reset() {
 	*x = ListReportsRequest{}
-	mi := &file_reaction_proto_msgTypes[32]
+	mi := &file_reaction_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2181,7 +2589,7 @@ func (x *ListReportsRequest) String() string {
 func (*ListReportsRequest) ProtoMessage() {}
 
 func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[32]
+	mi := &file_reaction_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2194,7 +2602,7 @@ func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReportsRequest.ProtoReflect.Descriptor instead.
 func (*ListReportsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{32}
+	return file_reaction_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListReportsRequest) GetStatus() int32 {
@@ -2235,7 +2643,7 @@ type ReportListResponse struct {
 
 func (x *ReportListResponse) Reset() {
 	*x = ReportListResponse{}
-	mi := &file_reaction_proto_msgTypes[33]
+	mi := &file_reaction_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2247,7 +2655,7 @@ func (x *ReportListResponse) String() string {
 func (*ReportListResponse) ProtoMessage() {}
 
 func (x *ReportListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[33]
+	mi := &file_reaction_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2260,7 +2668,7 @@ func (x *ReportListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportListResponse.ProtoReflect.Descriptor instead.
 func (*ReportListResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{33}
+	return file_reaction_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ReportListResponse) GetItems() []*ReportInfo {
@@ -2286,7 +2694,7 @@ type GetReportRequest struct {
 
 func (x *GetReportRequest) Reset() {
 	*x = GetReportRequest{}
-	mi := &file_reaction_proto_msgTypes[34]
+	mi := &file_reaction_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2298,7 +2706,7 @@ func (x *GetReportRequest) String() string {
 func (*GetReportRequest) ProtoMessage() {}
 
 func (x *GetReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[34]
+	mi := &file_reaction_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2311,7 +2719,7 @@ func (x *GetReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReportRequest.ProtoReflect.Descriptor instead.
 func (*GetReportRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{34}
+	return file_reaction_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetReportRequest) GetId() int64 {
@@ -2334,7 +2742,7 @@ type AuditReportRequest struct {
 
 func (x *AuditReportRequest) Reset() {
 	*x = AuditReportRequest{}
-	mi := &file_reaction_proto_msgTypes[35]
+	mi := &file_reaction_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2346,7 +2754,7 @@ func (x *AuditReportRequest) String() string {
 func (*AuditReportRequest) ProtoMessage() {}
 
 func (x *AuditReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[35]
+	mi := &file_reaction_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2359,7 +2767,7 @@ func (x *AuditReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditReportRequest.ProtoReflect.Descriptor instead.
 func (*AuditReportRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{35}
+	return file_reaction_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *AuditReportRequest) GetId() int64 {
@@ -2409,7 +2817,7 @@ type PinInfo struct {
 
 func (x *PinInfo) Reset() {
 	*x = PinInfo{}
-	mi := &file_reaction_proto_msgTypes[36]
+	mi := &file_reaction_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2421,7 +2829,7 @@ func (x *PinInfo) String() string {
 func (*PinInfo) ProtoMessage() {}
 
 func (x *PinInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[36]
+	mi := &file_reaction_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2434,7 +2842,7 @@ func (x *PinInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PinInfo.ProtoReflect.Descriptor instead.
 func (*PinInfo) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{36}
+	return file_reaction_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *PinInfo) GetId() int64 {
@@ -2476,7 +2884,7 @@ type ListPinsRequest struct {
 
 func (x *ListPinsRequest) Reset() {
 	*x = ListPinsRequest{}
-	mi := &file_reaction_proto_msgTypes[37]
+	mi := &file_reaction_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2488,7 +2896,7 @@ func (x *ListPinsRequest) String() string {
 func (*ListPinsRequest) ProtoMessage() {}
 
 func (x *ListPinsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[37]
+	mi := &file_reaction_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2501,7 +2909,7 @@ func (x *ListPinsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPinsRequest.ProtoReflect.Descriptor instead.
 func (*ListPinsRequest) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{37}
+	return file_reaction_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListPinsRequest) GetUserId() int64 {
@@ -2535,7 +2943,7 @@ type PinListResponse struct {
 
 func (x *PinListResponse) Reset() {
 	*x = PinListResponse{}
-	mi := &file_reaction_proto_msgTypes[38]
+	mi := &file_reaction_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2547,7 +2955,7 @@ func (x *PinListResponse) String() string {
 func (*PinListResponse) ProtoMessage() {}
 
 func (x *PinListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_reaction_proto_msgTypes[38]
+	mi := &file_reaction_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2560,7 +2968,7 @@ func (x *PinListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PinListResponse.ProtoReflect.Descriptor instead.
 func (*PinListResponse) Descriptor() ([]byte, []int) {
-	return file_reaction_proto_rawDescGZIP(), []int{38}
+	return file_reaction_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *PinListResponse) GetItems() []*PinInfo {
@@ -2593,7 +3001,42 @@ const file_reaction_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\x03R\x05count\x12\x18\n" +
-	"\achanged\x18\x04 \x01(\bR\achanged\"C\n" +
+	"\achanged\x18\x04 \x01(\bR\achanged\"\x80\x01\n" +
+	"\x15CreateReactionRequest\x122\n" +
+	"\x06entity\x18\x01 \x01(\v2\x1a.bbs.reaction.v1.EntityRefR\x06entity\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\breaction\x18\x03 \x01(\tR\breaction\"d\n" +
+	"\x15DeleteReactionRequest\x122\n" +
+	"\x06entity\x18\x01 \x01(\v2\x1a.bbs.reaction.v1.EntityRefR\x06entity\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\"`\n" +
+	"\x10ReactionResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
+	"\achanged\x18\x03 \x01(\bR\achanged\"\xc5\x01\n" +
+	"\fReactionInfo\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x122\n" +
+	"\x06entity\x18\x02 \x01(\v2\x1a.bbs.reaction.v1.EntityRefR\x06entity\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12\x1a\n" +
+	"\breaction\x18\x04 \x01(\tR\breaction\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\"\xf2\x01\n" +
+	"\x14ListReactionsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\bsince_id\x18\x05 \x01(\x03R\asinceId\x12\x19\n" +
+	"\buntil_id\x18\x06 \x01(\x03R\auntilId\x12\x1d\n" +
+	"\n" +
+	"since_date\x18\a \x01(\x03R\tsinceDate\x12\x1d\n" +
+	"\n" +
+	"until_date\x18\b \x01(\x03R\tuntilDate\"a\n" +
+	"\x14ReactionListResponse\x123\n" +
+	"\x05items\x18\x01 \x03(\v2\x1d.bbs.reaction.v1.ReactionInfoR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\"C\n" +
 	"\rEntityRequest\x122\n" +
 	"\x06entity\x18\x01 \x01(\v2\x1a.bbs.reaction.v1.EntityRefR\x06entity\"V\n" +
 	"\x0eCountsResponse\x12\x1d\n" +
@@ -2793,11 +3236,14 @@ const file_reaction_proto_rawDesc = "" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\"W\n" +
 	"\x0fPinListResponse\x12.\n" +
 	"\x05items\x18\x01 \x03(\v2\x18.bbs.reaction.v1.PinInfoR\x05items\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x03R\x05total2\xdc\x12\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total2\xf5\x14\n" +
 	"\x0fReactionService\x12E\n" +
 	"\x04Like\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12G\n" +
 	"\x06Unlike\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12Q\n" +
-	"\tListLikes\x12!.bbs.reaction.v1.ListLikesRequest\x1a!.bbs.reaction.v1.LikeListResponse\x12I\n" +
+	"\tListLikes\x12!.bbs.reaction.v1.ListLikesRequest\x1a!.bbs.reaction.v1.LikeListResponse\x12[\n" +
+	"\x0eCreateReaction\x12&.bbs.reaction.v1.CreateReactionRequest\x1a!.bbs.reaction.v1.ReactionResponse\x12[\n" +
+	"\x0eDeleteReaction\x12&.bbs.reaction.v1.DeleteReactionRequest\x1a!.bbs.reaction.v1.ReactionResponse\x12]\n" +
+	"\rListReactions\x12%.bbs.reaction.v1.ListReactionsRequest\x1a%.bbs.reaction.v1.ReactionListResponse\x12I\n" +
 	"\bFavorite\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12K\n" +
 	"\n" +
 	"Unfavorite\x12\x1d.bbs.reaction.v1.ReactRequest\x1a\x1e.bbs.reaction.v1.ReactResponse\x12]\n" +
@@ -2835,124 +3281,140 @@ func file_reaction_proto_rawDescGZIP() []byte {
 	return file_reaction_proto_rawDescData
 }
 
-var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
 var file_reaction_proto_goTypes = []any{
 	(*EntityRef)(nil),                             // 0: bbs.reaction.v1.EntityRef
 	(*ReactRequest)(nil),                          // 1: bbs.reaction.v1.ReactRequest
 	(*ReactResponse)(nil),                         // 2: bbs.reaction.v1.ReactResponse
-	(*EntityRequest)(nil),                         // 3: bbs.reaction.v1.EntityRequest
-	(*CountsResponse)(nil),                        // 4: bbs.reaction.v1.CountsResponse
-	(*LikeInfo)(nil),                              // 5: bbs.reaction.v1.LikeInfo
-	(*ListLikesRequest)(nil),                      // 6: bbs.reaction.v1.ListLikesRequest
-	(*LikeListResponse)(nil),                      // 7: bbs.reaction.v1.LikeListResponse
-	(*FavoriteInfo)(nil),                          // 8: bbs.reaction.v1.FavoriteInfo
-	(*ListFavoritesRequest)(nil),                  // 9: bbs.reaction.v1.ListFavoritesRequest
-	(*FavoriteListResponse)(nil),                  // 10: bbs.reaction.v1.FavoriteListResponse
-	(*CollectionInfo)(nil),                        // 11: bbs.reaction.v1.CollectionInfo
-	(*CollectionItemInfo)(nil),                    // 12: bbs.reaction.v1.CollectionItemInfo
-	(*CreateCollectionRequest)(nil),               // 13: bbs.reaction.v1.CreateCollectionRequest
-	(*UpdateCollectionRequest)(nil),               // 14: bbs.reaction.v1.UpdateCollectionRequest
-	(*DeleteCollectionRequest)(nil),               // 15: bbs.reaction.v1.DeleteCollectionRequest
-	(*ListCollectionsRequest)(nil),                // 16: bbs.reaction.v1.ListCollectionsRequest
-	(*CollectionItemRequest)(nil),                 // 17: bbs.reaction.v1.CollectionItemRequest
-	(*ListCollectionItemsRequest)(nil),            // 18: bbs.reaction.v1.ListCollectionItemsRequest
-	(*GetCollectionRequest)(nil),                  // 19: bbs.reaction.v1.GetCollectionRequest
-	(*ListPublicCollectionItemsRequest)(nil),      // 20: bbs.reaction.v1.ListPublicCollectionItemsRequest
-	(*ListPublicCollectionsRequest)(nil),          // 21: bbs.reaction.v1.ListPublicCollectionsRequest
-	(*ListPublicCollectionsForEntityRequest)(nil), // 22: bbs.reaction.v1.ListPublicCollectionsForEntityRequest
-	(*CollectionActionResponse)(nil),              // 23: bbs.reaction.v1.CollectionActionResponse
-	(*CollectionResponse)(nil),                    // 24: bbs.reaction.v1.CollectionResponse
-	(*ListCollectionsResponse)(nil),               // 25: bbs.reaction.v1.ListCollectionsResponse
-	(*CollectionItemsResponse)(nil),               // 26: bbs.reaction.v1.CollectionItemsResponse
-	(*HotIDsRequest)(nil),                         // 27: bbs.reaction.v1.HotIDsRequest
-	(*HotIDsResponse)(nil),                        // 28: bbs.reaction.v1.HotIDsResponse
-	(*SubmitReportRequest)(nil),                   // 29: bbs.reaction.v1.SubmitReportRequest
-	(*ReportInfo)(nil),                            // 30: bbs.reaction.v1.ReportInfo
-	(*ReportResponse)(nil),                        // 31: bbs.reaction.v1.ReportResponse
-	(*ListReportsRequest)(nil),                    // 32: bbs.reaction.v1.ListReportsRequest
-	(*ReportListResponse)(nil),                    // 33: bbs.reaction.v1.ReportListResponse
-	(*GetReportRequest)(nil),                      // 34: bbs.reaction.v1.GetReportRequest
-	(*AuditReportRequest)(nil),                    // 35: bbs.reaction.v1.AuditReportRequest
-	(*PinInfo)(nil),                               // 36: bbs.reaction.v1.PinInfo
-	(*ListPinsRequest)(nil),                       // 37: bbs.reaction.v1.ListPinsRequest
-	(*PinListResponse)(nil),                       // 38: bbs.reaction.v1.PinListResponse
+	(*CreateReactionRequest)(nil),                 // 3: bbs.reaction.v1.CreateReactionRequest
+	(*DeleteReactionRequest)(nil),                 // 4: bbs.reaction.v1.DeleteReactionRequest
+	(*ReactionResponse)(nil),                      // 5: bbs.reaction.v1.ReactionResponse
+	(*ReactionInfo)(nil),                          // 6: bbs.reaction.v1.ReactionInfo
+	(*ListReactionsRequest)(nil),                  // 7: bbs.reaction.v1.ListReactionsRequest
+	(*ReactionListResponse)(nil),                  // 8: bbs.reaction.v1.ReactionListResponse
+	(*EntityRequest)(nil),                         // 9: bbs.reaction.v1.EntityRequest
+	(*CountsResponse)(nil),                        // 10: bbs.reaction.v1.CountsResponse
+	(*LikeInfo)(nil),                              // 11: bbs.reaction.v1.LikeInfo
+	(*ListLikesRequest)(nil),                      // 12: bbs.reaction.v1.ListLikesRequest
+	(*LikeListResponse)(nil),                      // 13: bbs.reaction.v1.LikeListResponse
+	(*FavoriteInfo)(nil),                          // 14: bbs.reaction.v1.FavoriteInfo
+	(*ListFavoritesRequest)(nil),                  // 15: bbs.reaction.v1.ListFavoritesRequest
+	(*FavoriteListResponse)(nil),                  // 16: bbs.reaction.v1.FavoriteListResponse
+	(*CollectionInfo)(nil),                        // 17: bbs.reaction.v1.CollectionInfo
+	(*CollectionItemInfo)(nil),                    // 18: bbs.reaction.v1.CollectionItemInfo
+	(*CreateCollectionRequest)(nil),               // 19: bbs.reaction.v1.CreateCollectionRequest
+	(*UpdateCollectionRequest)(nil),               // 20: bbs.reaction.v1.UpdateCollectionRequest
+	(*DeleteCollectionRequest)(nil),               // 21: bbs.reaction.v1.DeleteCollectionRequest
+	(*ListCollectionsRequest)(nil),                // 22: bbs.reaction.v1.ListCollectionsRequest
+	(*CollectionItemRequest)(nil),                 // 23: bbs.reaction.v1.CollectionItemRequest
+	(*ListCollectionItemsRequest)(nil),            // 24: bbs.reaction.v1.ListCollectionItemsRequest
+	(*GetCollectionRequest)(nil),                  // 25: bbs.reaction.v1.GetCollectionRequest
+	(*ListPublicCollectionItemsRequest)(nil),      // 26: bbs.reaction.v1.ListPublicCollectionItemsRequest
+	(*ListPublicCollectionsRequest)(nil),          // 27: bbs.reaction.v1.ListPublicCollectionsRequest
+	(*ListPublicCollectionsForEntityRequest)(nil), // 28: bbs.reaction.v1.ListPublicCollectionsForEntityRequest
+	(*CollectionActionResponse)(nil),              // 29: bbs.reaction.v1.CollectionActionResponse
+	(*CollectionResponse)(nil),                    // 30: bbs.reaction.v1.CollectionResponse
+	(*ListCollectionsResponse)(nil),               // 31: bbs.reaction.v1.ListCollectionsResponse
+	(*CollectionItemsResponse)(nil),               // 32: bbs.reaction.v1.CollectionItemsResponse
+	(*HotIDsRequest)(nil),                         // 33: bbs.reaction.v1.HotIDsRequest
+	(*HotIDsResponse)(nil),                        // 34: bbs.reaction.v1.HotIDsResponse
+	(*SubmitReportRequest)(nil),                   // 35: bbs.reaction.v1.SubmitReportRequest
+	(*ReportInfo)(nil),                            // 36: bbs.reaction.v1.ReportInfo
+	(*ReportResponse)(nil),                        // 37: bbs.reaction.v1.ReportResponse
+	(*ListReportsRequest)(nil),                    // 38: bbs.reaction.v1.ListReportsRequest
+	(*ReportListResponse)(nil),                    // 39: bbs.reaction.v1.ReportListResponse
+	(*GetReportRequest)(nil),                      // 40: bbs.reaction.v1.GetReportRequest
+	(*AuditReportRequest)(nil),                    // 41: bbs.reaction.v1.AuditReportRequest
+	(*PinInfo)(nil),                               // 42: bbs.reaction.v1.PinInfo
+	(*ListPinsRequest)(nil),                       // 43: bbs.reaction.v1.ListPinsRequest
+	(*PinListResponse)(nil),                       // 44: bbs.reaction.v1.PinListResponse
 }
 var file_reaction_proto_depIdxs = []int32{
 	0,  // 0: bbs.reaction.v1.ReactRequest.entity:type_name -> bbs.reaction.v1.EntityRef
-	0,  // 1: bbs.reaction.v1.EntityRequest.entity:type_name -> bbs.reaction.v1.EntityRef
-	0,  // 2: bbs.reaction.v1.LikeInfo.entity:type_name -> bbs.reaction.v1.EntityRef
-	5,  // 3: bbs.reaction.v1.LikeListResponse.items:type_name -> bbs.reaction.v1.LikeInfo
-	0,  // 4: bbs.reaction.v1.FavoriteInfo.entity:type_name -> bbs.reaction.v1.EntityRef
-	8,  // 5: bbs.reaction.v1.FavoriteListResponse.items:type_name -> bbs.reaction.v1.FavoriteInfo
-	0,  // 6: bbs.reaction.v1.CollectionItemInfo.entity:type_name -> bbs.reaction.v1.EntityRef
-	0,  // 7: bbs.reaction.v1.CollectionItemRequest.entity:type_name -> bbs.reaction.v1.EntityRef
-	0,  // 8: bbs.reaction.v1.ListPublicCollectionsForEntityRequest.entity:type_name -> bbs.reaction.v1.EntityRef
-	11, // 9: bbs.reaction.v1.CollectionResponse.collection:type_name -> bbs.reaction.v1.CollectionInfo
-	11, // 10: bbs.reaction.v1.ListCollectionsResponse.items:type_name -> bbs.reaction.v1.CollectionInfo
-	12, // 11: bbs.reaction.v1.CollectionItemsResponse.items:type_name -> bbs.reaction.v1.CollectionItemInfo
-	0,  // 12: bbs.reaction.v1.SubmitReportRequest.entity:type_name -> bbs.reaction.v1.EntityRef
-	0,  // 13: bbs.reaction.v1.ReportInfo.entity:type_name -> bbs.reaction.v1.EntityRef
-	30, // 14: bbs.reaction.v1.ReportResponse.report:type_name -> bbs.reaction.v1.ReportInfo
-	30, // 15: bbs.reaction.v1.ReportListResponse.items:type_name -> bbs.reaction.v1.ReportInfo
-	0,  // 16: bbs.reaction.v1.PinInfo.entity:type_name -> bbs.reaction.v1.EntityRef
-	36, // 17: bbs.reaction.v1.PinListResponse.items:type_name -> bbs.reaction.v1.PinInfo
-	1,  // 18: bbs.reaction.v1.ReactionService.Like:input_type -> bbs.reaction.v1.ReactRequest
-	1,  // 19: bbs.reaction.v1.ReactionService.Unlike:input_type -> bbs.reaction.v1.ReactRequest
-	6,  // 20: bbs.reaction.v1.ReactionService.ListLikes:input_type -> bbs.reaction.v1.ListLikesRequest
-	1,  // 21: bbs.reaction.v1.ReactionService.Favorite:input_type -> bbs.reaction.v1.ReactRequest
-	1,  // 22: bbs.reaction.v1.ReactionService.Unfavorite:input_type -> bbs.reaction.v1.ReactRequest
-	9,  // 23: bbs.reaction.v1.ReactionService.ListFavorites:input_type -> bbs.reaction.v1.ListFavoritesRequest
-	3,  // 24: bbs.reaction.v1.ReactionService.GetCounts:input_type -> bbs.reaction.v1.EntityRequest
-	27, // 25: bbs.reaction.v1.ReactionService.HotIDs:input_type -> bbs.reaction.v1.HotIDsRequest
-	29, // 26: bbs.reaction.v1.ReactionService.SubmitReport:input_type -> bbs.reaction.v1.SubmitReportRequest
-	32, // 27: bbs.reaction.v1.ReactionService.ListReports:input_type -> bbs.reaction.v1.ListReportsRequest
-	34, // 28: bbs.reaction.v1.ReactionService.GetReport:input_type -> bbs.reaction.v1.GetReportRequest
-	35, // 29: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
-	13, // 30: bbs.reaction.v1.ReactionService.CreateCollection:input_type -> bbs.reaction.v1.CreateCollectionRequest
-	14, // 31: bbs.reaction.v1.ReactionService.UpdateCollection:input_type -> bbs.reaction.v1.UpdateCollectionRequest
-	15, // 32: bbs.reaction.v1.ReactionService.DeleteCollection:input_type -> bbs.reaction.v1.DeleteCollectionRequest
-	16, // 33: bbs.reaction.v1.ReactionService.ListCollections:input_type -> bbs.reaction.v1.ListCollectionsRequest
-	17, // 34: bbs.reaction.v1.ReactionService.AddCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
-	17, // 35: bbs.reaction.v1.ReactionService.RemoveCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
-	18, // 36: bbs.reaction.v1.ReactionService.ListCollectionItems:input_type -> bbs.reaction.v1.ListCollectionItemsRequest
-	19, // 37: bbs.reaction.v1.ReactionService.GetCollection:input_type -> bbs.reaction.v1.GetCollectionRequest
-	20, // 38: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:input_type -> bbs.reaction.v1.ListPublicCollectionItemsRequest
-	21, // 39: bbs.reaction.v1.ReactionService.ListPublicCollections:input_type -> bbs.reaction.v1.ListPublicCollectionsRequest
-	22, // 40: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:input_type -> bbs.reaction.v1.ListPublicCollectionsForEntityRequest
-	1,  // 41: bbs.reaction.v1.ReactionService.Pin:input_type -> bbs.reaction.v1.ReactRequest
-	1,  // 42: bbs.reaction.v1.ReactionService.Unpin:input_type -> bbs.reaction.v1.ReactRequest
-	37, // 43: bbs.reaction.v1.ReactionService.ListPins:input_type -> bbs.reaction.v1.ListPinsRequest
-	2,  // 44: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 45: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
-	7,  // 46: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
-	2,  // 47: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 48: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
-	10, // 49: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
-	4,  // 50: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
-	28, // 51: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
-	31, // 52: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
-	33, // 53: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
-	31, // 54: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
-	31, // 55: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
-	24, // 56: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	24, // 57: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	23, // 58: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
-	25, // 59: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	23, // 60: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	23, // 61: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
-	26, // 62: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
-	24, // 63: bbs.reaction.v1.ReactionService.GetCollection:output_type -> bbs.reaction.v1.CollectionResponse
-	26, // 64: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
-	25, // 65: bbs.reaction.v1.ReactionService.ListPublicCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	25, // 66: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:output_type -> bbs.reaction.v1.ListCollectionsResponse
-	2,  // 67: bbs.reaction.v1.ReactionService.Pin:output_type -> bbs.reaction.v1.ReactResponse
-	2,  // 68: bbs.reaction.v1.ReactionService.Unpin:output_type -> bbs.reaction.v1.ReactResponse
-	38, // 69: bbs.reaction.v1.ReactionService.ListPins:output_type -> bbs.reaction.v1.PinListResponse
-	44, // [44:70] is the sub-list for method output_type
-	18, // [18:44] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	0,  // 1: bbs.reaction.v1.CreateReactionRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 2: bbs.reaction.v1.DeleteReactionRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 3: bbs.reaction.v1.ReactionInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	6,  // 4: bbs.reaction.v1.ReactionListResponse.items:type_name -> bbs.reaction.v1.ReactionInfo
+	0,  // 5: bbs.reaction.v1.EntityRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 6: bbs.reaction.v1.LikeInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	11, // 7: bbs.reaction.v1.LikeListResponse.items:type_name -> bbs.reaction.v1.LikeInfo
+	0,  // 8: bbs.reaction.v1.FavoriteInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	14, // 9: bbs.reaction.v1.FavoriteListResponse.items:type_name -> bbs.reaction.v1.FavoriteInfo
+	0,  // 10: bbs.reaction.v1.CollectionItemInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 11: bbs.reaction.v1.CollectionItemRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 12: bbs.reaction.v1.ListPublicCollectionsForEntityRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	17, // 13: bbs.reaction.v1.CollectionResponse.collection:type_name -> bbs.reaction.v1.CollectionInfo
+	17, // 14: bbs.reaction.v1.ListCollectionsResponse.items:type_name -> bbs.reaction.v1.CollectionInfo
+	18, // 15: bbs.reaction.v1.CollectionItemsResponse.items:type_name -> bbs.reaction.v1.CollectionItemInfo
+	0,  // 16: bbs.reaction.v1.SubmitReportRequest.entity:type_name -> bbs.reaction.v1.EntityRef
+	0,  // 17: bbs.reaction.v1.ReportInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	36, // 18: bbs.reaction.v1.ReportResponse.report:type_name -> bbs.reaction.v1.ReportInfo
+	36, // 19: bbs.reaction.v1.ReportListResponse.items:type_name -> bbs.reaction.v1.ReportInfo
+	0,  // 20: bbs.reaction.v1.PinInfo.entity:type_name -> bbs.reaction.v1.EntityRef
+	42, // 21: bbs.reaction.v1.PinListResponse.items:type_name -> bbs.reaction.v1.PinInfo
+	1,  // 22: bbs.reaction.v1.ReactionService.Like:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 23: bbs.reaction.v1.ReactionService.Unlike:input_type -> bbs.reaction.v1.ReactRequest
+	12, // 24: bbs.reaction.v1.ReactionService.ListLikes:input_type -> bbs.reaction.v1.ListLikesRequest
+	3,  // 25: bbs.reaction.v1.ReactionService.CreateReaction:input_type -> bbs.reaction.v1.CreateReactionRequest
+	4,  // 26: bbs.reaction.v1.ReactionService.DeleteReaction:input_type -> bbs.reaction.v1.DeleteReactionRequest
+	7,  // 27: bbs.reaction.v1.ReactionService.ListReactions:input_type -> bbs.reaction.v1.ListReactionsRequest
+	1,  // 28: bbs.reaction.v1.ReactionService.Favorite:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 29: bbs.reaction.v1.ReactionService.Unfavorite:input_type -> bbs.reaction.v1.ReactRequest
+	15, // 30: bbs.reaction.v1.ReactionService.ListFavorites:input_type -> bbs.reaction.v1.ListFavoritesRequest
+	9,  // 31: bbs.reaction.v1.ReactionService.GetCounts:input_type -> bbs.reaction.v1.EntityRequest
+	33, // 32: bbs.reaction.v1.ReactionService.HotIDs:input_type -> bbs.reaction.v1.HotIDsRequest
+	35, // 33: bbs.reaction.v1.ReactionService.SubmitReport:input_type -> bbs.reaction.v1.SubmitReportRequest
+	38, // 34: bbs.reaction.v1.ReactionService.ListReports:input_type -> bbs.reaction.v1.ListReportsRequest
+	40, // 35: bbs.reaction.v1.ReactionService.GetReport:input_type -> bbs.reaction.v1.GetReportRequest
+	41, // 36: bbs.reaction.v1.ReactionService.AuditReport:input_type -> bbs.reaction.v1.AuditReportRequest
+	19, // 37: bbs.reaction.v1.ReactionService.CreateCollection:input_type -> bbs.reaction.v1.CreateCollectionRequest
+	20, // 38: bbs.reaction.v1.ReactionService.UpdateCollection:input_type -> bbs.reaction.v1.UpdateCollectionRequest
+	21, // 39: bbs.reaction.v1.ReactionService.DeleteCollection:input_type -> bbs.reaction.v1.DeleteCollectionRequest
+	22, // 40: bbs.reaction.v1.ReactionService.ListCollections:input_type -> bbs.reaction.v1.ListCollectionsRequest
+	23, // 41: bbs.reaction.v1.ReactionService.AddCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
+	23, // 42: bbs.reaction.v1.ReactionService.RemoveCollectionItem:input_type -> bbs.reaction.v1.CollectionItemRequest
+	24, // 43: bbs.reaction.v1.ReactionService.ListCollectionItems:input_type -> bbs.reaction.v1.ListCollectionItemsRequest
+	25, // 44: bbs.reaction.v1.ReactionService.GetCollection:input_type -> bbs.reaction.v1.GetCollectionRequest
+	26, // 45: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:input_type -> bbs.reaction.v1.ListPublicCollectionItemsRequest
+	27, // 46: bbs.reaction.v1.ReactionService.ListPublicCollections:input_type -> bbs.reaction.v1.ListPublicCollectionsRequest
+	28, // 47: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:input_type -> bbs.reaction.v1.ListPublicCollectionsForEntityRequest
+	1,  // 48: bbs.reaction.v1.ReactionService.Pin:input_type -> bbs.reaction.v1.ReactRequest
+	1,  // 49: bbs.reaction.v1.ReactionService.Unpin:input_type -> bbs.reaction.v1.ReactRequest
+	43, // 50: bbs.reaction.v1.ReactionService.ListPins:input_type -> bbs.reaction.v1.ListPinsRequest
+	2,  // 51: bbs.reaction.v1.ReactionService.Like:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 52: bbs.reaction.v1.ReactionService.Unlike:output_type -> bbs.reaction.v1.ReactResponse
+	13, // 53: bbs.reaction.v1.ReactionService.ListLikes:output_type -> bbs.reaction.v1.LikeListResponse
+	5,  // 54: bbs.reaction.v1.ReactionService.CreateReaction:output_type -> bbs.reaction.v1.ReactionResponse
+	5,  // 55: bbs.reaction.v1.ReactionService.DeleteReaction:output_type -> bbs.reaction.v1.ReactionResponse
+	8,  // 56: bbs.reaction.v1.ReactionService.ListReactions:output_type -> bbs.reaction.v1.ReactionListResponse
+	2,  // 57: bbs.reaction.v1.ReactionService.Favorite:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 58: bbs.reaction.v1.ReactionService.Unfavorite:output_type -> bbs.reaction.v1.ReactResponse
+	16, // 59: bbs.reaction.v1.ReactionService.ListFavorites:output_type -> bbs.reaction.v1.FavoriteListResponse
+	10, // 60: bbs.reaction.v1.ReactionService.GetCounts:output_type -> bbs.reaction.v1.CountsResponse
+	34, // 61: bbs.reaction.v1.ReactionService.HotIDs:output_type -> bbs.reaction.v1.HotIDsResponse
+	37, // 62: bbs.reaction.v1.ReactionService.SubmitReport:output_type -> bbs.reaction.v1.ReportResponse
+	39, // 63: bbs.reaction.v1.ReactionService.ListReports:output_type -> bbs.reaction.v1.ReportListResponse
+	37, // 64: bbs.reaction.v1.ReactionService.GetReport:output_type -> bbs.reaction.v1.ReportResponse
+	37, // 65: bbs.reaction.v1.ReactionService.AuditReport:output_type -> bbs.reaction.v1.ReportResponse
+	30, // 66: bbs.reaction.v1.ReactionService.CreateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	30, // 67: bbs.reaction.v1.ReactionService.UpdateCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	29, // 68: bbs.reaction.v1.ReactionService.DeleteCollection:output_type -> bbs.reaction.v1.CollectionActionResponse
+	31, // 69: bbs.reaction.v1.ReactionService.ListCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	29, // 70: bbs.reaction.v1.ReactionService.AddCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	29, // 71: bbs.reaction.v1.ReactionService.RemoveCollectionItem:output_type -> bbs.reaction.v1.CollectionActionResponse
+	32, // 72: bbs.reaction.v1.ReactionService.ListCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
+	30, // 73: bbs.reaction.v1.ReactionService.GetCollection:output_type -> bbs.reaction.v1.CollectionResponse
+	32, // 74: bbs.reaction.v1.ReactionService.ListPublicCollectionItems:output_type -> bbs.reaction.v1.CollectionItemsResponse
+	31, // 75: bbs.reaction.v1.ReactionService.ListPublicCollections:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	31, // 76: bbs.reaction.v1.ReactionService.ListPublicCollectionsForEntity:output_type -> bbs.reaction.v1.ListCollectionsResponse
+	2,  // 77: bbs.reaction.v1.ReactionService.Pin:output_type -> bbs.reaction.v1.ReactResponse
+	2,  // 78: bbs.reaction.v1.ReactionService.Unpin:output_type -> bbs.reaction.v1.ReactResponse
+	44, // 79: bbs.reaction.v1.ReactionService.ListPins:output_type -> bbs.reaction.v1.PinListResponse
+	51, // [51:80] is the sub-list for method output_type
+	22, // [22:51] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_reaction_proto_init() }
@@ -2966,7 +3428,7 @@ func file_reaction_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reaction_proto_rawDesc), len(file_reaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   39,
+			NumMessages:   45,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

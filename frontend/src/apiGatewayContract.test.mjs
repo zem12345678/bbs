@@ -37,6 +37,10 @@ const gatewayRouteFiles = [
   {
     path: "backend/services/api-gateway/internal/interfaces/http/handler_notes_compat.go",
     prefix: ""
+  },
+  {
+    path: "backend/services/api-gateway/internal/interfaces/http/handler_reactions_compat.go",
+    prefix: ""
   }
 ];
 
@@ -142,6 +146,16 @@ function extractGatewayRoutes() {
         "/notes/show",
         "/notes/timeline",
         "/users/notes"
+      ]) {
+        routes.add(routeKey("post", `/api/v1${raw}`));
+      }
+    }
+    if (item.path.endsWith("handler_reactions_compat.go")) {
+      for (const raw of [
+        "/notes/reactions/create",
+        "/notes/reactions/delete",
+        "/users/reactions",
+        "/users/report-abuse"
       ]) {
         routes.add(routeKey("post", `/api/v1${raw}`));
       }

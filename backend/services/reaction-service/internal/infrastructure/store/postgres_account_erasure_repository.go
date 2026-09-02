@@ -16,6 +16,7 @@ type reactionErasedUserPO struct {
 	DeletionJobID            int64
 	PolicyVersion            int32
 	DeletedLikes             int64
+	DeletedReactions         int64
 	DeletedFavorites         int64
 	DeletedCollections       int64
 	AnonymizedReports        int64
@@ -99,6 +100,10 @@ func (r *AccountErasureRepository) EraseAccountReactions(ctx context.Context, us
 		if deletedLikes.Error != nil {
 			return deletedLikes.Error
 		}
+		deletedReactions := tx.Where("user_id = ?", userID).Delete(&reactionPO{})
+		if deletedReactions.Error != nil {
+			return deletedReactions.Error
+		}
 		deletedFavorites := tx.Where("user_id = ?", userID).Delete(&favoritePO{})
 		if deletedFavorites.Error != nil {
 			return deletedFavorites.Error
@@ -129,12 +134,14 @@ func (r *AccountErasureRepository) EraseAccountReactions(ctx context.Context, us
 		}
 
 		result.DeletedLikes += deletedLikes.RowsAffected
+		result.DeletedReactions += deletedReactions.RowsAffected
 		result.DeletedFavorites += deletedFavorites.RowsAffected
 		result.DeletedCollections += deletedCollections.RowsAffected
 		result.AnonymizedReports += anonymizedReports.RowsAffected
 		result.AnonymizedHandledReports += anonymizedHandledReports.RowsAffected
 		return tx.Model(&reactionErasedUserPO{}).Where("user_id = ?", userID).Updates(map[string]any{
 			"deleted_likes":              result.DeletedLikes,
+			"deleted_reactions":          result.DeletedReactions,
 			"deleted_favorites":          result.DeletedFavorites,
 			"deleted_collections":        result.DeletedCollections,
 			"anonymized_reports":         result.AnonymizedReports,
@@ -147,6 +154,7 @@ func (r *AccountErasureRepository) EraseAccountReactions(ctx context.Context, us
 func accountErasureResult(receipt reactionErasedUserPO) accountDomain.ErasureResult {
 	return accountDomain.ErasureResult{
 		DeletedLikes:             receipt.DeletedLikes,
+		DeletedReactions:         receipt.DeletedReactions,
 		DeletedFavorites:         receipt.DeletedFavorites,
 		DeletedCollections:       receipt.DeletedCollections,
 		AnonymizedReports:        receipt.AnonymizedReports,

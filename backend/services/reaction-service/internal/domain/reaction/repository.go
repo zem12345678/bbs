@@ -23,6 +23,15 @@ type Favorite struct {
 	UpdatedAt time.Time
 }
 
+type Reaction struct {
+	ID        int64
+	UserID    int64
+	Entity    EntityRef
+	Reaction  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Like struct {
 	ID        int64
 	UserID    int64
@@ -44,6 +53,12 @@ type FavoriteRepository interface {
 	Unfavorite(ctx context.Context, ref EntityRef, userID int64) (count int64, changed bool, err error)
 	Count(ctx context.Context, ref EntityRef) (int64, error)
 	ListFavorites(ctx context.Context, userID int64, entityType EntityType, limit, offset int) ([]*Favorite, int64, error)
+}
+
+type ReactionRepository interface {
+	CreateReaction(ctx context.Context, ref EntityRef, userID int64, reaction string) (*Reaction, bool, error)
+	DeleteReaction(ctx context.Context, ref EntityRef, userID int64) (bool, error)
+	ListReactions(ctx context.Context, userID int64, entityType EntityType, limit, offset int, sinceID, untilID, sinceDate, untilDate int64) ([]*Reaction, int64, error)
 }
 
 type PinRepository interface {
