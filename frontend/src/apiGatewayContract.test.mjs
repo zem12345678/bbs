@@ -145,6 +145,12 @@ function extractGatewayRoutes() {
         "/notes/delete",
         "/notes/show",
         "/notes/timeline",
+        "/notes/global-timeline",
+        "/notes/local-timeline",
+        "/notes/following",
+        "/notes/featured",
+        "/notes/children",
+        "/notes/replies",
         "/users/notes"
       ]) {
         routes.add(routeKey("post", `/api/v1${raw}`));
@@ -160,6 +166,7 @@ function extractGatewayRoutes() {
         "/notes/favorites/delete",
         "/notes/state",
         "/users/reactions",
+        "/users/featured-notes",
         "/users/report-abuse"
       ]) {
         routes.add(routeKey("post", `/api/v1${raw}`));

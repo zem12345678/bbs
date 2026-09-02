@@ -186,13 +186,18 @@ func validCompatNoteWindow(sinceID, untilID *jsonInt64, sinceDate, untilDate *in
 }
 
 func (h *Handler) listCompatNotes(c *gin.Context, ctx context.Context, limit int32, authorID, channelID int64, includeChannels bool, sinceID, untilID *jsonInt64, sinceDate, untilDate *int64) ([]misskeyClipNote, error) {
+	return h.listCompatNotesWithOptions(c, ctx, limit, authorID, channelID, includeChannels, sinceID, untilID, sinceDate, untilDate, "", 0)
+}
+
+func (h *Handler) listCompatNotesWithOptions(c *gin.Context, ctx context.Context, limit int32, authorID, channelID int64, includeChannels bool, sinceID, untilID *jsonInt64, sinceDate, untilDate *int64, sortOrder string, offset int32) ([]misskeyClipNote, error) {
 	if h.clients == nil || h.clients.Content == nil || h.clients.User == nil {
 		return nil, status.Error(codes.Unavailable, "content or user service unavailable")
 	}
 	const pageSize int32 = 100
 	topics := make([]*contentpb.TopicInfo, 0, pageSize)
-	for offset := int32(0); ; offset += pageSize {
-		response, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{Status: contentStatusPublished, Type: "tweet", AuthorId: authorID, Limit: pageSize, Offset: offset})
+	target := limit + offset
+	for pageOffset := int32(0); ; pageOffset += pageSize {
+		response, err := h.clients.Content.ListTopics(ctx, &contentpb.ListTopicsRequest{Status: contentStatusPublished, Type: "tweet", AuthorId: authorID, Limit: pageSize, Offset: pageOffset, Sort: sortOrder})
 		if err != nil {
 			return nil, err
 		}
@@ -203,19 +208,26 @@ func (h *Handler) listCompatNotes(c *gin.Context, ctx context.Context, limit int
 			}
 			topics = append(topics, topic)
 		}
-		if int32(len(topics)) >= limit || len(items) == 0 || int64(offset+pageSize) >= response.GetTotal() || int32(len(items)) < pageSize {
+		if int32(len(topics)) >= target || len(items) == 0 || int64(pageOffset+pageSize) >= response.GetTotal() || int32(len(items)) < pageSize {
 			break
 		}
 	}
-	sort.SliceStable(topics, func(i, j int) bool {
-		if topics[i].GetCreatedAt() == topics[j].GetCreatedAt() {
-			return topics[i].GetId() > topics[j].GetId()
-		}
-		return topics[i].GetCreatedAt() > topics[j].GetCreatedAt()
-	})
+	if strings.TrimSpace(sortOrder) == "" || strings.EqualFold(sortOrder, "recent-replies") {
+		sort.SliceStable(topics, func(i, j int) bool {
+			if topics[i].GetCreatedAt() == topics[j].GetCreatedAt() {
+				return topics[i].GetId() > topics[j].GetId()
+			}
+			return topics[i].GetCreatedAt() > topics[j].GetCreatedAt()
+		})
+	}
 	items := make([]misskeyClipNote, 0, limit)
+	skip := offset
 	for _, topic := range topics {
 		if !compatNoteInWindow(topic.GetId(), topic.GetCreatedAt(), sinceID, untilID, sinceDate, untilDate) {
+			continue
+		}
+		if skip > 0 {
+			skip--
 			continue
 		}
 		note, ok := h.misskeyNoteFromTopic(c, ctx, topic)

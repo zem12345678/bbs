@@ -953,6 +953,27 @@ export const bbsApi = {
   noteTimeline(payload = {}, token) {
     return request("/notes/timeline", { method: "POST", body: payload, token, rawResponse: true });
   },
+  globalNoteTimeline(payload = {}, token) {
+    return request("/notes/global-timeline", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  localNoteTimeline(payload = {}, token) {
+    return request("/notes/local-timeline", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  followingNoteTimeline(payload = {}, token) {
+    return request("/notes/following", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  featuredNotes(payload = {}, token) {
+    return request("/notes/featured", { method: "POST", body: payload, token, rawResponse: true });
+  },
+  userFeaturedNotes(userId, payload = {}, token) {
+    return request("/users/featured-notes", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
+  },
+  noteChildren(noteId, payload = {}, token) {
+    return request("/notes/children", { method: "POST", body: { noteId: String(noteId), ...payload }, token, rawResponse: true });
+  },
+  noteReplies(noteId, payload = {}, token) {
+    return request("/notes/replies", { method: "POST", body: { noteId: String(noteId), ...payload }, token, rawResponse: true });
+  },
   userNotes(userId, payload = {}, token) {
     return request("/users/notes", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
   },

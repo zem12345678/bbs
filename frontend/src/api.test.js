@@ -990,6 +990,35 @@ test("calls Misskey-compatible note create, show, timeline, user notes, and dele
   );
 });
 
+test("calls Misskey-compatible note feed and reply endpoints", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return textResponse(200, "[]");
+  };
+
+  await bbsApi.globalNoteTimeline({ limit: 10 });
+  await bbsApi.localNoteTimeline({ limit: 9 });
+  await bbsApi.followingNoteTimeline({ limit: 8 }, "access-token");
+  await bbsApi.featuredNotes({ limit: 7 });
+  await bbsApi.userFeaturedNotes("9223372036854775807", { limit: 6 });
+  await bbsApi.noteChildren("9223372036854775806", { limit: 5 });
+  await bbsApi.noteReplies("9223372036854775805", { limit: 4 });
+
+  assert.deepEqual(requests.map(({ url }) => new URL(url).pathname), [
+    "/api/v1/notes/global-timeline",
+    "/api/v1/notes/local-timeline",
+    "/api/v1/notes/following",
+    "/api/v1/notes/featured",
+    "/api/v1/users/featured-notes",
+    "/api/v1/notes/children",
+    "/api/v1/notes/replies"
+  ]);
+  assert.deepEqual(JSON.parse(requests[4].options.body), { userId: "9223372036854775807", limit: 6 });
+  assert.deepEqual(JSON.parse(requests[6].options.body), { noteId: "9223372036854775805", limit: 4 });
+  assert.equal(requests[2].options.headers.Authorization, "Bearer access-token");
+});
+
 test("calls Misskey-compatible reaction and abuse-report endpoints", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

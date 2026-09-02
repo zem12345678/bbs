@@ -233,15 +233,22 @@ func (client *notesCompatContentClient) ListTopics(_ context.Context, request *c
 	if client.topics == nil {
 		return &contentpb.TopicListResponse{}, nil
 	}
+	filtered := make([]*contentpb.TopicInfo, 0, len(client.topics))
+	for _, topic := range client.topics {
+		if request.GetAuthorId() > 0 && (topic == nil || topic.GetAuthorId() != request.GetAuthorId()) {
+			continue
+		}
+		filtered = append(filtered, topic)
+	}
 	start := int(request.GetOffset())
-	if start >= len(client.topics) {
-		return &contentpb.TopicListResponse{Total: int64(len(client.topics))}, nil
+	if start >= len(filtered) {
+		return &contentpb.TopicListResponse{Total: int64(len(filtered))}, nil
 	}
 	end := start + int(request.GetLimit())
-	if end <= start || end > len(client.topics) {
-		end = len(client.topics)
+	if end <= start || end > len(filtered) {
+		end = len(filtered)
 	}
-	return &contentpb.TopicListResponse{Items: client.topics[start:end], Total: int64(len(client.topics))}, nil
+	return &contentpb.TopicListResponse{Items: filtered[start:end], Total: int64(len(filtered))}, nil
 }
 
 func (client *notesCompatContentClient) GetArticle(_ context.Context, request *contentpb.GetArticleRequest, _ ...grpc.CallOption) (*contentpb.ArticleResponse, error) {
