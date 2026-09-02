@@ -1012,6 +1012,32 @@ test("calls Misskey-compatible reaction and abuse-report endpoints", async () =>
     ]
   );
 });
+
+test("calls Misskey-compatible note reaction, favorite, like, and state endpoints", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options = {}) => {
+    requests.push({ url, options });
+    return textResponse(204, "");
+  };
+
+  await bbsApi.noteReactions("9223372036854775807", { type: "🔥", limit: 5 });
+  await bbsApi.likeNote("9223372036854775806", "access-token");
+  await bbsApi.favoriteNote("9223372036854775805", "access-token");
+  await bbsApi.unfavoriteNote("9223372036854775804", "access-token");
+  await bbsApi.noteState("9223372036854775803", "access-token");
+
+  assert.deepEqual(requests.map(({ url, options }) => [new URL(url).pathname, options.method]), [
+    ["/api/v1/notes/reactions", "POST"],
+    ["/api/v1/notes/like", "POST"],
+    ["/api/v1/notes/favorites/create", "POST"],
+    ["/api/v1/notes/favorites/delete", "POST"],
+    ["/api/v1/notes/state", "POST"]
+  ]);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { noteId: "9223372036854775807", type: "🔥", limit: 5 });
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+  assert.deepEqual(JSON.parse(requests[4].options.body), { noteId: "9223372036854775803" });
+  assert.equal(requests.slice(1).every(({ options }) => options.headers.Authorization === "Bearer access-token"), true);
+});
 test("maps following preference compatibility requests without breaking legacy follow calls", async () => {
   const requests = [];
   globalThis.fetch = async (url, options) => {

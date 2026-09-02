@@ -88,6 +88,8 @@ message ListReactionsRequest {
   int64 until_id = 6;
   int64 since_date = 7;
   int64 until_date = 8;
+  int64 entity_id = 9;
+  string reaction = 10;
 }
 
 message ReactionListResponse {

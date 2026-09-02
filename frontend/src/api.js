@@ -962,6 +962,21 @@ export const bbsApi = {
   deleteNoteReaction(noteId, token) {
     return request("/notes/reactions/delete", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
   },
+  noteReactions(noteId, payload = {}, token) {
+    return request("/notes/reactions", { method: "POST", body: { noteId: String(noteId), ...payload }, token, rawResponse: true });
+  },
+  likeNote(noteId, token) {
+    return request("/notes/like", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  favoriteNote(noteId, token) {
+    return request("/notes/favorites/create", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  unfavoriteNote(noteId, token) {
+    return request("/notes/favorites/delete", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
+  noteState(noteId, token) {
+    return request("/notes/state", { method: "POST", body: { noteId: String(noteId) }, token, rawResponse: true });
+  },
   userReactions(userId, payload = {}, token) {
     return request("/users/reactions", { method: "POST", body: { userId: String(userId), ...payload }, token, rawResponse: true });
   },

@@ -24,6 +24,12 @@ const (
 	notesReactionRenoteID           = "eaccdc08-ddef-43fe-908f-d108faad57f5"
 	notesReactionDeleteNoSuchNoteID = "764d9fce-f9f2-4a0e-92b1-6ceac9a7ad37"
 	notesReactionNotReactedID       = "92f4426d-4196-4125-aa5b-02943e2ec8fc"
+	notesFavoriteCreateNoSuchNoteID = "6dd26674-e060-4816-909a-45ba3f4da458"
+	notesFavoriteAlreadyID          = "a402c12b-34dd-41d2-97d8-4d2ffd96a1a6"
+	notesFavoriteDeleteNoSuchNoteID = "80848a2c-398f-4343-baa9-df1d57696c56"
+	notesFavoriteNotFavoritedID     = "b625fc69-635e-45e9-86f4-dbefbef35af5"
+	notesStateNoSuchNoteID          = "4f4f73c2-0298-4f6c-bc19-5211c25f9f87"
+	notesReactionsNoSuchNoteID      = "263fff3d-d0e1-4af4-bea7-8408059b451a"
 	usersReactionsNotPublicID       = "673a7dd2-6924-1093-e0c0-e68456ceae5c"
 	usersReactionsRemoteUserID      = "6b95fa98-8cf9-2350-e284-f0ffdb54a805"
 	usersReactionsNoSuchUserID      = usersNotesNoSuchUserID
@@ -39,6 +45,18 @@ type notesReactionCreateCompatRequest struct {
 
 type notesReactionDeleteCompatRequest struct {
 	NoteID *jsonInt64 `json:"noteId"`
+}
+
+type notesFavoriteCompatRequest struct {
+	NoteID *jsonInt64 `json:"noteId"`
+}
+
+type notesReactionsCompatRequest struct {
+	NoteID  *jsonInt64 `json:"noteId"`
+	Type    *string    `json:"type"`
+	Limit   *int32     `json:"limit"`
+	SinceID *jsonInt64 `json:"sinceId"`
+	UntilID *jsonInt64 `json:"untilId"`
 }
 
 type usersReactionsCompatRequest struct {
@@ -63,13 +81,226 @@ type misskeyNoteReactionCompat struct {
 	Note      misskeyClipNote `json:"note"`
 }
 
+type misskeyNoteReactionItemCompat struct {
+	ID        string          `json:"id"`
+	CreatedAt string          `json:"createdAt"`
+	User      misskeyUserLite `json:"user"`
+	Type      string          `json:"type"`
+}
+
 func (h *Handler) registerReactionsCompatRoutes(router *gin.Engine) {
 	for _, prefix := range []string{"", "/api", "/api/v1"} {
 		router.POST(prefix+"/notes/reactions/create", h.requireAuthScope("write"), h.createNoteReactionCompat)
 		router.POST(prefix+"/notes/reactions/delete", h.requireAuthScope("write"), h.deleteNoteReactionCompat)
+		router.POST(prefix+"/notes/reactions", h.optionalAuth(), h.listNoteReactionsCompat)
+		router.POST(prefix+"/notes/like", h.requireAuthScope("write"), h.likeNoteCompat)
+		router.POST(prefix+"/notes/favorites/create", h.requireAuthScope("write"), h.createNoteFavoriteCompat)
+		router.POST(prefix+"/notes/favorites/delete", h.requireAuthScope("write"), h.deleteNoteFavoriteCompat)
+		router.POST(prefix+"/notes/state", h.requireAuthScope("read"), h.noteStateCompat)
 		router.POST(prefix+"/users/reactions", h.optionalAuth(), h.listUserReactionsCompat)
 		router.POST(prefix+"/users/report-abuse", h.requireAuthScope("write"), h.reportUserAbuseCompat)
 	}
+}
+
+func (h *Handler) createNoteFavoriteCompat(c *gin.Context) {
+	h.mutateNoteFavoriteCompat(c, true)
+}
+
+func (h *Handler) deleteNoteFavoriteCompat(c *gin.Context) {
+	h.mutateNoteFavoriteCompat(c, false)
+}
+
+func (h *Handler) mutateNoteFavoriteCompat(c *gin.Context, create bool) {
+	var request notesFavoriteCompatRequest
+	if !decodeSensitiveAccountCompatRequest(c, &request) || request.NoteID == nil || request.NoteID.Int64() <= 0 {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", compatInvalidParamID)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	noSuchID := notesFavoriteDeleteNoSuchNoteID
+	if create {
+		noSuchID = notesFavoriteCreateNoSuchNoteID
+	}
+	ref, ok := h.resolveMisskeyReactionRef(c, ctx, request.NoteID.Int64(), noSuchID)
+	if !ok {
+		return
+	}
+	if h.clients == nil || h.clients.Reaction == nil {
+		writeRPCError(c, status.Error(codes.Unavailable, "reaction service unavailable"))
+		return
+	}
+	req := &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)}
+	var (
+		response *reactionpb.ReactResponse
+		err      error
+	)
+	if create {
+		response, err = h.clients.Reaction.Favorite(ctx, req)
+	} else {
+		response, err = h.clients.Reaction.Unfavorite(ctx, req)
+	}
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			writeFollowingCompatError(c, "No such note.", "NO_SUCH_NOTE", noSuchID)
+			return
+		}
+		writeRPCError(c, err)
+		return
+	}
+	if response != nil && !response.GetChanged() {
+		if create {
+			writeFollowingCompatError(c, "The note has already been marked as a favorite.", "ALREADY_FAVORITED", notesFavoriteAlreadyID)
+		} else {
+			writeFollowingCompatError(c, "You have not marked that note a favorite.", "NOT_FAVORITED", notesFavoriteNotFavoritedID)
+		}
+		return
+	}
+	c.Status(stdhttp.StatusNoContent)
+}
+
+func (h *Handler) likeNoteCompat(c *gin.Context) {
+	var request notesReactionCreateCompatRequest
+	if !decodeSensitiveAccountCompatRequest(c, &request) || request.NoteID == nil || request.NoteID.Int64() <= 0 {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", compatInvalidParamID)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	ref, ok := h.resolveMisskeyReactionRef(c, ctx, request.NoteID.Int64(), notesReactionCreateNoSuchNoteID)
+	if !ok {
+		return
+	}
+	if h.clients == nil || h.clients.Reaction == nil {
+		writeRPCError(c, status.Error(codes.Unavailable, "reaction service unavailable"))
+		return
+	}
+	_, err := h.clients.Reaction.Like(ctx, &reactionpb.ReactRequest{Entity: ref, UserId: currentUserID(c)})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			writeFollowingCompatError(c, "No such note.", "NO_SUCH_NOTE", notesReactionCreateNoSuchNoteID)
+			return
+		}
+		writeRPCError(c, err)
+		return
+	}
+	c.Status(stdhttp.StatusNoContent)
+}
+
+func (h *Handler) noteStateCompat(c *gin.Context) {
+	var request notesFavoriteCompatRequest
+	if !decodeSensitiveAccountCompatRequest(c, &request) || request.NoteID == nil || request.NoteID.Int64() <= 0 {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", compatInvalidParamID)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	ref, ok := h.resolveMisskeyReactionRef(c, ctx, request.NoteID.Int64(), notesStateNoSuchNoteID)
+	if !ok {
+		return
+	}
+	favorited, err := h.compatNoteFavorited(ctx, currentUserID(c), ref)
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	c.JSON(stdhttp.StatusOK, gin.H{
+		"isFavorited":   favorited,
+		"isMutedThread": false,
+		"isMutedNote":   false,
+		"isRenoted":     false,
+	})
+}
+
+func (h *Handler) compatNoteFavorited(ctx context.Context, userID int64, ref *reactionpb.EntityRef) (bool, error) {
+	if h.clients == nil || h.clients.Reaction == nil {
+		return false, status.Error(codes.Unavailable, "reaction service unavailable")
+	}
+	const pageSize int32 = 100
+	for offset := int32(0); ; offset += pageSize {
+		response, err := h.clients.Reaction.ListFavorites(ctx, &reactionpb.ListFavoritesRequest{UserId: userID, EntityType: ref.GetEntityType(), Limit: pageSize, Offset: offset})
+		if err != nil {
+			return false, err
+		}
+		for _, item := range response.GetItems() {
+			if item != nil && item.GetEntity().GetEntityId() == ref.GetEntityId() && item.GetEntity().GetEntityType() == ref.GetEntityType() {
+				return true, nil
+			}
+		}
+		if len(response.GetItems()) < int(pageSize) || response.GetTotal() <= int64(offset+pageSize) {
+			return false, nil
+		}
+	}
+}
+
+func (h *Handler) listNoteReactionsCompat(c *gin.Context) {
+	var request notesReactionsCompatRequest
+	if !decodeSensitiveAccountCompatRequest(c, &request) || request.NoteID == nil || request.NoteID.Int64() <= 0 {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", compatInvalidParamID)
+		return
+	}
+	limit, ok := normalizeCompatNoteLimit(request.Limit)
+	if !ok || !validCompatNoteWindow(request.SinceID, request.UntilID, nil, nil) || (request.Type != nil && !validCompatReaction(*request.Type)) {
+		writeFollowingCompatError(c, "Invalid param.", "INVALID_PARAM", compatInvalidParamID)
+		return
+	}
+	ctx, cancel := rpcContext(c)
+	defer cancel()
+	ref, ok := h.resolveMisskeyReactionRef(c, ctx, request.NoteID.Int64(), notesReactionsNoSuchNoteID)
+	if !ok {
+		return
+	}
+	if h.clients == nil || h.clients.Reaction == nil || h.clients.User == nil {
+		writeRPCError(c, status.Error(codes.Unavailable, "user or reaction service unavailable"))
+		return
+	}
+	reactionType := ""
+	if request.Type != nil {
+		reactionType = strings.TrimSpace(*request.Type)
+	}
+	response, err := h.clients.Reaction.ListReactions(ctx, &reactionpb.ListReactionsRequest{
+		EntityType: ref.GetEntityType(), EntityId: ref.GetEntityId(), Reaction: reactionType,
+		Limit: limit, SinceId: compatCursorValue(request.SinceID), UntilId: compatCursorValue(request.UntilID),
+	})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	userIDs := make([]int64, 0, len(response.GetItems()))
+	seen := make(map[int64]struct{}, len(response.GetItems()))
+	for _, item := range response.GetItems() {
+		if item == nil || item.GetUserId() <= 0 {
+			continue
+		}
+		if _, exists := seen[item.GetUserId()]; !exists {
+			seen[item.GetUserId()] = struct{}{}
+			userIDs = append(userIDs, item.GetUserId())
+		}
+	}
+	users, err := h.clients.User.ListUsers(ctx, &userpb.ListUsersRequest{Ids: userIDs, Page: 1, PageSize: int32(len(userIDs))})
+	if err != nil {
+		writeRPCError(c, err)
+		return
+	}
+	usersByID := make(map[int64]*userpb.UserInfo, len(users.GetItems()))
+	for _, user := range users.GetItems() {
+		if user != nil {
+			h.sanitizeUserProfileTheme(ctx, user)
+			usersByID[user.GetId()] = user
+		}
+	}
+	items := make([]misskeyNoteReactionItemCompat, 0, len(response.GetItems()))
+	for _, item := range response.GetItems() {
+		if item == nil {
+			continue
+		}
+		user := usersByID[item.GetUserId()]
+		if user == nil {
+			continue
+		}
+		items = append(items, misskeyNoteReactionItemCompat{ID: strconv.FormatInt(item.GetId(), 10), CreatedAt: formatUnixMilli(item.GetCreatedAt()), User: toMisskeyUserLite(user), Type: item.GetReaction()})
+	}
+	c.JSON(stdhttp.StatusOK, items)
 }
 
 func (h *Handler) createNoteReactionCompat(c *gin.Context) {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	domain "reaction-service/internal/domain/reaction"
@@ -145,6 +146,47 @@ func (r *PostgresReactionRepository) ListReactions(ctx context.Context, userID i
 	}
 	var rows []reactionPO
 	if err := query.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]*domain.Reaction, 0, len(rows))
+	for i := range rows {
+		out = append(out, toReactionEntity(&rows[i]))
+	}
+	return out, total, nil
+}
+
+func (r *PostgresReactionRepository) ListEntityReactions(ctx context.Context, ref domain.EntityRef, reaction string, limit int, sinceID, untilID int64) ([]*domain.Reaction, int64, error) {
+	if err := ref.Validate(); err != nil {
+		return nil, 0, err
+	}
+	if sinceID < 0 || untilID < 0 {
+		return nil, 0, domain.ErrInvalidReactionCursor
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	query := r.db.WithContext(ctx).Model(&reactionPO{}).Where("entity_type = ? AND entity_id = ?", string(ref.Type), ref.ID)
+	if normalized := strings.TrimSpace(reaction); normalized != "" {
+		if _, err := domain.NormalizeReaction(normalized); err != nil {
+			return nil, 0, err
+		}
+		query = query.Where("reaction = ?", normalized)
+	}
+	if sinceID > 0 {
+		query = query.Where("id > ?", sinceID)
+	}
+	if untilID > 0 {
+		query = query.Where("id < ?", untilID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []reactionPO
+	if err := query.Order("created_at DESC, id DESC").Limit(limit).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]*domain.Reaction, 0, len(rows))

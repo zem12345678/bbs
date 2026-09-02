@@ -59,6 +59,7 @@ type ReactionRepository interface {
 	CreateReaction(ctx context.Context, ref EntityRef, userID int64, reaction string) (*Reaction, bool, error)
 	DeleteReaction(ctx context.Context, ref EntityRef, userID int64) (bool, error)
 	ListReactions(ctx context.Context, userID int64, entityType EntityType, limit, offset int, sinceID, untilID, sinceDate, untilDate int64) ([]*Reaction, int64, error)
+	ListEntityReactions(ctx context.Context, ref EntityRef, reaction string, limit int, sinceID, untilID int64) ([]*Reaction, int64, error)
 }
 
 type PinRepository interface {

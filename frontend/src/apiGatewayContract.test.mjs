@@ -154,6 +154,11 @@ function extractGatewayRoutes() {
       for (const raw of [
         "/notes/reactions/create",
         "/notes/reactions/delete",
+        "/notes/reactions",
+        "/notes/like",
+        "/notes/favorites/create",
+        "/notes/favorites/delete",
+        "/notes/state",
         "/users/reactions",
         "/users/report-abuse"
       ]) {

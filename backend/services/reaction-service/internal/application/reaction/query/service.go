@@ -112,6 +112,19 @@ func (s *Service) ListReactions(ctx context.Context, userID int64, entityType do
 	return s.reactions.ListReactions(ctx, userID, entityType, limit, offset, sinceID, untilID, sinceDate, untilDate)
 }
 
+func (s *Service) ListEntityReactions(ctx context.Context, ref domain.EntityRef, reaction string, limit int, sinceID, untilID int64) ([]*domain.Reaction, int64, error) {
+	if s.reactions == nil {
+		return nil, 0, domain.ErrReactionRepositoryUnavailable
+	}
+	if err := ref.Validate(); err != nil {
+		return nil, 0, err
+	}
+	if sinceID < 0 || untilID < 0 {
+		return nil, 0, domain.ErrInvalidReactionCursor
+	}
+	return s.reactions.ListEntityReactions(ctx, ref, reaction, limit, sinceID, untilID)
+}
+
 func (s *Service) ListFavorites(ctx context.Context, userID int64, entityType domain.EntityType, limit, offset int) ([]*domain.Favorite, int64, error) {
 	if s.favorites == nil {
 		return nil, 0, domain.ErrReportNotFound

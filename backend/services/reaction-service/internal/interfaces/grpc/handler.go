@@ -228,7 +228,14 @@ func (h *Handler) DeleteReaction(ctx context.Context, req *pb.DeleteReactionRequ
 }
 
 func (h *Handler) ListReactions(ctx context.Context, req *pb.ListReactionsRequest) (*pb.ReactionListResponse, error) {
-	rows, total, err := h.qry.ListReactions(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()), req.GetSinceId(), req.GetUntilId(), req.GetSinceDate(), req.GetUntilDate())
+	var rows []*domain.Reaction
+	var total int64
+	var err error
+	if req.GetEntityId() > 0 {
+		rows, total, err = h.qry.ListEntityReactions(ctx, domain.EntityRef{Type: domain.EntityType(req.GetEntityType()), ID: req.GetEntityId()}, req.GetReaction(), int(req.GetLimit()), req.GetSinceId(), req.GetUntilId())
+	} else {
+		rows, total, err = h.qry.ListReactions(ctx, req.GetUserId(), domain.EntityType(req.GetEntityType()), int(req.GetLimit()), int(req.GetOffset()), req.GetSinceId(), req.GetUntilId(), req.GetSinceDate(), req.GetUntilDate())
+	}
 	if err != nil {
 		return nil, toStatus(err)
 	}

@@ -459,6 +459,8 @@ type ListReactionsRequest struct {
 	UntilId       int64                  `protobuf:"varint,6,opt,name=until_id,json=untilId,proto3" json:"until_id,omitempty"`
 	SinceDate     int64                  `protobuf:"varint,7,opt,name=since_date,json=sinceDate,proto3" json:"since_date,omitempty"`
 	UntilDate     int64                  `protobuf:"varint,8,opt,name=until_date,json=untilDate,proto3" json:"until_date,omitempty"`
+	EntityId      int64                  `protobuf:"varint,9,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	Reaction      string                 `protobuf:"bytes,10,opt,name=reaction,proto3" json:"reaction,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -547,6 +549,20 @@ func (x *ListReactionsRequest) GetUntilDate() int64 {
 		return x.UntilDate
 	}
 	return 0
+}
+
+func (x *ListReactionsRequest) GetEntityId() int64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *ListReactionsRequest) GetReaction() string {
+	if x != nil {
+		return x.Reaction
+	}
+	return ""
 }
 
 type ReactionListResponse struct {
@@ -3173,7 +3189,7 @@ const file_reaction_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\"\xf2\x01\n" +
+	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\"\xab\x02\n" +
 	"\x14ListReactionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
@@ -3185,7 +3201,10 @@ const file_reaction_proto_rawDesc = "" +
 	"\n" +
 	"since_date\x18\a \x01(\x03R\tsinceDate\x12\x1d\n" +
 	"\n" +
-	"until_date\x18\b \x01(\x03R\tuntilDate\"a\n" +
+	"until_date\x18\b \x01(\x03R\tuntilDate\x12\x1b\n" +
+	"\tentity_id\x18\t \x01(\x03R\bentityId\x12\x1a\n" +
+	"\breaction\x18\n" +
+	" \x01(\tR\breaction\"a\n" +
 	"\x14ReactionListResponse\x123\n" +
 	"\x05items\x18\x01 \x03(\v2\x1d.bbs.reaction.v1.ReactionInfoR\x05items\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\"C\n" +
